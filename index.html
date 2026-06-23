@@ -1161,16 +1161,16 @@
     <div class="sidebar-nav">
       <div class="nav-group">Principal</div>
       <a href="#painel" class="nav-item" data-route="painel">
-        Painel
+        <i class="ti ti-layout-dashboard"></i> Painel
       </a>
       <a href="#funcionarios" class="nav-item" data-route="funcionarios">
-        Funcionários
+        <i class="ti ti-users"></i> Funcionários
       </a>
       <a href="#locais" class="nav-item" data-route="locais">
-        Locais
+        <i class="ti ti-map-pin"></i> Locais
       </a>
       <a href="#organograma" class="nav-item" data-route="organograma">
-        Organograma
+        <i class="ti ti-sitemap"></i> Organograma
       </a>
 
       <div class="nav-group">Gestão</div>
@@ -1545,6 +1545,40 @@
             </thead>
             <tbody id="pend-tbody"><tr><td colspan="6" class="empty-state"><span class="spinner"></span> Carregando…</td></tr></tbody>
           </table>
+        </div>
+      </section>
+
+      <!-- ===== LICENÇAS E AFASTAMENTOS ===== -->
+      <section id="view-licencas" class="view-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+          <div class="row-label" style="margin:0"><i class="ti ti-activity"></i> Controle de Licenças e Afastamentos</div>
+          <button class="btn-primary" onclick="abrirModalLicenca()"><i class="ti ti-plus"></i> Registrar Afastamento</button>
+        </div>
+        <div class="stats-grid" id="licencas-kpis" style="margin-bottom:20px;"></div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:14px 16px;border-bottom:1px solid var(--gov-border);display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <div class="search-box" style="width:auto;flex:1;min-width:200px">
+              <i class="ti ti-search"></i>
+              <input type="text" id="lic-search" class="search-input" placeholder="Buscar por nome ou matrícula…">
+            </div>
+          </div>
+          <div class="table-container">
+            <table class="gov-table">
+              <thead>
+                <tr>
+                  <th>Servidor</th>
+                  <th>Tipo / Categoria</th>
+                  <th>Período</th>
+                  <th>Portaria / SEI</th>
+                  <th>Status</th>
+                  <th style="width:80px;text-align:center">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-licencas">
+                <tr><td colspan="6" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
 
@@ -3837,92 +3871,60 @@ $('btn-salvar-licenca').onclick = async () => {
 </div>
 
 
-  <!-- MODAL LICENÇA -->
-  <div class="modal" id="modal-licenca">
-    <div class="modal-content" style="max-width: 500px">
-      <div class="modal-header">
-        <h3>Registrar Afastamento / Licença</h3>
-        <button class="btn-action" onclick="closeModal('modal-licenca')"><i class="ti ti-x"></i></button>
-      </div>
-      <div class="modal-body">
+<!-- MODAL · LICENÇA / AFASTAMENTO -->
+<div class="modal-overlay" id="modal-licenca">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title"><i class="ti ti-activity"></i> Registrar Afastamento / Licença</div>
+      <button class="modal-close" onclick="closeModal('modal-licenca')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
         <input type="hidden" id="lic-func-id">
-        <div class="form-group">
-          <label>Servidor</label>
+        <div class="form-group full-width">
+          <label class="form-label">Servidor</label>
           <input type="text" id="lic-func-nome" class="form-control" disabled>
         </div>
-        <div class="form-group">
-          <label>Tipo de Afastamento</label>
+        <div class="form-group full-width">
+          <label class="form-label">Tipo de Afastamento *</label>
           <select id="lic-tipo" class="form-control">
             <option value="Licença Prêmio">Licença Prêmio</option>
             <option value="Licença Médica / Tratamento de Saúde">Licença Médica / Tratamento de Saúde</option>
             <option value="Licença Maternidade">Licença Maternidade</option>
             <option value="Licença para Trato de Interesses Particulares">Interesses Particulares</option>
             <option value="Afastamento para Estudo">Estudo / Mestrado / Doutorado</option>
+            <option value="Vacância">Vacância</option>
             <option value="Outros">Outros</option>
           </select>
         </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px">
-          <div class="form-group">
-            <label>Data Inicial</label>
-            <input type="date" id="lic-inicio" class="form-control">
-          </div>
-          <div class="form-group">
-            <label>Data Final (Opcional)</label>
-            <input type="date" id="lic-fim" class="form-control">
-          </div>
-        </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px">
-          <div class="form-group">
-            <label>Portaria</label>
-            <input type="text" id="lic-portaria" class="form-control" placeholder="Ex: 001/2026">
-          </div>
-          <div class="form-group">
-            <label>Nº SEI</label>
-            <input type="text" id="lic-sei" class="form-control">
-          </div>
+        <div class="form-group">
+          <label class="form-label">Data Inicial *</label>
+          <input type="date" id="lic-inicio" class="form-control">
         </div>
         <div class="form-group">
-          <label>Observação</label>
+          <label class="form-label">Data Final (Opcional)</label>
+          <input type="date" id="lic-fim" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Portaria</label>
+          <input type="text" id="lic-portaria" class="form-control" placeholder="Ex: 001/2026">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nº SEI</label>
+          <input type="text" id="lic-sei" class="form-control">
+        </div>
+        <div class="form-group full-width">
+          <label class="form-label">Observação</label>
           <textarea id="lic-obs" class="form-control" rows="3"></textarea>
         </div>
       </div>
-      <div class="modal-footer">
-        <button class="btn-secondary" onclick="closeModal('modal-licenca')">Cancelar</button>
-        <button class="btn-primary" id="btn-salvar-licenca">Salvar Afastamento</button>
-      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-licenca')">Cancelar</button>
+      <button class="btn-primary" id="btn-salvar-licenca">Salvar Afastamento</button>
     </div>
   </div>
-  </body>
-</html
-    <!-- VIEW: LICENÇAS -->
-    <div id="view-licencas" class="view">
-      <div class="view-header">
-        <h2 class="view-title"><i class="ti ti-activity"></i> Controle de Licenças e Afastamentos</h2>
-        <button class="btn-primary" onclick="abrirModalLicenca()"><i class="ti ti-plus"></i> Registrar Afastamento</button>
-      </div>
+</div>
 
-      <div class="stats-grid" id="licencas-kpis" style="margin-bottom:20px;">
-        <!-- KPIs inseridos via JS -->
-      </div>
-
-      <div class="card">
-        <div style="padding:15px; border-bottom:1px solid var(--gov-border); display:flex; gap:10px;">
-          <input type="text" id="lic-search" class="form-control" placeholder="Buscar por nome ou matrícula..." style="max-width:300px">
-        </div>
-        <div class="table-container">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>Servidor</th>
-                <th>Tipo / Categoria</th>
-                <th>Período</th>
-                <th>Portaria / SEI</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody id="tbody-licencas"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-    >
+</body>
+</html>
