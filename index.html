@@ -46,7 +46,7 @@
 
     .app {
       display: flex;
-      height: 100vh; /* Otimizado para desktop (tela inteira) */
+      height: 100vh;
       overflow: hidden;
     }
 
@@ -58,14 +58,62 @@
       display: flex;
       flex-direction: column;
       box-shadow: 2px 0 8px rgba(0,0,0,0.1);
-      z-index: 10;
+      z-index: 200;
+      transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
     }
 
+    /* Overlay escuro para mobile quando sidebar aberta */
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 199;
+      backdrop-filter: blur(2px);
+    }
+    .sidebar-overlay.active { display: block; }
+
+    /* Botão hambúrger */
+    .btn-hamburger {
+      display: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: var(--br-sm);
+      color: rgba(255,255,255,0.9);
+      font-size: 22px;
+      line-height: 1;
+      flex-shrink: 0;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn-hamburger:hover { background: rgba(255,255,255,0.15); }
+
+    /* Botão fechar sidebar no mobile */
+    .btn-close-sidebar {
+      display: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: rgba(255,255,255,0.8);
+      font-size: 20px;
+      padding: 4px 6px;
+      border-radius: 4px;
+      margin-left: auto;
+    }
+    .btn-close-sidebar:hover { color: #fff; background: rgba(255,255,255,0.15); }
+
     .sidebar-logo {
-      padding: 24px 20px;
+      padding: 20px 20px;
       border-bottom: 1px solid rgba(255,255,255,0.15);
       background: var(--gov-blue-dark);
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
+
+    .sidebar-logo-info { flex: 1; min-width: 0; }
 
     .brasao {
       width: 32px;
@@ -78,8 +126,7 @@
       font-size: 14px;
       color: var(--gov-blue-dark);
       font-weight: 700;
-      vertical-align: middle;
-      margin-right: 12px;
+      flex-shrink: 0;
     }
 
     .org-name {
@@ -87,15 +134,14 @@
       font-weight: 700;
       color: #fff;
       letter-spacing: 0.02em;
-      display: inline-block;
-      vertical-align: middle;
+      display: block;
     }
 
     .org-sub {
       font-size: 11px;
       color: rgba(255,255,255,0.7);
-      margin-left: 44px;
       margin-top: 2px;
+      display: block;
     }
 
     .nav-group {
@@ -195,12 +241,33 @@
       flex-shrink: 0;
       box-shadow: 0 1px 2px rgba(0,0,0,0.02);
       z-index: 5;
+      gap: 12px;
     }
+
+    /* Botão hamburger no topbar (mobile) */
+    .topbar-hamburger {
+      display: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: var(--br-sm);
+      color: var(--gov-blue-primary);
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .topbar-hamburger:hover { background: #f0f4f8; }
+
+    .topbar-left { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+    .topbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
     .topbar-title {
       font-size: 18px;
       font-weight: 700;
       color: var(--gov-blue-dark);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .topbar-bread {
@@ -220,6 +287,7 @@
       border-radius: 20px;
       font-weight: 500;
       border: 1px solid var(--gov-border);
+      white-space: nowrap;
     }
 
     .tib {
@@ -784,6 +852,211 @@
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     }
 
+    /* ============================================================
+       RESPONSIVIDADE — TABLET (≤ 1024px)
+    ============================================================ */
+    @media (max-width: 1024px) {
+      .content-area { padding: 20px; }
+      .topbar { padding: 0 20px; }
+      .stats-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+      .tbadge { display: none; } /* oculta badge São Luís no tablet pequeno */
+      #graficos-row { grid-template-columns: 1fr !important; }
+    }
+
+    /* ============================================================
+       RESPONSIVIDADE — MOBILE (≤ 768px)
+    ============================================================ */
+    @media (max-width: 768px) {
+
+      /* App: sidebar empilha em overlay */
+      .app { flex-direction: row; position: relative; }
+
+      .sidebar {
+        position: fixed;
+        top: 0; left: 0;
+        height: 100vh;
+        transform: translateX(-100%);
+        width: 280px;
+        z-index: 200;
+      }
+      .sidebar.open { transform: translateX(0); }
+
+      .btn-hamburger { display: inline-flex; }
+      .btn-close-sidebar { display: inline-flex; }
+      .topbar-hamburger { display: inline-flex; }
+
+      /* Topbar mobile */
+      .topbar {
+        padding: 0 16px;
+        height: 56px;
+      }
+      .topbar-title { font-size: 15px; }
+      .topbar-bread { display: none; }
+      .tbadge { display: none; }
+      .tib { display: none; }
+
+      /* Conteúdo mobile */
+      .content-area {
+        padding: 16px;
+        padding-bottom: 80px; /* espaço para bottom nav */
+      }
+
+      /* Stats cards: 2 colunas no mobile */
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+      .stat-val { font-size: 22px; }
+      .stat-lbl { font-size: 11px; }
+
+      /* Cards grid: 1 ou 2 colunas */
+      .cards-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+      }
+      .big-card { padding: 14px; }
+      .big-card-title { font-size: 13px; }
+
+      /* Tabela: scroll horizontal */
+      .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .gov-table th, .gov-table td { padding: 10px 12px; font-size: 12px; }
+
+      /* Filtros: coluna única */
+      .toolbar-filters {
+        flex-direction: column;
+        gap: 8px;
+        padding: 10px;
+      }
+      .toolbar-filters input,
+      .toolbar-filters select { width: 100%; }
+      #btn-limpar { width: 100%; justify-content: center; }
+
+      /* Gráficos: empilhados */
+      #graficos-row { grid-template-columns: 1fr !important; }
+
+      /* Modais: bottom-sheet */
+      .modal-overlay {
+        align-items: flex-end;
+      }
+      .modal-content {
+        max-width: 100% !important;
+        width: 100%;
+        border-radius: 16px 16px 0 0;
+        max-height: 92vh;
+        display: flex;
+        flex-direction: column;
+        animation: sheetUp 0.3s ease;
+      }
+      @keyframes sheetUp {
+        from { transform: translateY(100%); }
+        to   { transform: translateY(0); }
+      }
+      .modal-body {
+        flex: 1;
+        overflow-y: auto;
+        max-height: none !important;
+      }
+
+      /* Form grid: coluna única no mobile */
+      .form-grid { grid-template-columns: 1fr; }
+      .form-group.full-width { grid-column: span 1; }
+
+      /* Paginação mobile: compacta */
+      .pagination {
+        flex-direction: column;
+        gap: 10px;
+        align-items: center;
+        padding: 12px;
+      }
+      .page-info { font-size: 12px; }
+
+      /* Organograma */
+      .org-node { padding: 8px 10px; font-size: 12px; }
+      .org-children { padding-left: 12px; }
+
+      /* Row label */
+      .row-label { font-size: 15px; margin-bottom: 14px; }
+
+      /* Toast: bottom-center no mobile */
+      .toast {
+        bottom: 80px;
+        right: 16px;
+        left: 16px;
+        max-width: none;
+        text-align: center;
+        justify-content: center;
+      }
+
+      /* Ações de tabela: ícones menores */
+      .table-actions { gap: 4px; }
+      .btn-icon { height: 26px; font-size: 11px; padding: 0 8px; }
+
+      /* Crumbs: texto menor */
+      .crumbs button { font-size: 12px; padding: 3px 6px; }
+      .crumbs .current { font-size: 12px; }
+
+      /* Card seção */
+      .card { padding: 14px; }
+    }
+
+    /* ============================================================
+       RESPONSIVIDADE — MOBILE PEQUENO (≤ 400px)
+    ============================================================ */
+    @media (max-width: 400px) {
+      .stats-grid { grid-template-columns: 1fr; }
+      .cards-grid { grid-template-columns: 1fr; }
+      .stat-val { font-size: 20px; }
+    }
+
+    /* ============================================================
+       BOTTOM NAVIGATION BAR (apenas mobile)
+    ============================================================ */
+    .bottom-nav {
+      display: none;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 64px;
+      background: #fff;
+      border-top: 1px solid var(--gov-border);
+      z-index: 190;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.08);
+    }
+    .bottom-nav-inner {
+      display: flex;
+      height: 100%;
+    }
+    .bottom-nav-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      cursor: pointer;
+      background: none;
+      border: none;
+      color: var(--color-text-muted);
+      font-size: 10px;
+      font-family: var(--font-sans);
+      font-weight: 500;
+      padding: 8px 4px;
+      transition: color 0.2s;
+      text-decoration: none;
+    }
+    .bottom-nav-item i { font-size: 20px; }
+    .bottom-nav-item.active {
+      color: var(--gov-blue-primary);
+    }
+    .bottom-nav-item.active i {
+      background: var(--gov-blue-light);
+      border-radius: 10px;
+      padding: 2px 14px;
+    }
+    @media (max-width: 768px) {
+      .bottom-nav { display: block; }
+    }
+
     /* Cabeçalhos ordenáveis */
     .sortable { cursor: pointer; user-select: none; white-space: nowrap; transition: background .15s; }
     .sortable:hover { background: var(--gov-blue-light); }
@@ -802,11 +1075,16 @@
 <body>
 
 <div class="app">
-  <nav class="sidebar" aria-label="Menu Principal">
+  <nav class="sidebar" id="sidebar" aria-label="Menu Principal">
     <div class="sidebar-logo">
       <span class="brasao">S</span>
-      <span class="org-name">SEMCAS</span>
-      <div class="org-sub">Gestão de Pessoas</div>
+      <div class="sidebar-logo-info">
+        <span class="org-name">SEMCAS</span>
+        <span class="org-sub">Gestão de Pessoas</span>
+      </div>
+      <button class="btn-close-sidebar" id="btn-close-sidebar" title="Fechar menu" aria-label="Fechar menu">
+        <i class="ti ti-x"></i>
+      </button>
     </div>
 
     <div class="sidebar-nav">
@@ -844,13 +1122,18 @@
 
   <main class="main">
     <header class="topbar">
-      <div>
-        <div class="topbar-title" id="header-title">Painel de Gestão</div>
-        <div class="topbar-bread" id="header-bread">Início <span>›</span> <strong>Painel</strong></div>
+      <div class="topbar-left">
+        <button class="topbar-hamburger" id="btn-topbar-hamburger" title="Abrir menu" aria-label="Abrir menu">
+          <i class="ti ti-menu-2"></i>
+        </button>
+        <div>
+          <div class="topbar-title" id="header-title">Painel de Gestão</div>
+          <div class="topbar-bread" id="header-bread">Início <span>›</span> <strong>Painel</strong></div>
+        </div>
       </div>
-      <div>
+      <div class="topbar-right">
         <span class="tbadge">São Luís — MA</span>
-        <button class="tib"></button>
+        <button class="tib"><i class="ti ti-bell"></i></button>
       </div>
     </header>
 
@@ -941,6 +1224,31 @@
     </div>
   </main>
 </div>
+
+<!-- Overlay escuro da sidebar mobile -->
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+<!-- BOTTOM NAVIGATION BAR (mobile) -->
+<nav class="bottom-nav" aria-label="Navegação principal">
+  <div class="bottom-nav-inner">
+    <a href="#painel" class="bottom-nav-item" data-route="painel">
+      <i class="ti ti-layout-dashboard"></i>
+      <span>Painel</span>
+    </a>
+    <a href="#funcionarios" class="bottom-nav-item" data-route="funcionarios">
+      <i class="ti ti-users"></i>
+      <span>Servidores</span>
+    </a>
+    <a href="#locais" class="bottom-nav-item" data-route="locais">
+      <i class="ti ti-map-pin"></i>
+      <span>Locais</span>
+    </a>
+    <a href="#organograma" class="bottom-nav-item" data-route="organograma">
+      <i class="ti ti-sitemap"></i>
+      <span>Organograma</span>
+    </a>
+  </div>
+</nav>
 
 <!-- MODAL · EDITAR -->
 <div class="modal-overlay" id="modal-edit">
@@ -1217,15 +1525,38 @@ function navigate() {
   const def = rotas[rota] || rotas['painel'];
 
   $$('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.route === rota));
+  $$('.bottom-nav-item').forEach(el => el.classList.toggle('active', el.dataset.route === rota));
   $$('.view-section').forEach(el => el.classList.remove('active'));
   $(`view-${rota}`)?.classList.add('active');
 
   $('header-title').textContent = def.titulo;
   $('header-bread').innerHTML = `Início <span>›</span> <strong>${def.bread}</strong>`;
 
+  // Fecha sidebar automaticamente no mobile ao navegar
+  closeSidebarMobile();
+
   def.render(resto);
 }
 window.addEventListener('hashchange', navigate);
+
+// ── Sidebar mobile ──
+function openSidebarMobile() {
+  $('sidebar').classList.add('open');
+  $('sidebar-overlay').classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+function closeSidebarMobile() {
+  $('sidebar').classList.remove('open');
+  $('sidebar-overlay').classList.remove('active');
+  // Não mexe no overflow se modal estiver aberto
+  if (!document.querySelector('.modal-overlay[style*="flex"]')) {
+    document.body.style.overflow = '';
+  }
+}
+$('btn-close-sidebar').addEventListener('click', closeSidebarMobile);
+$('btn-topbar-hamburger').addEventListener('click', openSidebarMobile);
+$('sidebar-overlay').addEventListener('click', closeSidebarMobile);
+
 
 // ╔══════════════════════════════════════════════════════════════╗
 // ║                  CARGA INICIAL DE DOMÍNIOS                    ║
