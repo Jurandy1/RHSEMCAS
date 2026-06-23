@@ -3670,20 +3670,24 @@ window.abrirModalLicenca = async (id = null) => {
   const divFunc = $('lic-func-nome').parentNode;
 
   if (id) {
-    const func = state.funcionariosFiltrados?.find(x => x.funcionario_id === id) || 
-                 await sb.from('funcionarios').select('nome').eq('id', id).single().then(r => r.data);
+    const func = await sb.from('funcionarios').select('nome').eq('id', id).single().then(r => r.data);
     divFunc.innerHTML = `<label class="form-label">Servidor</label><input type="text" id="lic-func-nome" class="form-control" disabled value="${func ? htmlEscape(func.nome) : ''}">`;
   } else {
-    const opts = (state.funcionariosFiltrados || []).map(f => `<option value="${htmlEscape(f.nome)} - Mat: ${f.matricula || 'S/M'}" data-id="${f.funcionario_id}"></option>`).join('');
-    divFunc.innerHTML = `
-      <label class="form-label">Servidor *</label>
-      <input list="lic-func-list" id="lic-func-search" class="form-control" placeholder="Digite nome ou matrícula..." onchange="
-        const val = this.value;
-        const opt = Array.from(document.getElementById('lic-func-list').options).find(o => o.value === val);
-        $('lic-func-id').value = opt ? opt.dataset.id : '';
-      ">
-      <datalist id="lic-func-list">${opts}</datalist>
-    `;
+    divFunc.innerHTML = `<label class="form-label">Servidor *</label><input type="text" class="form-control" placeholder="Carregando servidores..." disabled>`;
+    
+    // Fetch data asynchronously
+    sb.from('v_funcionarios_atual').select('funcionario_id, nome, matricula').order('nome').then(({ data }) => {
+      const opts = (data || []).map(f => `<option value="${htmlEscape(f.nome)} - Mat: ${f.matricula || 'S/M'}" data-id="${f.funcionario_id}"></option>`).join('');
+      divFunc.innerHTML = `
+        <label class="form-label">Servidor *</label>
+        <input list="lic-func-list" id="lic-func-search" class="form-control" placeholder="Digite nome ou matrícula..." oninput="
+          const val = this.value;
+          const opt = Array.from(document.getElementById('lic-func-list').options).find(o => o.value === val);
+          document.getElementById('lic-func-id').value = opt ? opt.dataset.id : '';
+        ">
+        <datalist id="lic-func-list">${opts}</datalist>
+      `;
+    });
   }
   openModal('modal-licenca');
 };
