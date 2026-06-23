@@ -1174,8 +1174,17 @@
       </a>
 
       <div class="nav-group">Gestão</div>
+      <a href="#ferias" class="nav-item" data-route="ferias">
+        <i class="ti ti-beach"></i> Férias
+      </a>
       <a href="#folha-ponto" class="nav-item" data-route="folha-ponto">
         <i class="ti ti-clock"></i> Folha de Ponto
+      </a>
+      <a href="#pendentes" class="nav-item" data-route="pendentes">
+        <i class="ti ti-user-question"></i> Pendentes <span id="badge-pendentes" style="background:var(--gov-red);color:#fff;font-size:10px;padding:2px 7px;border-radius:10px;margin-left:6px;font-weight:600">0</span>
+      </a>
+      <a href="#lotacoes" class="nav-item" data-route="lotacoes">
+        <i class="ti ti-building"></i> Gestão de Lotações
       </a>
       <a href="#" class="nav-item" onclick="event.preventDefault(); showToast('Em breve','info')">
         Relatórios
@@ -1255,15 +1264,17 @@
           <table class="gov-table">
             <thead>
               <tr>
+                <th style="width:90px">Matrícula</th>
                 <th class="sortable" data-sort="nome" onclick="sortTable('nome')">Nome do Servidor</th>
                 <th class="sortable" data-sort="vinculo" onclick="sortTable('vinculo')">Vínculo</th>
                 <th class="sortable" data-sort="funcao" onclick="sortTable('funcao')">Função</th>
                 <th class="sortable" data-sort="lotacao_nome" onclick="sortTable('lotacao_nome')">Lotação Atual</th>
+                <th style="width:100px">Admissão</th>
                 <th class="sortable" data-sort="turno" onclick="sortTable('turno')">Turno</th>
                 <th style="width:140px;text-align:center">Ações</th>
               </tr>
             </thead>
-            <tbody id="table-body"><tr><td colspan="6" class="empty-state"><span class="spinner"></span> Carregando…</td></tr></tbody>
+            <tbody id="table-body"><tr><td colspan="8" class="empty-state"><span class="spinner"></span> Carregando…</td></tr></tbody>
           </table>
           <div class="pagination">
             <div class="page-info" id="page-info">—</div>
@@ -1483,6 +1494,78 @@
         </div>
       </section>
 
+      <!-- ===== FÉRIAS ===== -->
+      <section id="view-ferias" class="view-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+          <div class="row-label" style="margin:0">Controle de Férias</div>
+          <button class="btn-primary" onclick="abrirAgendarFerias()"><i class="ti ti-plus"></i> Agendar Férias</button>
+        </div>
+        <div class="stats-grid" id="ferias-kpis"></div>
+        <div style="display:flex;gap:4px;border-bottom:2px solid var(--gov-border);margin:20px 0 16px" id="ferias-tabs">
+          <button class="fer-tab active" data-aba="atuais">Em férias agora <span class="badge-cnt" id="cnt-atuais">0</span></button>
+          <button class="fer-tab" data-aba="proximas">Próximas (60d) <span class="badge-cnt" id="cnt-proximas">0</span></button>
+          <button class="fer-tab" data-aba="pendentes">Pendentes <span class="badge-cnt" id="cnt-pendentes">0</span></button>
+          <button class="fer-tab" data-aba="historico">Histórico</button>
+        </div>
+        <div id="ferias-aba-conteudo"><span class="spinner"></span> Carregando…</div>
+      </section>
+
+      <!-- ===== PENDENTES (servidores da folha não casados) ===== -->
+      <section id="view-pendentes" class="view-section">
+        <div class="row-label">Servidores Pendentes de Cadastro</div>
+        <div style="background:#FEF3C7;border-left:4px solid #F59E0B;padding:12px 16px;border-radius:4px;font-size:13px;margin-bottom:16px;color:#92400E">
+          <i class="ti ti-alert-triangle"></i>
+          <strong>Como funciona:</strong> Esses servidores aparecem na folha de pagamento mas não foram encontrados na planilha de lotações. Pra cada um, você pode <strong>casar com um servidor existente</strong> (atualiza matrícula+admissão) ou <strong>criar novo cadastro</strong> escolhendo a lotação. Servidores não relevantes podem ser <strong>descartados</strong>.
+        </div>
+        <div class="stats-grid" id="pendentes-kpis"></div>
+        <div class="toolbar-filters" style="margin-top:16px">
+          <input type="text" id="pend-busca" placeholder="🔍 Buscar por nome ou matrícula…" style="flex:1;min-width:240px">
+          <select id="pend-status-filtro">
+            <option value="pendente">Pendentes</option>
+            <option value="casado">Casados</option>
+            <option value="novo_cadastrado">Novos cadastrados</option>
+            <option value="descartado">Descartados</option>
+            <option value="">Todos</option>
+          </select>
+        </div>
+        <div class="table-container" style="margin-top:12px">
+          <table class="gov-table">
+            <thead>
+              <tr>
+                <th style="width:90px">Matrícula</th>
+                <th>Nome</th>
+                <th style="width:110px">Admissão</th>
+                <th>Sugestões de Match</th>
+                <th style="width:100px">Status</th>
+                <th style="width:220px;text-align:center">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="pend-tbody"><tr><td colspan="6" class="empty-state"><span class="spinner"></span> Carregando…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ===== GESTÃO DE LOTAÇÕES ===== -->
+      <section id="view-lotacoes" class="view-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+          <div>
+            <div class="row-label" style="margin:0">Gestão de Lotações</div>
+            <small style="color:var(--color-text-muted)">Adicionar, renomear, mover ou inativar coordenações, diretorias e unidades</small>
+          </div>
+          <button class="btn-primary" onclick="abrirNovaLotacao(null)"><i class="ti ti-plus"></i> Nova Lotação</button>
+        </div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px">
+            <input type="text" id="lot-busca" placeholder="🔍 Filtrar…" class="form-control" style="max-width:280px">
+            <div style="display:flex;gap:6px">
+              <button class="btn-secondary" onclick="lotExpandirTudo()">Expandir</button>
+              <button class="btn-secondary" onclick="lotRecolherTudo()">Recolher</button>
+            </div>
+          </div>
+          <div id="lot-tree" class="org-tree" style="max-height:70vh;overflow-y:auto"><span class="spinner"></span> Carregando…</div>
+        </div>
+      </section>
+
     </div>
   </main>
 </div>
@@ -1533,6 +1616,10 @@
         <div class="form-group">
           <label class="form-label">Matrícula</label>
           <input type="text" class="form-control" id="edit-matricula">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data de Admissão</label>
+          <input type="date" class="form-control" id="edit-admissao">
         </div>
         <div class="form-group">
           <label class="form-label">E-mail</label>
@@ -2065,7 +2152,7 @@ function renderFilterTags() {
 }
 
 async function carregarFuncionarios() {
-  $('table-body').innerHTML = `<tr><td colspan="6" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>`;
+  $('table-body').innerHTML = `<tr><td colspan="8" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>`;
   const params = {
     p_termo:      state.filtros.busca || null,
     p_vinculo_id: state.filtros.vinculo_id ? Number(state.filtros.vinculo_id) : null,
@@ -2084,14 +2171,24 @@ async function carregarFuncionarios() {
   state.total = data?.[0]?.total || 0;
 
   if (data.length === 0) {
-    $('table-body').innerHTML = `<tr><td colspan="6"><div class="empty-state">Nenhum funcionário encontrado</div></td></tr>`;
+    $('table-body').innerHTML = `<tr><td colspan="8"><div class="empty-state">Nenhum funcionário encontrado</div></td></tr>`;
   } else {
-    $('table-body').innerHTML = data.map(f => `
+    // Busca matrícula + admissão em paralelo (não vem da RPC)
+    const ids = data.map(d => d.funcionario_id);
+    const { data: extras } = await sb.from('funcionarios').select('id, matricula, data_admissao').in('id', ids);
+    const mapEx = Object.fromEntries((extras || []).map(x => [x.id, x]));
+    const fmtDt = (s) => s ? new Date(s + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+
+    $('table-body').innerHTML = data.map(f => {
+      const ex = mapEx[f.funcionario_id] || {};
+      return `
       <tr>
+        <td style="font-family:monospace;font-size:12px;color:var(--color-text-sec)">${htmlEscape(ex.matricula || '—')}</td>
         <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(f.nome)}</td>
         <td>${htmlEscape(f.vinculo || '-')}</td>
         <td>${htmlEscape(f.funcao || '—')}</td>
         <td title="${htmlEscape(f.caminho_lotacao || '')}">${htmlEscape(f.lotacao_nome || '—')}</td>
+        <td style="font-size:12px;color:var(--color-text-sec)">${fmtDt(ex.data_admissao)}</td>
         <td>${htmlEscape(f.turno || '—')}</td>
         <td style="text-align:center">
           <div class="table-actions">
@@ -2100,7 +2197,8 @@ async function carregarFuncionarios() {
             <button class="btn-icon" title="Histórico" onclick="verHistorico(${f.funcionario_id})">Histórico</button>
           </div>
         </td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
   }
   renderPaginacao();
 }
@@ -2347,12 +2445,15 @@ window.orgRecolherTudo = () => {
 window.abrirEdicao = async (id) => {
   const data = await handleErr(await sb.from('v_funcionarios_atual').select('*').eq('funcionario_id', id).single(), 'editar');
   if (!data) return;
+  // Busca matrícula + admissão (não vêm na view)
+  const ext = await handleErr(await sb.from('funcionarios').select('matricula, data_admissao').eq('id', id).single(), 'edit extras');
   state.funcionarioAtual = data;
   
   $('edit-id').value = id;
   $('edit-nome').value      = data.nome || '';
   $('edit-cpf').value       = data.cpf || '';
-  $('edit-matricula').value = data.matricula || '';
+  $('edit-matricula').value = ext?.matricula || data.matricula || '';
+  $('edit-admissao').value  = ext?.data_admissao || '';
   $('edit-email').value     = data.email || '';
   $('edit-telefone').value  = data.telefone || '';
   $('edit-funcao').value    = data.funcao || '';
@@ -2380,6 +2481,10 @@ $('btn-salvar-edit').onclick = async () => {
     p_email:     $('edit-email').value.trim() || null,
     p_telefone:  $('edit-telefone').value.trim() || null,
   });
+  // data_admissao não está na RPC (coluna nova), atualiza direto
+  const r1b = await sb.from('funcionarios')
+    .update({ data_admissao: $('edit-admissao').value || null })
+    .eq('id', id);
   const r2 = await sb.rpc('fn_editar_lotacao_atual', {
     p_funcionario_id: id,
     p_funcao:        $('edit-funcao').value.trim() || null,
@@ -2389,8 +2494,8 @@ $('btn-salvar-edit').onclick = async () => {
   });
   btn.disabled = false;
   
-  if (r1.error || r2.error) {
-    showToast('Erro ao salvar: ' + (r1.error?.message || r2.error?.message), 'error');
+  if (r1.error || r1b.error || r2.error) {
+    showToast('Erro ao salvar: ' + (r1.error?.message || r1b.error?.message || r2.error?.message), 'error');
     return;
   }
   showToast('Alterações salvas com sucesso', 'success');
@@ -2587,6 +2692,13 @@ async function renderFolhaPonto() {
     if (chkN) chkN.onchange = () => { _fpHolCfg.nac = chkN.checked; fpRenderFeriados(); fpPopularDias(); };
     if (chkE) chkE.onchange = () => { _fpHolCfg.est = chkE.checked; fpRenderFeriados(); fpPopularDias(); };
     if (chkM) chkM.onchange = () => { _fpHolCfg.mun = chkM.checked; fpRenderFeriados(); fpPopularDias(); };
+    sb.from('feriados').select('*').eq('ativo', true).then(res => {
+      if (res.data) {
+        _fpHolCfg.custom = res.data.map(d => ({ id: d.id, date: d.data, nome: d.nome }));
+        fpRenderFeriados();
+        fpPopularDias();
+      }
+    });
   }
 
   // Carrega servidores do Supabase (uma vez)
@@ -2753,7 +2865,7 @@ function fpGetHolidays(year) {
   if (_fpHolCfg.nac) out.push(...fpFerNacionais(year));
   if (_fpHolCfg.est) out.push(...fpFerEstaduais(year));
   if (_fpHolCfg.mun) out.push(...fpFerMunicipais(year));
-  (_fpHolCfg.custom || []).forEach(c => out.push({ date: c.date, nome: c.nome, tipo: 'Personalizado' }));
+  (_fpHolCfg.custom || []).forEach(c => out.push({ id: c.id, date: c.date, nome: c.nome, tipo: 'Personalizado' }));
   return out;
 }
 
@@ -2804,22 +2916,34 @@ function fpRenderFeriados() {
         <span style="min-width:72px;color:var(--color-text-muted)">${new Date(h.date+'T00:00:00').toLocaleDateString('pt-BR')}</span>
         <span style="flex:1;font-weight:600">${htmlEscape(h.nome)}</span>
         <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:#f1f3f5;color:#555">${h.tipo}</span>
+        ${h.id ? `<button onclick="fpDelFeriado(${h.id})" style="color:var(--gov-red);background:none;border:none;cursor:pointer"><i class="ti ti-trash"></i></button>` : ''}
       </div>`
     ).join('');
 }
 
-function fpAddFeriado() {
+async function fpAddFeriado() {
   const dt   = $('fp-fer-data')?.value;
   const nome = $('fp-fer-nome')?.value?.trim();
   if (!dt || !nome) { showToast('Informe data e nome do feriado', 'warning'); return; }
+  const { data, error } = await sb.from('feriados').insert([{ data: dt, nome, tipo: 'Personalizado' }]).select().single();
+  if (error) { showToast('Erro ao salvar feriado', 'error'); return; }
   _fpHolCfg.custom = _fpHolCfg.custom || [];
-  _fpHolCfg.custom.push({ date: dt, nome });
+  _fpHolCfg.custom.push({ id: data.id, date: data.data, nome: data.nome });
   $('fp-fer-data').value = '';
   $('fp-fer-nome').value = '';
   fpRenderFeriados();
   fpPopularDias();
   showToast('Feriado personalizado adicionado!', 'success');
 }
+
+window.fpDelFeriado = async (id) => {
+  const { error } = await sb.from('feriados').delete().eq('id', id);
+  if (error) { showToast('Erro ao remover feriado', 'error'); return; }
+  _fpHolCfg.custom = _fpHolCfg.custom.filter(c => c.id !== id);
+  fpRenderFeriados();
+  fpPopularDias();
+  showToast('Feriado removido', 'info');
+};
 
 // ── Expor funções ao window (necessário pois o script é um ES module) ──────────
 // Inline handlers (onclick/onchange no HTML) não enxergam escopo de módulo.
@@ -2985,7 +3109,627 @@ function fpImprimirUnidade() {
     }, 800);
   }, 100);
 }
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║              ROTEAMENTO — adiciona novas rotas                ║
+// ╚══════════════════════════════════════════════════════════════╝
+if (typeof rotas !== 'undefined') {
+  rotas.ferias    = { titulo: 'Controle de Férias',     bread: 'Férias',     render: renderFerias };
+  rotas.pendentes = { titulo: 'Servidores Pendentes',   bread: 'Pendentes',  render: renderPendentes };
+  rotas.lotacoes  = { titulo: 'Gestão de Lotações',     bread: 'Lotações',   render: renderLotacoes };
+}
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                          FÉRIAS                               ║
+// ╚══════════════════════════════════════════════════════════════╝
+const stateFer = { aba: 'atuais' };
+
+async function renderFerias() {
+  const kpis = await handleErr(await sb.from('v_ferias_kpis').select('*').single(), 'KPIs férias');
+  if (kpis) {
+    $('ferias-kpis').innerHTML = [
+      ['Em férias hoje',  kpis.em_ferias_hoje,    'Servidores ausentes agora', 'var(--gov-green)'],
+      ['Próximas (60d)',  kpis.proximas_60_dias,  'Agendadas pros próximos 60 dias', 'var(--gov-yellow)'],
+      ['Pendentes',       kpis.pendentes,         '+12 meses sem férias', 'var(--gov-red)'],
+      ['Concluídas (12m)',kpis.concluidas_ultimo_ano, 'Último ano', 'var(--gov-blue-primary)'],
+    ].map(([lbl, val, sub, cor]) => `
+      <div class="stat" style="border-left-color:${cor}">
+        <div class="stat-lbl">${lbl}</div>
+        <div class="stat-val">${(val||0).toLocaleString('pt-BR')}</div>
+        <div class="stat-sub">${sub}</div>
+      </div>`).join('');
+    $('cnt-atuais').textContent    = kpis.em_ferias_hoje || 0;
+    $('cnt-proximas').textContent  = kpis.proximas_60_dias || 0;
+    $('cnt-pendentes').textContent = kpis.pendentes || 0;
+  }
+  carregarAbaFerias(stateFer.aba);
+}
+
+$$('.fer-tab').forEach(t => t.onclick = () => {
+  $$('.fer-tab').forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  stateFer.aba = t.dataset.aba;
+  carregarAbaFerias(stateFer.aba);
+});
+
+const fmtDt = (s) => s ? new Date(s + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+
+async function carregarAbaFerias(aba) {
+  $('ferias-aba-conteudo').innerHTML = '<span class="spinner"></span> Carregando…';
+  let view, render;
+  if (aba === 'atuais') {
+    view = 'v_ferias_atuais';
+    render = (rows) => rows.length === 0
+      ? `<div class="empty-state">Nenhum servidor de férias hoje</div>`
+      : `<table class="gov-table">
+          <thead><tr><th>Nome</th><th>Lotação</th><th>Função</th><th>Início</th><th>Término</th><th>Dias restantes</th><th>Tipo</th><th style="width:80px">Ações</th></tr></thead>
+          <tbody>${rows.map(r => `
+            <tr>
+              <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(r.nome)}</td>
+              <td>${htmlEscape(r.lotacao_nome || '—')}</td>
+              <td>${htmlEscape(r.funcao || '—')}</td>
+              <td>${fmtDt(r.data_inicio)}</td>
+              <td>${fmtDt(r.data_fim)}</td>
+              <td><strong>${r.dias_restantes}</strong> dias</td>
+              <td>${r.tipo}</td>
+              <td style="text-align:center"><button class="btn-icon" onclick="cancelarFerias(${r.ferias_id})">Cancelar</button></td>
+            </tr>`).join('')}</tbody></table>`;
+  } else if (aba === 'proximas') {
+    view = 'v_ferias_proximas';
+    render = (rows) => rows.length === 0
+      ? `<div class="empty-state">Sem férias agendadas pros próximos 60 dias</div>`
+      : `<table class="gov-table">
+          <thead><tr><th>Nome</th><th>Lotação</th><th>Função</th><th>Início</th><th>Término</th><th>Em quantos dias</th><th>Tipo</th><th style="width:80px">Ações</th></tr></thead>
+          <tbody>${rows.map(r => `
+            <tr>
+              <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(r.nome)}</td>
+              <td>${htmlEscape(r.lotacao_nome || '—')}</td>
+              <td>${htmlEscape(r.funcao || '—')}</td>
+              <td>${fmtDt(r.data_inicio)}</td>
+              <td>${fmtDt(r.data_fim)}</td>
+              <td><strong>${r.dias_para_iniciar}</strong> dias</td>
+              <td>${r.tipo}</td>
+              <td style="text-align:center"><button class="btn-icon" onclick="cancelarFerias(${r.ferias_id})">Cancelar</button></td>
+            </tr>`).join('')}</tbody></table>`;
+  } else if (aba === 'pendentes') {
+    view = 'v_ferias_pendentes';
+    render = (rows) => rows.length === 0
+      ? `<div class="empty-state">Todos os servidores tiraram férias nos últimos 12 meses ✓</div>`
+      : `<table class="gov-table">
+          <thead><tr><th>Nome</th><th>Lotação</th><th>Função</th><th>Vínculo</th><th>Situação</th><th>Dias sem férias</th><th style="width:140px">Ações</th></tr></thead>
+          <tbody>${rows.map(r => `
+            <tr>
+              <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(r.nome)}</td>
+              <td>${htmlEscape(r.lotacao_nome || '—')}</td>
+              <td>${htmlEscape(r.funcao || '—')}</td>
+              <td>${htmlEscape(r.vinculo || '—')}</td>
+              <td>${htmlEscape(r.situacao)}</td>
+              <td><strong>${r.dias_sem_ferias === 999 ? '∞' : r.dias_sem_ferias}</strong></td>
+              <td style="text-align:center"><button class="btn-secondary" style="font-size:11px;padding:4px 8px" onclick="abrirAgendarFeriasPara(${r.funcionario_id}, '${htmlEscape(r.nome).replace(/'/g,'&#39;')}')">Agendar</button></td>
+            </tr>`).join('')}</tbody></table>`;
+  } else {
+    view = 'v_ferias_historico';
+    render = (rows) => rows.length === 0
+      ? `<div class="empty-state">Nenhum registro de férias ainda</div>`
+      : `<table class="gov-table">
+          <thead><tr><th>Nome</th><th>Início</th><th>Término</th><th>Dias</th><th>Tipo</th><th>Status</th><th>Observação</th></tr></thead>
+          <tbody>${rows.map(r => `
+            <tr>
+              <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(r.nome)}</td>
+              <td>${fmtDt(r.data_inicio)}</td>
+              <td>${fmtDt(r.data_fim)}</td>
+              <td>${r.dias}</td>
+              <td>${r.tipo}</td>
+              <td>${r.status}</td>
+              <td style="font-size:12px;color:var(--color-text-muted)">${htmlEscape(r.observacao || '—')}</td>
+            </tr>`).join('')}</tbody></table>`;
+  }
+  const rows = await handleErr(await sb.from(view).select('*').range(0, 9999), `aba ${aba}`) || [];
+  $('ferias-aba-conteudo').innerHTML = `<div class="table-container">${render(rows)}</div>`;
+}
+
+window.cancelarFerias = async (id) => {
+  const motivo = prompt('Motivo do cancelamento (opcional):');
+  const { error } = await sb.rpc('fn_cancelar_ferias', { p_ferias_id: id, p_motivo: motivo || null });
+  if (error) return showToast('Erro: ' + error.message, 'error');
+  showToast('Férias canceladas', 'success');
+  renderFerias();
+};
+
+window.abrirAgendarFerias = () => {
+  ['fer-func-id','fer-search','fer-inicio','fer-fim','fer-dias','fer-obs'].forEach(id => $(id).value = '');
+  $('fer-tipo').value = 'regular';
+  openModal('modal-ferias');
+  setTimeout(() => $('fer-search').focus(), 100);
+};
+window.abrirAgendarFeriasPara = (funcId, nome) => {
+  abrirAgendarFerias();
+  $('fer-func-id').value = funcId;
+  $('fer-search').value = nome;
+};
+
+document.addEventListener('input', debounce(async (e) => {
+  if (e.target.id !== 'fer-search') return;
+  const q = e.target.value.trim();
+  if (q.length < 2) { $('fer-suggest').innerHTML = ''; return; }
+  const data = await handleErr(await sb.rpc('fn_buscar_funcionarios', {
+    p_termo: q, p_vinculo_id: null, p_lotacao_id: null, p_funcao: null, p_turno_id: null,
+    p_limite: 8, p_offset: 0, p_order_by: 'nome', p_order_dir: 'asc'
+  }), 'autocomp');
+  if (!data || data.length === 0) { $('fer-suggest').innerHTML = '<div style="padding:8px;font-size:12px;color:var(--color-text-muted)">Nenhum resultado</div>'; return; }
+  $('fer-suggest').innerHTML = `<div style="position:absolute;background:#fff;border:1px solid var(--gov-border);border-radius:4px;max-height:200px;overflow-y:auto;z-index:10;width:100%;box-shadow:var(--shadow-md)">
+    ${data.map(d => `<div class="lotacao-tree-item" data-id="${d.funcionario_id}" data-nome="${htmlEscape(d.nome)}" style="padding:8px 10px">
+      <strong>${htmlEscape(d.nome)}</strong> · <small>${htmlEscape(d.lotacao_nome || '')}</small>
+    </div>`).join('')}
+  </div>`;
+  $$('#fer-suggest .lotacao-tree-item').forEach(el => el.onclick = () => {
+    $('fer-func-id').value = el.dataset.id;
+    $('fer-search').value = el.dataset.nome;
+    $('fer-suggest').innerHTML = '';
+  });
+}, 250));
+
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'fer-inicio' || e.target.id === 'fer-fim') {
+    const ini = $('fer-inicio').value, fim = $('fer-fim').value;
+    if (ini && fim) {
+      const d = Math.floor((new Date(fim) - new Date(ini)) / 86400000) + 1;
+      $('fer-dias').value = d > 0 ? `${d} dia(s)` : 'Data inválida';
+    }
+  }
+});
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                       PENDENTES                               ║
+// ╚══════════════════════════════════════════════════════════════╝
+const statePend = { busca: '', status: 'pendente' };
+
+async function renderPendentes() {
+  const kpis = await handleErr(await sb.from('v_pendentes_kpis').select('*').single(), 'pend kpis');
+  if (kpis) {
+    $('pendentes-kpis').innerHTML = [
+      ['Pendentes',         kpis.pendentes,         'Aguardam revisão',     'var(--gov-red)'],
+      ['Casados',           kpis.casados,           'Atualizados existentes','var(--gov-green)'],
+      ['Novos Cadastrados', kpis.novos_cadastrados, 'Criados no sistema',    'var(--gov-blue-primary)'],
+      ['Descartados',       kpis.descartados,       'Não cadastrados',       'var(--color-text-muted)'],
+    ].map(([lbl, val, sub, cor]) => `
+      <div class="stat" style="border-left-color:${cor}">
+        <div class="stat-lbl">${lbl}</div>
+        <div class="stat-val">${(val||0).toLocaleString('pt-BR')}</div>
+        <div class="stat-sub">${sub}</div>
+      </div>`).join('');
+    $('badge-pendentes').textContent = kpis.pendentes || 0;
+    $('badge-pendentes').style.display = (kpis.pendentes || 0) > 0 ? '' : 'none';
+  }
+  carregarPendentes();
+}
+
+async function carregarPendentes() {
+  $('pend-tbody').innerHTML = '<tr><td colspan="6" class="empty-state"><span class="spinner"></span></td></tr>';
+  let q = sb.from('v_pendentes_com_sugestao').select('*');
+  if (statePend.status) q = q.eq('status', statePend.status);
+  if (statePend.busca) q = q.or(`nome.ilike.%${statePend.busca}%,matricula.ilike.%${statePend.busca}%`);
+  // Quando o filtro de status não é pendente, a view só retorna pendentes — uso a tabela base
+  if (statePend.status && statePend.status !== 'pendente') {
+    q = sb.from('funcionarios_folha_pendentes').select('*').eq('status', statePend.status);
+    if (statePend.busca) q = q.or(`nome.ilike.%${statePend.busca}%,matricula.ilike.%${statePend.busca}%`);
+  }
+  const data = await handleErr(await q.order('nome').range(0, 9999), 'pendentes') || [];
+  if (data.length === 0) {
+    $('pend-tbody').innerHTML = '<tr><td colspan="6" class="empty-state">Nenhum registro</td></tr>';
+    return;
+  }
+  $('pend-tbody').innerHTML = data.map(p => {
+    const sugs = (p.sugestoes || []).slice(0, 3);
+    const sugHtml = sugs.length === 0
+      ? '<small style="color:var(--color-text-muted)">Nenhuma sugestão automática</small>'
+      : sugs.map(s => `<div style="font-size:12px;padding:2px 0">
+          <strong>${(s.similarity*100).toFixed(0)}%</strong> · ${htmlEscape(s.nome)}
+          ${p.status === 'pendente' ? `<button class="btn-link" onclick="associarPendente(${p.id}, ${s.id})">associar →</button>` : ''}
+        </div>`).join('');
+    const statusBadge = {
+      'pendente':        '<span style="background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">PENDENTE</span>',
+      'casado':          '<span style="background:#D1FAE5;color:#065F46;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">CASADO</span>',
+      'novo_cadastrado': '<span style="background:#DBEAFE;color:#1E40AF;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">NOVO</span>',
+      'descartado':      '<span style="background:#E5E7EB;color:#4B5563;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">DESCARTADO</span>',
+    }[p.status];
+    const acoes = p.status === 'pendente' ? `
+      <button class="btn-secondary" style="font-size:11px;padding:4px 8px" onclick="abrirCadastrarPendente(${p.id})"><i class="ti ti-plus"></i> Novo</button>
+      <button class="btn-icon" title="Descartar" onclick="descartarPendente(${p.id})"><i class="ti ti-x"></i></button>
+    ` : `<small style="color:var(--color-text-muted)">Resolvido</small>`;
+    return `<tr>
+      <td style="font-family:monospace">${htmlEscape(p.matricula)}</td>
+      <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(p.nome)}</td>
+      <td style="font-size:12px">${fmtDt(p.data_admissao)}</td>
+      <td>${sugHtml}</td>
+      <td>${statusBadge}</td>
+      <td style="text-align:center"><div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap">${acoes}</div></td>
+    </tr>`;
+  }).join('');
+}
+
+document.addEventListener('input', debounce((e) => {
+  if (e.target.id === 'pend-busca') { statePend.busca = e.target.value.trim(); carregarPendentes(); }
+}, 300));
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'pend-status-filtro') { statePend.status = e.target.value; carregarPendentes(); }
+});
+
+window.associarPendente = async (pendId, funcId) => {
+  if (!confirm('Confirmar associação? Isso vai atualizar matrícula e data de admissão do servidor selecionado.')) return;
+  const { error } = await sb.rpc('fn_resolver_pendente_associar', { p_pendente_id: pendId, p_funcionario_id: funcId });
+  if (error) return showToast('Erro: ' + error.message, 'error');
+  showToast('Associado com sucesso', 'success');
+  renderPendentes();
+};
+
+window.descartarPendente = async (pendId) => {
+  const motivo = prompt('Motivo do descarte (opcional):');
+  if (motivo === null) return;
+  const { error } = await sb.rpc('fn_descartar_pendente', { p_pendente_id: pendId, p_motivo: motivo || null });
+  if (error) return showToast('Erro: ' + error.message, 'error');
+  showToast('Descartado', 'success');
+  renderPendentes();
+};
+
+window.abrirCadastrarPendente = async (pendId) => {
+  const p = await handleErr(await sb.from('funcionarios_folha_pendentes').select('*').eq('id', pendId).single(), 'pend');
+  if (!p) return;
+  $('cad-pend-id').value = pendId;
+  $('cad-pend-info').innerHTML = `
+    <strong>${htmlEscape(p.nome)}</strong><br>
+    <small>Matrícula: ${htmlEscape(p.matricula)} · Admissão: ${fmtDt(p.data_admissao)}</small>`;
+  // Popula selects
+  $('cad-pend-lotacao').innerHTML = '<option value="">Selecione…</option>' +
+    state.lotacoes.filter(l => l.funcionarios_direto !== null).sort((a,b) => a.nome.localeCompare(b.nome))
+      .map(l => `<option value="${l.id}">${htmlEscape(l.nome)} [${l.tipo}]</option>`).join('');
+  $('cad-pend-vinculo').innerHTML = state.vinculos.map(v => `<option value="${v.id}">${htmlEscape(v.categoria)}</option>`).join('');
+  $('cad-pend-turno').innerHTML = '<option value="">—</option>' + state.turnos.map(t => `<option value="${t.id}">${htmlEscape(t.nome)}</option>`).join('');
+  $('cad-pend-funcao').value = '';
+  openModal('modal-cadastrar-pendente');
+};
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                  GESTÃO DE LOTAÇÕES                           ║
+// ╚══════════════════════════════════════════════════════════════╝
+const stateLot = { busca: '' };
+
+async function renderLotacoes() {
+  const data = await handleErr(await sb.rpc('fn_organograma_completo'), 'organograma') || [];
+  const byId = Object.fromEntries(data.map(x => [x.id, { ...x, filhos: [] }]));
+  const raizes = [];
+  for (const n of Object.values(byId)) {
+    if (n.parent_id && byId[n.parent_id]) byId[n.parent_id].filhos.push(n);
+    else raizes.push(n);
+  }
+  Object.values(byId).forEach(n => n.filhos.sort((a,b)=>a.nome.localeCompare(b.nome)));
+  raizes.sort((a,b)=>a.nome.localeCompare(b.nome));
+  function render(n, depth) {
+    const tem = n.filhos.length > 0;
+    const t = n.funcionarios_total;
+    const podeInativar = (t === 0) && !tem;
+    return `<div class="org-node" data-id="${n.id}" data-nome="${htmlEscape(n.nome).replace(/"/g,'&quot;')}" data-filhos="${tem}" style="padding-left:${8+depth*16}px">
+      <span class="toggle ${tem?'':'empty'}"><i class="ti ti-chevron-right"></i></span>
+      <span class="tipo-tag" style="font-size:9px;padding:2px 6px;background:var(--gov-bg-light);color:var(--color-text-sec);border-radius:4px;text-transform:uppercase;font-weight:600">${n.tipo}</span>
+      <span style="flex:1;font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(n.nome)}</span>
+      <span class="badge-count ${t===0?'zero':''}" style="background:${t===0?'#ddd':'var(--gov-blue-primary)'};color:${t===0?'#888':'#fff'};padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">${t}</span>
+      <div class="table-actions" style="display:flex;gap:4px;margin-left:6px" onclick="event.stopPropagation()">
+        <button class="btn-icon" title="Adicionar filho" onclick="abrirNovaLotacao(${n.id})"><i class="ti ti-plus"></i></button>
+        <button class="btn-icon" title="Editar" onclick="abrirEditarLotacao(${n.id})"><i class="ti ti-pencil"></i></button>
+        <button class="btn-icon" title="Mover" onclick="abrirMoverLotacao(${n.id})"><i class="ti ti-arrow-move-right"></i></button>
+        <button class="btn-icon" title="Ver servidores" onclick="state.filtros={busca:'',vinculo_id:null,lotacao_id:${n.id}}; location.hash='#funcionarios'"><i class="ti ti-eye"></i></button>
+        ${podeInativar ? `<button class="btn-icon" title="Inativar" onclick="inativarLotacao(${n.id})"><i class="ti ti-trash"></i></button>` : ''}
+      </div>
+    </div>` + (tem ? `<div class="org-children" data-parent="${n.id}">${n.filhos.map(c => render(c, depth+1)).join('')}</div>` : '');
+  }
+  $('lot-tree').innerHTML = raizes.map(r => render(r, 0)).join('');
+  $$('#lot-tree .org-node').forEach(node => {
+    node.onclick = (e) => {
+      if (e.target.closest('button')) return;
+      if (node.dataset.filhos !== 'true') return;
+      const kids = document.querySelector(`#lot-tree .org-children[data-parent="${node.dataset.id}"]`);
+      const tog = node.querySelector('.toggle i');
+      if (!kids) return;
+      const open = kids.classList.toggle('open');
+      tog.className = open ? 'ti ti-chevron-down' : 'ti ti-chevron-right';
+    };
+  });
+}
+window.lotExpandirTudo = () => { $$('#lot-tree .org-children').forEach(el => el.classList.add('open')); };
+window.lotRecolherTudo = () => { $$('#lot-tree .org-children').forEach(el => el.classList.remove('open')); };
+
+window.abrirNovaLotacao = (parentId) => {
+  $('nl-id').value = '';
+  $('nl-parent').value = parentId || '';
+  $('nl-nome').value = '';
+  $('nl-tipo').value = 'coordenacao';
+  $('nl-marcador').value = '';
+  $('nl-parent-info').textContent = parentId
+    ? (state.lotacoes.find(l => l.id == parentId)?.nome || '?')
+    : 'Raiz (sem pai)';
+  openModal('modal-lotacao');
+  setTimeout(() => $('nl-nome').focus(), 100);
+};
+window.abrirEditarLotacao = (id) => {
+  const lot = state.lotacoes.find(l => l.id == id);
+  if (!lot) return;
+  $('nl-id').value = id;
+  $('nl-parent').value = lot.parent_id || '';
+  $('nl-parent-info').textContent = lot.parent_id ? (state.lotacoes.find(l => l.id == lot.parent_id)?.nome || '?') : 'Raiz';
+  $('nl-nome').value = lot.nome;
+  $('nl-tipo').value = lot.tipo;
+  $('nl-marcador').value = lot.marcador || '';
+  openModal('modal-lotacao');
+};
+window.salvarLotacao = async () => {
+  const id = $('nl-id').value;
+  const parent = $('nl-parent').value ? Number($('nl-parent').value) : null;
+  const params = {
+    p_nome: $('nl-nome').value.trim(),
+    p_tipo: $('nl-tipo').value,
+    p_marcador: $('nl-marcador').value.trim() || null,
+  };
+  let r;
+  if (id) {
+    r = await sb.rpc('fn_editar_lotacao', { p_lotacao_id: Number(id), ...params });
+  } else {
+    r = await sb.rpc('fn_criar_lotacao', { ...params, p_parent_id: parent });
+  }
+  if (r.error) return showToast('Erro: ' + r.error.message, 'error');
+  showToast(id ? 'Lotação atualizada' : 'Lotação criada', 'success');
+  closeModal('modal-lotacao');
+  await recarregarLotacoes();
+  renderLotacoes();
+};
+
+window.abrirMoverLotacao = (id) => {
+  const lot = state.lotacoes.find(l => l.id == id);
+  if (!lot) return;
+  $('mov-id').value = id;
+  $('mov-info').innerHTML = `<strong>${htmlEscape(lot.nome)}</strong><br><small>Pai atual: ${htmlEscape(state.lotacoes.find(x => x.id == lot.parent_id)?.nome || 'Raiz')}</small>`;
+  $('mov-novo-parent').innerHTML = '<option value="">Raiz (sem pai)</option>' +
+    state.lotacoes.filter(l => l.id != id).sort((a,b)=>a.nome.localeCompare(b.nome))
+      .map(l => `<option value="${l.id}">${htmlEscape(l.nome)} [${l.tipo}]</option>`).join('');
+  openModal('modal-mover-lotacao');
+};
+window.confirmarMoverLotacao = async () => {
+  const id = Number($('mov-id').value);
+  const novoParent = $('mov-novo-parent').value ? Number($('mov-novo-parent').value) : null;
+  const { error } = await sb.rpc('fn_mover_lotacao', { p_lotacao_id: id, p_novo_parent: novoParent });
+  if (error) return showToast('Erro: ' + error.message, 'error');
+  showToast('Lotação movida', 'success');
+  closeModal('modal-mover-lotacao');
+  await recarregarLotacoes();
+  renderLotacoes();
+};
+
+window.inativarLotacao = async (id) => {
+  if (!confirm('Confirma inativar essa lotação?')) return;
+  const { error } = await sb.rpc('fn_inativar_lotacao', { p_lotacao_id: id });
+  if (error) return showToast('Erro: ' + error.message, 'error');
+  showToast('Lotação inativada', 'success');
+  await recarregarLotacoes();
+  renderLotacoes();
+};
+
+async function recarregarLotacoes() {
+  const { data } = await sb.from('v_lotacoes_com_count').select('*').range(0, 9999).order('nome');
+  if (data) state.lotacoes = data;
+}
+
+// === Submit modais ===
+document.addEventListener('click', (e) => {
+  if (e.target.closest('#btn-salvar-ferias'))         salvarFerias();
+  if (e.target.closest('#btn-salvar-lotacao'))        window.salvarLotacao();
+  if (e.target.closest('#btn-confirmar-mover'))       window.confirmarMoverLotacao();
+  if (e.target.closest('#btn-cadastrar-pendente'))    salvarCadastrarPendente();
+});
+
+async function salvarFerias() {
+  const funcId = Number($('fer-func-id').value);
+  if (!funcId) return showToast('Selecione um servidor', 'warning');
+  if (!$('fer-inicio').value || !$('fer-fim').value) return showToast('Datas obrigatórias', 'warning');
+  const btn = $('btn-salvar-ferias'); btn.disabled = true;
+  const { error } = await sb.rpc('fn_agendar_ferias', {
+    p_funcionario_id: funcId,
+    p_data_inicio: $('fer-inicio').value,
+    p_data_fim:    $('fer-fim').value,
+    p_tipo:        $('fer-tipo').value,
+    p_observacao:  $('fer-obs').value.trim() || null,
+  });
+  btn.disabled = false;
+  if (error) return showToast('Erro: ' + error.message, 'error');
+  showToast('Férias agendadas', 'success');
+  closeModal('modal-ferias');
+  renderFerias();
+}
+
+async function salvarCadastrarPendente() {
+  const pendId = Number($('cad-pend-id').value);
+  const lotId = $('cad-pend-lotacao').value ? Number($('cad-pend-lotacao').value) : null;
+  const vincId = $('cad-pend-vinculo').value ? Number($('cad-pend-vinculo').value) : null;
+  if (!lotId || !vincId) return showToast('Lotação e vínculo são obrigatórios', 'warning');
+  const { error } = await sb.rpc('fn_resolver_pendente_novo', {
+    p_pendente_id: pendId,
+    p_lotacao_id:  lotId,
+    p_vinculo_id:  vincId,
+    p_funcao:      $('cad-pend-funcao').value.trim() || null,
+    p_turno_id:    $('cad-pend-turno').value ? Number($('cad-pend-turno').value) : null,
+  });
+  if (error) return showToast('Erro: ' + error.message, 'error');
+  showToast('Servidor cadastrado', 'success');
+  closeModal('modal-cadastrar-pendente');
+  renderPendentes();
+}
+
+// === Badge de pendentes na boot ===
+(async () => {
+  const { data } = await sb.from('v_pendentes_kpis').select('pendentes').single();
+  if (data && $('badge-pendentes')) {
+    $('badge-pendentes').textContent = data.pendentes;
+    $('badge-pendentes').style.display = data.pendentes > 0 ? '' : 'none';
+  }
+})();
 </script>
+
+<style>
+  .fer-tab {
+    padding: 10px 16px; background: none; border: none; cursor: pointer;
+    font-size: 13px; color: var(--color-text-sec); border-bottom: 2px solid transparent;
+    margin-bottom: -2px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px;
+    font-family: inherit;
+  }
+  .fer-tab:hover { color: var(--gov-blue-primary); }
+  .fer-tab.active { color: var(--gov-blue-primary); border-bottom-color: var(--gov-blue-primary); font-weight: 600; }
+  .badge-cnt { background: var(--gov-blue-light); color: var(--gov-blue-dark); padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .fer-tab.active .badge-cnt { background: var(--gov-blue-primary); color: #fff; }
+</style>
+
+<!-- MODAL · AGENDAR FÉRIAS -->
+<div class="modal-overlay" id="modal-ferias">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title"><i class="ti ti-beach"></i> Agendar Férias</div>
+      <button class="modal-close" onclick="closeModal('modal-ferias')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group full-width">
+          <label class="form-label">Servidor *</label>
+          <input type="text" id="fer-search" class="form-control" placeholder="Digite o nome…">
+          <input type="hidden" id="fer-func-id">
+          <div id="fer-suggest" style="position:relative"></div>
+        </div>
+        <div class="form-group"><label class="form-label">Início *</label><input type="date" id="fer-inicio" class="form-control"></div>
+        <div class="form-group"><label class="form-label">Término *</label><input type="date" id="fer-fim" class="form-control"></div>
+        <div class="form-group">
+          <label class="form-label">Tipo</label>
+          <select id="fer-tipo" class="form-control">
+            <option value="regular">Férias Regulares</option>
+            <option value="premio">Licença-Prêmio</option>
+            <option value="licenca">Licença</option>
+            <option value="abono">Abono</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Dias</label><input type="text" id="fer-dias" class="form-control" readonly></div>
+        <div class="form-group full-width"><label class="form-label">Observação</label><textarea id="fer-obs" class="form-control" rows="2"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-ferias')">Cancelar</button>
+      <button class="btn-primary" id="btn-salvar-ferias">Agendar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · CRIAR/EDITAR LOTAÇÃO -->
+<div class="modal-overlay" id="modal-lotacao">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title"><i class="ti ti-building"></i> Lotação</div>
+      <button class="modal-close" onclick="closeModal('modal-lotacao')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="nl-id">
+      <input type="hidden" id="nl-parent">
+      <div class="form-grid">
+        <div class="form-group full-width">
+          <label class="form-label">Pai (parent)</label>
+          <div id="nl-parent-info" style="padding:8px 12px;background:var(--gov-bg-light);border-radius:4px;font-size:13px"></div>
+        </div>
+        <div class="form-group full-width">
+          <label class="form-label">Nome *</label>
+          <input type="text" id="nl-nome" class="form-control" placeholder="Ex: Coordenação de Apoio Administrativo">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tipo *</label>
+          <select id="nl-tipo" class="form-control">
+            <option value="superintendencia">Superintendência</option>
+            <option value="coordenacao">Coordenação</option>
+            <option value="diretoria">Diretoria</option>
+            <option value="unidade">Unidade</option>
+            <option value="conselho">Conselho</option>
+            <option value="setor">Setor</option>
+            <option value="nivel">Nível</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Marcador (opcional)</label>
+          <input type="text" id="nl-marcador" class="form-control" placeholder="Ex: a, b, I, II">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-lotacao')">Cancelar</button>
+      <button class="btn-primary" id="btn-salvar-lotacao">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · MOVER LOTAÇÃO -->
+<div class="modal-overlay" id="modal-mover-lotacao">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title"><i class="ti ti-arrow-move-right"></i> Mover Lotação</div>
+      <button class="modal-close" onclick="closeModal('modal-mover-lotacao')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="mov-id">
+      <div class="form-grid">
+        <div class="form-group full-width">
+          <div id="mov-info" style="padding:12px;background:var(--gov-blue-light);border-radius:4px;font-size:13px"></div>
+        </div>
+        <div class="form-group full-width">
+          <label class="form-label">Novo Pai</label>
+          <select id="mov-novo-parent" class="form-control"></select>
+          <small style="color:var(--color-text-muted);font-size:11px">A lotação leva todos os filhos e servidores junto.</small>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-mover-lotacao')">Cancelar</button>
+      <button class="btn-primary" id="btn-confirmar-mover">Mover</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · CADASTRAR PENDENTE COMO NOVO -->
+<div class="modal-overlay" id="modal-cadastrar-pendente">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title"><i class="ti ti-user-plus"></i> Cadastrar Novo Servidor</div>
+      <button class="modal-close" onclick="closeModal('modal-cadastrar-pendente')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="cad-pend-id">
+      <div class="form-grid">
+        <div class="form-group full-width">
+          <div id="cad-pend-info" style="padding:12px;background:var(--gov-blue-light);border-radius:4px;font-size:13px"></div>
+        </div>
+        <div class="form-group full-width">
+          <label class="form-label">Lotação *</label>
+          <select id="cad-pend-lotacao" class="form-control"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Vínculo *</label>
+          <select id="cad-pend-vinculo" class="form-control"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Turno</label>
+          <select id="cad-pend-turno" class="form-control"></select>
+        </div>
+        <div class="form-group full-width">
+          <label class="form-label">Função / Cargo</label>
+          <input type="text" id="cad-pend-funcao" class="form-control">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-cadastrar-pendente')">Cancelar</button>
+      <button class="btn-primary" id="btn-cadastrar-pendente">Cadastrar</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
