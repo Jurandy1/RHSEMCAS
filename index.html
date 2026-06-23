@@ -2443,7 +2443,7 @@ window.orgRecolherTudo = () => {
 // ║                     MODAL EDIÇÃO                              ║
 // ╚══════════════════════════════════════════════════════════════╝
 window.abrirEdicao = async (id) => {
-  const data = await handleErr(await sb.from('v_funcionarios_atual').select('*').eq('funcionario_id', id).single(), 'editar');
+  const data = await handleErr(await sb.from('v_funcionarios_atual').select('*').eq('funcionario_id', id).limit(1).single(), 'editar');
   if (!data) return;
   // Busca matrícula + admissão (não vêm na view)
   const ext = await handleErr(await sb.from('funcionarios').select('matricula, data_admissao').eq('id', id).single(), 'edit extras');
@@ -2507,7 +2507,7 @@ $('btn-salvar-edit').onclick = async () => {
 // ║                    MODAL TRANSFERÊNCIA                        ║
 // ╚══════════════════════════════════════════════════════════════╝
 window.abrirTransferencia = async (id) => {
-  const data = await handleErr(await sb.from('v_funcionarios_atual').select('*').eq('funcionario_id', id).single(), 'transfer');
+  const data = await handleErr(await sb.from('v_funcionarios_atual').select('*').eq('funcionario_id', id).limit(1).single(), 'transfer');
   if (!data) return;
   state.funcionarioAtual = data;
   
