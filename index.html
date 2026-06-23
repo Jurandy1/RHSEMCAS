@@ -1,0 +1,1958 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painel RH SEMCAS - Gov.br</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  
+  <style>
+    :root {
+      /* Paleta Gov.br */
+      --gov-blue-primary: #1351b4;
+      --gov-blue-dark: #071d41;
+      --gov-blue-light: #e3f2fd;
+      --gov-yellow: #ffcd07;
+      --gov-green: #168821;
+      --gov-red: #e52207;
+      --gov-bg-light: #f8f9fa;
+      --gov-border: #e6e6e6;
+      
+      /* Tipografia Gov.br (Inter como fallback para Rawline) */
+      --font-sans: 'Inter', sans-serif;
+      --color-text-main: #333333;
+      --color-text-sec: #555555;
+      --color-text-muted: #888888;
+      
+      /* Sombras e Raios padrão */
+      --br-sm: 4px;
+      --br-md: 8px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.05);
+      --shadow-modal: 0 10px 25px -5px rgba(0,0,0,0.2);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      background-color: var(--gov-bg-light);
+      color: var(--color-text-main);
+      font-family: var(--font-sans);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .app {
+      display: flex;
+      height: 100vh; /* Otimizado para desktop (tela inteira) */
+      overflow: hidden;
+    }
+
+    /* --- SIDEBAR --- */
+    .sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      background: var(--gov-blue-primary);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+      z-index: 10;
+    }
+
+    .sidebar-logo {
+      padding: 24px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.15);
+      background: var(--gov-blue-dark);
+    }
+
+    .brasao {
+      width: 32px;
+      height: 32px;
+      background: var(--gov-yellow);
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: var(--gov-blue-dark);
+      font-weight: 700;
+      vertical-align: middle;
+      margin-right: 12px;
+    }
+
+    .org-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.02em;
+      display: inline-block;
+      vertical-align: middle;
+    }
+
+    .org-sub {
+      font-size: 11px;
+      color: rgba(255,255,255,0.7);
+      margin-left: 44px;
+      margin-top: 2px;
+    }
+
+    .nav-group {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.6);
+      padding: 24px 20px 8px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 20px;
+      cursor: pointer;
+      color: rgba(255,255,255,0.8);
+      font-size: 14px;
+      border-left: 4px solid transparent;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .nav-item:hover {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+    }
+
+    .nav-item.active {
+      background: var(--gov-blue-dark);
+      color: #fff;
+      border-left: 4px solid var(--gov-yellow);
+      font-weight: 600;
+    }
+
+    .nav-item i {
+      font-size: 18px;
+      width: 20px;
+      text-align: center;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 8px 0;
+      overflow-y: auto;
+    }
+
+    .sidebar-footer {
+      padding: 16px 20px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      background: var(--gov-blue-dark);
+    }
+
+    .user-av {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(255,205,7,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--gov-yellow);
+    }
+
+    .user-name {
+      font-size: 13px;
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .user-role {
+      font-size: 11px;
+      color: rgba(255,255,255,0.6);
+      margin-top: 2px;
+    }
+
+    /* --- LAYOUT PRINCIPAL --- */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--gov-bg-light);
+    }
+
+    .topbar {
+      background: #fff;
+      border-bottom: 1px solid var(--gov-border);
+      padding: 0 32px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+      z-index: 5;
+    }
+
+    .topbar-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--gov-blue-dark);
+    }
+
+    .topbar-bread {
+      font-size: 12px;
+      color: var(--gov-blue-primary);
+      margin-top: 2px;
+      font-weight: 500;
+    }
+
+    .topbar-bread span { color: var(--color-text-muted); margin: 0 4px; }
+
+    .tbadge {
+      font-size: 12px;
+      background: #f0f4f8;
+      color: var(--color-text-sec);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-weight: 500;
+      border: 1px solid var(--gov-border);
+    }
+
+    .tib {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--color-text-sec);
+      font-size: 18px;
+      background: transparent;
+      transition: all 0.2s;
+      border: none;
+    }
+    
+    .tib:hover {
+      background: #f0f4f8;
+      color: var(--gov-blue-primary);
+    }
+
+    .content-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 32px;
+    }
+
+    /* Sistema de Views (SPA) */
+    .view-section { display: none; animation: fadeIn 0.3s ease; }
+    .view-section.active { display: block; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* --- COMPONENTES GOV.BR --- */
+    .row-label {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--gov-blue-primary);
+      margin-bottom: 20px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--gov-blue-primary);
+      display: inline-block;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .stat {
+      background: #fff;
+      border-radius: var(--br-sm);
+      border: 1px solid var(--gov-border);
+      box-shadow: var(--shadow-sm);
+      padding: 16px;
+      position: relative;
+      border-left: 4px solid var(--gov-blue-primary);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    .stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+    .stat-lbl { font-size: 12px; color: var(--color-text-sec); font-weight: 600; margin-bottom: 8px; }
+    .stat-val { font-size: 28px; font-weight: 700; color: var(--gov-blue-dark); line-height: 1; }
+    .stat-sub { font-size: 11px; color: var(--color-text-muted); margin-top: 8px; }
+
+    .card {
+      background: #fff;
+      border-radius: var(--br-sm);
+      border: 1px solid var(--gov-border);
+      box-shadow: var(--shadow-sm);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    /* Tabela de Dados Gov.br */
+    .table-container {
+      background: #fff;
+      border-radius: var(--br-sm);
+      border: 1px solid var(--gov-border);
+      box-shadow: var(--shadow-sm);
+      overflow-x: auto;
+    }
+
+    .gov-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    .gov-table th {
+      background-color: #f2f5f8;
+      color: var(--gov-blue-dark);
+      font-weight: 600;
+      font-size: 13px;
+      padding: 14px 16px;
+      border-bottom: 2px solid var(--gov-blue-primary);
+      white-space: nowrap;
+    }
+
+    .gov-table td {
+      padding: 14px 16px;
+      font-size: 13px;
+      color: var(--color-text-sec);
+      border-bottom: 1px solid var(--gov-border);
+      vertical-align: middle;
+    }
+
+    .gov-table tbody tr:hover { background-color: rgba(19, 81, 180, 0.03); }
+    .gov-table tbody tr:last-child td { border-bottom: none; }
+
+    .table-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-icon {
+      background: transparent;
+      border: 1px solid var(--gov-border);
+      border-radius: var(--br-sm);
+      width: 30px;
+      height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--gov-blue-primary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-icon:hover { background: var(--gov-blue-primary); color: #fff; border-color: var(--gov-blue-primary); }
+
+    /* Paginação Gov.br */
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px;
+      border-top: 1px solid var(--gov-border);
+      background: #fff;
+    }
+
+    .page-info { font-size: 13px; color: var(--color-text-sec); }
+
+    .page-controls { display: flex; gap: 4px; }
+
+    .page-btn {
+      min-width: 32px;
+      height: 32px;
+      padding: 0 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--gov-border);
+      background: #fff;
+      border-radius: var(--br-sm);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--gov-blue-primary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .page-btn:hover:not(:disabled) { background: #f0f4f8; }
+    .page-btn.active { background: var(--gov-blue-primary); color: #fff; border-color: var(--gov-blue-primary); }
+    .page-btn:disabled { color: var(--color-text-muted); background: #f9f9f9; cursor: not-allowed; }
+
+    /* Tags e Pills */
+    .tag {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .tag-comissionado { background: #fff8e6; color: #b28900; border: 1px solid #ffe69c; }
+    .tag-efetivo { background: #e3f2fd; color: #0d47a1; border: 1px solid #bbdefb; }
+    .tag-temporario { background: #fce4e4; color: #c62828; border: 1px solid #f8bbd0; }
+    .tag-terceirizado { background: #e8f5e9; color: #1b5e20; border: 1px solid #c8e6c9; }
+    .tag-default { background: #f1f3f5; color: #495057; border: 1px solid #e9ecef; }
+
+    /* Barra de Ações (Filtros) */
+    .action-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .search-box {
+      position: relative;
+      width: 300px;
+    }
+
+    .search-box i {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--color-text-muted);
+      font-size: 18px;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 10px 12px 10px 38px;
+      border: 1px solid var(--gov-border);
+      border-radius: var(--br-sm);
+      font-size: 13px;
+      font-family: var(--font-sans);
+      transition: border-color 0.2s;
+    }
+    .search-input:focus { outline: none; border-color: var(--gov-blue-primary); box-shadow: 0 0 0 3px rgba(19,81,180,0.1); }
+
+    .btn-primary {
+      background: var(--gov-blue-primary);
+      color: #fff;
+      border: none;
+      padding: 10px 20px;
+      border-radius: var(--br-sm);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.2s;
+    }
+    .btn-primary:hover { background: var(--gov-blue-dark); }
+
+    /* --- MODAL (Edição de Perfil) --- */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(2px);
+    }
+
+    .modal-content {
+      background: #fff;
+      width: 100%;
+      max-width: 550px;
+      border-radius: var(--br-md);
+      box-shadow: var(--shadow-modal);
+      display: flex;
+      flex-direction: column;
+      animation: modalSlideUp 0.3s ease;
+    }
+
+    @keyframes modalSlideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .modal-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--gov-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-title { font-size: 18px; font-weight: 600; color: var(--gov-blue-dark); }
+    .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--color-text-sec); }
+    .modal-close:hover { color: var(--gov-red); }
+
+    .modal-body { padding: 24px; }
+    
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .form-group.full-width { grid-column: span 2; }
+
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-text-main);
+      margin-bottom: 6px;
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--gov-border);
+      border-radius: var(--br-sm);
+      font-size: 14px;
+      font-family: var(--font-sans);
+      color: var(--color-text-main);
+      background: #fff;
+    }
+    .form-control:focus { outline: none; border-color: var(--gov-blue-primary); box-shadow: 0 0 0 3px rgba(19,81,180,0.1); }
+    .form-control:disabled { background: var(--gov-bg-light); color: var(--color-text-sec); cursor: not-allowed; }
+
+    .modal-footer {
+      padding: 16px 24px;
+      border-top: 1px solid var(--gov-border);
+      background: var(--gov-bg-light);
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      border-bottom-left-radius: var(--br-md);
+      border-bottom-right-radius: var(--br-md);
+    }
+
+    .btn-secondary {
+      background: #fff;
+      color: var(--color-text-sec);
+      border: 1px solid var(--gov-border);
+      padding: 10px 20px;
+      border-radius: var(--br-sm);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-secondary:hover { background: #f2f5f8; color: var(--color-text-main); }
+
+    /* Alertas */
+    .alerta-box {
+      background: #fff8e6;
+      border-left: 4px solid var(--gov-yellow);
+      border-radius: var(--br-sm);
+      padding: 12px 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-top: 20px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .alerta-box i { font-size: 20px; color: #b28900; flex-shrink: 0; }
+    .alerta-text { font-size: 13px; color: #594400; line-height: 1.5; }
+
+    /* ============ EXTENSÕES ============ */
+    
+    /* Cards do dashboard clicáveis */
+    .stat.clickable { cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; }
+    .stat.clickable:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(0,0,0,0.1); }
+    .stat.clickable::after {
+      content: '\f061'; /* arrow icon */
+      font-family: 'tabler-icons';
+      position: absolute; top: 12px; right: 12px;
+      color: var(--color-text-muted); opacity: 0; transition: opacity 0.15s;
+      font-size: 14px;
+    }
+    .stat.clickable:hover::after { opacity: 1; }
+    .stat { position: relative; }
+
+    /* Filtros */
+    .toolbar-filters {
+      display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;
+      padding: 12px; background: #fff; border: 1px solid var(--gov-border);
+      border-radius: var(--br-md); box-shadow: var(--shadow-sm);
+      align-items: center;
+    }
+    .toolbar-filters input, .toolbar-filters select {
+      padding: 8px 12px; border: 1px solid var(--gov-border);
+      border-radius: var(--br-sm); font-family: inherit; font-size: 13px;
+      background: #fff;
+    }
+    .toolbar-filters input:focus, .toolbar-filters select:focus {
+      outline: none; border-color: var(--gov-blue-primary);
+      box-shadow: 0 0 0 3px rgba(19,81,180,0.1);
+    }
+    .filter-tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; background: var(--gov-blue-light);
+      color: var(--gov-blue-dark); border-radius: 12px;
+      font-size: 12px; font-weight: 500;
+    }
+    .filter-tag button {
+      background: none; border: none; cursor: pointer; color: var(--gov-blue-dark);
+      padding: 0; display: flex; align-items: center;
+    }
+    .btn-link {
+      background: none; border: none; color: var(--gov-blue-primary);
+      text-decoration: underline; cursor: pointer; font-size: 13px; padding: 0;
+    }
+    .btn-warning {
+      background: var(--gov-yellow); color: var(--gov-blue-dark);
+      border: none; padding: 8px 14px; border-radius: var(--br-sm);
+      font-weight: 600; cursor: pointer; font-size: 13px;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn-warning:hover { background: #f0c000; }
+
+    /* Breadcrumb funcional */
+    .crumbs { display: flex; align-items: center; gap: 6px; margin-bottom: 16px; }
+    .crumbs button {
+      background: none; border: none; color: var(--gov-blue-primary);
+      cursor: pointer; font-size: 13px; padding: 4px 8px; border-radius: 4px;
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+    .crumbs button:hover { background: var(--gov-blue-light); }
+    .crumbs .sep { color: var(--color-text-muted); font-size: 12px; }
+    .crumbs .current {
+      font-weight: 600; color: var(--gov-blue-dark);
+      padding: 4px 8px;
+    }
+
+    /* Cards grandes de categoria/unidade */
+    .cards-grid {
+      display: grid; gap: 16px;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    }
+    .big-card {
+      background: #fff; border: 1px solid var(--gov-border);
+      border-radius: var(--br-md); padding: 20px;
+      cursor: pointer; transition: all 0.15s;
+      box-shadow: var(--shadow-sm);
+      display: flex; flex-direction: column; gap: 8px;
+      border-left: 4px solid var(--gov-blue-primary);
+    }
+    .big-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.08);
+      border-left-color: var(--gov-yellow);
+    }
+    .big-card-icon {
+      font-size: 32px; color: var(--gov-blue-primary);
+      margin-bottom: 4px;
+    }
+    .big-card-title {
+      font-size: 16px; font-weight: 700; color: var(--gov-blue-dark);
+    }
+    .big-card-meta {
+      font-size: 12px; color: var(--color-text-sec);
+      display: flex; gap: 16px; margin-top: 4px;
+    }
+    .big-card-meta strong { color: var(--gov-blue-dark); }
+
+    /* Árvore organograma */
+    .org-tree { padding: 12px; }
+    .org-node {
+      padding: 10px 14px; margin: 3px 0;
+      background: #fff; border: 1px solid var(--gov-border);
+      border-radius: var(--br-md); cursor: pointer;
+      display: flex; align-items: center; gap: 10px;
+      font-size: 13px; transition: all 0.15s;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .org-node:hover { background: var(--gov-blue-light); border-color: var(--gov-blue-primary); transform: translateX(2px); }
+    .org-node .toggle { color: var(--gov-blue-primary); width: 18px; text-align: center; font-size: 14px; transition: transform 0.2s; }
+    .org-node .toggle.open i { transform: rotate(90deg); }
+    .org-node .toggle.empty { visibility: hidden; }
+    .org-node .nome { flex: 1; font-weight: 500; color: var(--gov-blue-dark); font-size: 13px; }
+    .org-node .badge-count {
+      background: var(--gov-blue-primary); color: #fff;
+      padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;
+      min-width: 28px; text-align: center;
+    }
+    .org-node .badge-count.zero { background: #e8e8e8; color: #999; }
+    .org-children { display: none; padding-left: 24px; margin-left: 8px; border-left: 2px solid var(--gov-blue-light); }
+    .org-children.open { display: block; }
+    .org-node .tipo-tag {
+      font-size: 9px; padding: 3px 8px; border-radius: 4px; text-transform: uppercase;
+      font-weight: 700; letter-spacing: 0.05em; white-space: nowrap;
+    }
+    .org-node .tipo-tag[data-tipo='superintendencia'] { background: #e8f0fe; color: #1351b4; }
+    .org-node .tipo-tag[data-tipo='coordenacao'] { background: #fef7e0; color: #8a6d00; }
+    .org-node .tipo-tag[data-tipo='diretoria'] { background: #e6f4ea; color: #137333; }
+    .org-node .tipo-tag[data-tipo='unidade'] { background: #f3e8fd; color: #7b2cbf; }
+    .org-node .btn-eye { border: none; background: none; cursor: pointer; color: var(--gov-blue-primary); font-size: 16px; padding: 4px; border-radius: 4px; transition: all 0.15s; }
+    .org-node .btn-eye:hover { background: var(--gov-blue-primary); color: #fff; }
+
+    /* Lotação tree (modal de transferência) */
+    .lotacao-tree {
+      max-height: 320px; overflow-y: auto;
+      border: 1px solid var(--gov-border); border-radius: var(--br-sm);
+      padding: 8px; background: var(--gov-bg-light);
+    }
+    .lotacao-tree-item {
+      padding: 7px 10px; cursor: pointer; border-radius: var(--br-sm);
+      font-size: 13px; display: flex; align-items: center; gap: 8px;
+    }
+    .lotacao-tree-item:hover { background: var(--gov-blue-light); }
+    .lotacao-tree-item.selected { background: var(--gov-blue-primary); color: #fff; }
+    .lotacao-tree-item.selected .tag { background: rgba(255,255,255,0.2); color: #fff; }
+
+    /* Timeline histórico */
+    .timeline { list-style: none; padding: 0; }
+    .timeline li {
+      padding: 14px 18px; margin-bottom: 10px;
+      background: #fff; border-left: 4px solid var(--gov-blue-primary);
+      border-radius: var(--br-sm); box-shadow: var(--shadow-sm);
+    }
+    .timeline li.inactive { border-left-color: var(--color-text-muted); opacity: 0.75; }
+    .timeline .periodo {
+      font-size: 11px; color: var(--color-text-muted);
+      text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;
+    }
+    .timeline .lot-nome { font-weight: 600; color: var(--gov-blue-dark); font-size: 14px; }
+    .timeline .meta { font-size: 12px; color: var(--color-text-sec); margin-top: 6px; }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--gov-blue-dark); color: #fff;
+      padding: 14px 22px; border-radius: var(--br-md);
+      box-shadow: var(--shadow-modal); z-index: 9999;
+      font-size: 14px; opacity: 0; transform: translateY(20px);
+      transition: all 0.25s ease; max-width: 420px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.success { background: var(--gov-green); }
+    .toast.error { background: var(--gov-red); }
+    .toast.warning { background: var(--gov-yellow); color: var(--gov-blue-dark); }
+
+    .empty-state {
+      padding: 60px 20px; text-align: center; color: var(--color-text-muted);
+    }
+    .empty-state i { font-size: 48px; margin-bottom: 12px; opacity: 0.5; display: block; }
+
+    /* Modal large pra transferência */
+    .modal-content.large { max-width: 720px; }
+    .modal-body { max-height: 70vh; overflow-y: auto; }
+
+    /* Loading spinner */
+    .spinner { 
+      display: inline-block; width: 16px; height: 16px;
+      border: 2px solid var(--gov-bg-light);
+      border-top-color: var(--gov-blue-primary);
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Conexão status banner */
+    .conn-banner {
+      padding: 12px 20px; background: var(--gov-yellow); color: var(--gov-blue-dark);
+      font-size: 13px; text-align: center; font-weight: 500;
+    }
+    .conn-banner.hidden { display: none; }
+    .conn-banner code { background: rgba(0,0,0,0.1); padding: 2px 6px; border-radius: 3px; font-size: 12px; }
+
+    /* sidebar item ativo (override pra ser mais visível) */
+    .sidebar-nav .nav-item.active {
+      background: var(--gov-blue-dark);
+      border-left: 3px solid var(--gov-yellow);
+    }
+
+    /* Cards do dashboard responsivos */
+    .stats-grid {
+      display: grid; gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+
+    /* Cabeçalhos ordenáveis */
+    .sortable { cursor: pointer; user-select: none; white-space: nowrap; transition: background .15s; }
+    .sortable:hover { background: var(--gov-blue-light); }
+    .sort-icon { margin-left: 4px; font-size: 11px; opacity: 0.35; vertical-align: middle; }
+    .sort-icon.active { opacity: 1; color: var(--gov-blue-primary); font-weight: 700; }
+  </style>
+  <div id="conn-banner" class="conn-banner hidden">
+    <div class="conn-icon"></div>
+    <div class="conn-text">
+      <strong>Não foi possível conectar ao banco de dados.</strong><br>
+      Configure suas credenciais Supabase no script: <code>SUPABASE_URL</code> e <code>SUPABASE_ANON</code>
+    </div>
+  </div>
+
+</head>
+<body>
+
+<div class="app">
+  <nav class="sidebar" aria-label="Menu Principal">
+    <div class="sidebar-logo">
+      <span class="brasao">S</span>
+      <span class="org-name">SEMCAS</span>
+      <div class="org-sub">Gestão de Pessoas</div>
+    </div>
+
+    <div class="sidebar-nav">
+      <div class="nav-group">Principal</div>
+      <a href="#painel" class="nav-item" data-route="painel">
+        Painel
+      </a>
+      <a href="#funcionarios" class="nav-item" data-route="funcionarios">
+        Funcionários
+      </a>
+      <a href="#locais" class="nav-item" data-route="locais">
+        Locais
+      </a>
+      <a href="#organograma" class="nav-item" data-route="organograma">
+        Organograma
+      </a>
+
+      <div class="nav-group">Gestão</div>
+      <a href="#" class="nav-item" onclick="event.preventDefault(); showToast('Em breve','info')">
+        Folha de Ponto
+      </a>
+      <a href="#" class="nav-item" onclick="event.preventDefault(); showToast('Em breve','info')">
+        Relatórios
+      </a>
+    </div>
+
+    <div class="sidebar-footer" style="display:flex;align-items:center;gap:10px">
+      <div class="user-av">AD</div>
+      <div>
+        <div class="user-name">Administrador</div>
+        <div class="user-role">RH · SEMCAS</div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="main">
+    <header class="topbar">
+      <div>
+        <div class="topbar-title" id="header-title">Painel de Gestão</div>
+        <div class="topbar-bread" id="header-bread">Início <span>›</span> <strong>Painel</strong></div>
+      </div>
+      <div>
+        <span class="tbadge">São Luís — MA</span>
+        <button class="tib"></button>
+      </div>
+    </header>
+
+    <div class="content-area">
+
+      <!-- ===== PAINEL ===== -->
+      <section id="view-painel" class="view-section">
+        <div class="row-label">Visão Geral</div>
+        <div class="stats-grid" id="stats-grid">
+          <div class="stat"><div class="stat-lbl">Carregando<span class="spinner"></span></div></div>
+        </div>
+
+        <!-- Gráficos -->
+        <div style="display:none;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:32px;margin-top:8px" id="graficos-row">
+          <div class="card" style="padding:20px">
+            <div style="font-weight:600;color:var(--gov-blue-dark);margin-bottom:14px;font-size:14px">Distribuição por Vínculo</div>
+            <div style="position:relative;height:220px"><canvas id="chart-vinculos"></canvas></div>
+          </div>
+          <div class="card" style="padding:20px">
+            <div style="font-weight:600;color:var(--gov-blue-dark);margin-bottom:14px;font-size:14px">Servidores por Tipo de Local</div>
+            <div style="position:relative;height:220px"><canvas id="chart-locais"></canvas></div>
+          </div>
+        </div>
+
+        <div class="row-label" style="margin-top:4px">Estrutura Organizacional</div>
+        <div class="stats-grid" id="stats-estrutura"></div>
+
+        <div class="row-label" style="margin-top:20px">Superintendências</div>
+        <div class="cards-grid" id="cards-superintendencias"></div>
+
+        <div class="row-label" style="margin-top:20px">Locais Operacionais</div>
+        <div class="cards-grid" id="cards-locais-resumo"></div>
+      </section>
+
+      <!-- ===== FUNCIONÁRIOS ===== -->
+      <section id="view-funcionarios" class="view-section">
+        <div class="toolbar-filters">
+          <input type="text" id="f-busca" placeholder="Buscar por nome..." style="flex:1;min-width:240px">
+          <select id="f-vinculo"><option value="">Todos os vínculos</option></select>
+          <select id="f-funcao"><option value="">Todas as funções</option></select>
+          <select id="f-lotacao"><option value="">Todas as lotações</option></select>
+          <select id="f-turno"><option value="">Todos os turnos</option></select>
+          <button id="btn-limpar" class="btn btn-outline" style="padding:0 12px" title="Limpar Filtros">Limpar</button>
+        </div>
+        <div id="filter-tags" style="margin-bottom:12px"></div>
+
+        <div class="table-container">
+          <table class="gov-table">
+            <thead>
+              <tr>
+                <th class="sortable" data-sort="nome" onclick="sortTable('nome')">Nome do Servidor</th>
+                <th class="sortable" data-sort="vinculo" onclick="sortTable('vinculo')">Vínculo</th>
+                <th class="sortable" data-sort="funcao" onclick="sortTable('funcao')">Função</th>
+                <th class="sortable" data-sort="lotacao_nome" onclick="sortTable('lotacao_nome')">Lotação Atual</th>
+                <th class="sortable" data-sort="turno" onclick="sortTable('turno')">Turno</th>
+                <th style="width:140px;text-align:center">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="table-body"><tr><td colspan="6" class="empty-state"><span class="spinner"></span> Carregando…</td></tr></tbody>
+          </table>
+          <div class="pagination">
+            <div class="page-info" id="page-info">—</div>
+            <div class="page-controls" id="page-controls"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== LOCAIS (3 níveis drill-down) ===== -->
+      <section id="view-locais" class="view-section">
+        <div class="crumbs" id="locais-crumbs"></div>
+        <div id="locais-content"><span class="spinner"></span> Carregando…</div>
+      </section>
+
+      <!-- ===== ORGANOGRAMA ===== -->
+      <section id="view-organograma" class="view-section">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h3 style="color:var(--gov-blue-dark)">Estrutura Organizacional</h3>
+            <div style="display:flex;gap:8px">
+              <button class="btn-secondary" onclick="orgExpandirTudo()">Expandir tudo</button>
+              <button class="btn-secondary" onclick="orgRecolherTudo()">Recolher tudo</button>
+            </div>
+          </div>
+          <div id="org-tree" class="org-tree"><span class="spinner"></span> Carregando…</div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<!-- MODAL · EDITAR -->
+<div class="modal-overlay" id="modal-edit">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title">Editar Servidor</div>
+      <button class="modal-close" onclick="closeModal('modal-edit')"></button>
+    </div>
+    <div class="modal-body">
+      <form id="edit-form" class="form-grid" autocomplete="off">
+        <input type="hidden" id="edit-id">
+        <div class="form-group full-width">
+          <label class="form-label">Nome Completo *</label>
+          <input type="text" class="form-control" id="edit-nome">
+        </div>
+        <div class="form-group">
+          <label class="form-label">CPF</label>
+          <input type="text" class="form-control" id="edit-cpf" placeholder="000.000.000-00">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Matrícula</label>
+          <input type="text" class="form-control" id="edit-matricula">
+        </div>
+        <div class="form-group">
+          <label class="form-label">E-mail</label>
+          <input type="email" class="form-control" id="edit-email">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Telefone</label>
+          <input type="text" class="form-control" id="edit-telefone">
+        </div>
+
+        <div style="grid-column:1/-1;padding-top:12px;margin-top:4px;border-top:1px solid var(--gov-border)">
+          <strong style="font-size:13px;color:var(--gov-blue-dark)">Vínculo Atual</strong>
+          <small style="display:block;color:var(--color-text-muted);font-size:11px;margin-top:2px">Correções aqui não geram histórico. Pra mover de lotação, use o botão <em>Transferir</em>.</small>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Vínculo</label>
+          <select class="form-control" id="edit-vinculo"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Turno</label>
+          <select class="form-control" id="edit-turno"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Função / Cargo</label>
+          <input type="text" class="form-control" id="edit-funcao">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Ano do Concurso</label>
+          <input type="number" class="form-control" id="edit-ano" min="2000" max="2099" step="1">
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-edit')">Cancelar</button>
+      <button class="btn-primary" id="btn-salvar-edit">Salvar Alterações</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · TRANSFERIR -->
+<div class="modal-overlay" id="modal-transfer">
+  <div class="modal-content large">
+    <div class="modal-header">
+      <div class="modal-title">Transferir Servidor</div>
+      <button class="modal-close" onclick="closeModal('modal-transfer')"></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="trf-id">
+      <div class="form-grid">
+        <div class="form-group full-width">
+          <label class="form-label">Servidor</label>
+          <div id="trf-servidor-info" style="padding:12px;background:var(--gov-blue-light);border-radius:4px;font-size:13px;line-height:1.6"></div>
+        </div>
+        <div class="form-group full-width">
+          <label class="form-label">Nova Lotação *</label>
+          <input type="text" id="trf-search" class="form-control" placeholder="Filtrar lotações…" style="margin-bottom:8px">
+          <div id="trf-tree" class="lotacao-tree"></div>
+          <input type="hidden" id="trf-lotacao-id">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data da Transferência *</label>
+          <input type="date" id="trf-data" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Motivo</label>
+          <input type="text" id="trf-motivo" class="form-control" placeholder="Ex: Realocação setorial">
+        </div>
+        <div class="form-group full-width">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="trf-alterar"> Alterar função, turno ou vínculo na transferência
+          </label>
+        </div>
+        <div id="trf-extras" style="display:none;grid-column:1/-1" class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Nova Função</label>
+            <input type="text" id="trf-funcao" class="form-control" placeholder="Manter atual">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Novo Turno</label>
+            <select id="trf-turno" class="form-control"></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Novo Vínculo</label>
+            <select id="trf-vinculo" class="form-control"></select>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="abrirHistoricoDoTransfer()">Ver Histórico</button>
+      <button class="btn-secondary" onclick="closeModal('modal-transfer')">Cancelar</button>
+      <button class="btn-primary" id="btn-confirmar-trf">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · HISTÓRICO -->
+<div class="modal-overlay" id="modal-historico">
+  <div class="modal-content large">
+    <div class="modal-header">
+      <div class="modal-title">Histórico de Lotações</div>
+      <button class="modal-close" onclick="closeModal('modal-historico')"></button>
+    </div>
+    <div class="modal-body">
+      <div id="hist-content"><span class="spinner"></span> Carregando…</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-historico')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                    CONFIGURAÇÃO SUPABASE                      ║
+// ║         👉 Edite as duas linhas abaixo                       ║
+// ╚══════════════════════════════════════════════════════════════╝
+const SUPABASE_URL  = 'https://isqslnnixdudhpunwnpx.supabase.co';
+const SUPABASE_ANON = 'sb_publishable_SwgnEdoGqmDetD2DX5aRfA_mhANTIPe';
+
+// Verifica configuração
+const configurado = !SUPABASE_URL.includes('SEU-PROJETO') && !SUPABASE_ANON.includes('SUA-ANON-KEY');
+if (!configurado) {
+  document.getElementById('conn-banner').classList.remove('hidden');
+}
+
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
+window.sb = sb;
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                       ESTADO GLOBAL                           ║
+// ╚══════════════════════════════════════════════════════════════╝
+const state = {
+  vinculos: [], turnos: [], lotacoes: [], funcoes: [],
+  filtros: { busca: '', vinculo_id: null, lotacao_id: null, funcao: '', turno_id: null },
+  sort: { col: 'nome', dir: 'asc' },
+  page: 1, pageSize: 15, total: 0,
+  funcionarioAtual: null,
+  locais: { categoria: null, lotacao: null },  // pro drill-down
+};
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                          HELPERS                              ║
+// ╚══════════════════════════════════════════════════════════════╝
+const $ = (id) => document.getElementById(id);
+const $$ = (sel, root = document) => root.querySelectorAll(sel);
+
+// ── Ordenação por coluna ──
+window.sortTable = function(col) {
+  if (state.sort.col === col) {
+    state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    state.sort.col = col;
+    state.sort.dir = 'asc';
+  }
+  state.page = 1;
+  atualizarIconesSort();
+  carregarFuncionarios();
+};
+
+function atualizarIconesSort() {
+  $$('.sortable').forEach(th => {
+    const icon = th.querySelector('.sort-icon');
+    if (!icon) return;
+    if (th.dataset.sort === state.sort.col) {
+      icon.className = `ti ${state.sort.dir === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} sort-icon active`;
+    } else {
+      icon.className = 'ti ti-arrows-sort sort-icon';
+    }
+  });
+}
+
+// ── Descendentes de lotação (para filtro inteligente) ──
+function getDescendentes(parentId) {
+  const result = [];
+  const filhos = state.lotacoes.filter(l => l.parent_id === parentId);
+  for (const f of filhos) {
+    result.push(f);
+    result.push(...getDescendentes(f.id));
+  }
+  return result;
+}
+
+function atualizarDropdownLotacao() {
+  let opcoes = state.lotacoes;
+  if (state.filtros.lotacao_id) {
+    const pid = Number(state.filtros.lotacao_id);
+    const desc = getDescendentes(pid);
+    const parent = state.lotacoes.find(l => l.id === pid);
+    opcoes = parent ? [parent, ...desc] : desc;
+  }
+  opcoes = opcoes.filter(x => (x.funcionarios_direto ?? 0) > 0);
+  const currentVal = state.filtros.lotacao_id ? String(state.filtros.lotacao_id) : '';
+  $('f-lotacao').innerHTML = '<option value="">Todas as lotações</option>' +
+    opcoes.map(x => `<option value="${x.id}" ${String(x.id) === currentVal ? 'selected' : ''}>${htmlEscape(x.nome)} (${x.funcionarios_direto})</option>`).join('');
+}
+
+function showToast(msg, tipo = 'info') {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = `toast show ${tipo}`;
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.className = 'toast', 4000);
+}
+window.showToast = showToast;
+
+function openModal(id) {
+  $(id).style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+window.closeModal = (id) => {
+  $(id).style.display = 'none';
+  document.body.style.overflow = '';
+};
+
+function debounce(fn, ms) {
+  let t;
+  return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+}
+
+function htmlEscape(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+async function handleErr(resp, contexto = '') {
+  if (resp.error) {
+    console.error(contexto, resp.error);
+    showToast(`Erro ${contexto}: ${resp.error.message}`, 'error');
+    return null;
+  }
+  return resp.data;
+}
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                      ROUTER POR HASH                          ║
+// ╚══════════════════════════════════════════════════════════════╝
+const rotas = {
+  'painel':       { titulo: 'Painel de Gestão',     bread: 'Painel',       render: renderPainel },
+  'funcionarios': { titulo: 'Funcionários',          bread: 'Funcionários', render: renderFuncionarios },
+  'locais':       { titulo: 'Locais Operacionais',   bread: 'Locais',       render: renderLocais },
+  'organograma':  { titulo: 'Organograma',           bread: 'Organograma',  render: renderOrganograma },
+};
+
+function navigate() {
+  const hash = (location.hash || '#painel').slice(1);
+  const [rota, ...resto] = hash.split('/');
+  const def = rotas[rota] || rotas['painel'];
+
+  $$('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.route === rota));
+  $$('.view-section').forEach(el => el.classList.remove('active'));
+  $(`view-${rota}`)?.classList.add('active');
+
+  $('header-title').textContent = def.titulo;
+  $('header-bread').innerHTML = `Início <span>›</span> <strong>${def.bread}</strong>`;
+
+  def.render(resto);
+}
+window.addEventListener('hashchange', navigate);
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                  CARGA INICIAL DE DOMÍNIOS                    ║
+// ╚══════════════════════════════════════════════════════════════╝
+async function carregarDominios() {
+  const [vRes, tRes, lRes, fRes] = await Promise.all([
+    sb.from('vinculos').select('id, categoria').order('categoria'),
+    sb.from('turnos').select('id, nome').order('nome'),
+    sb.from('v_lotacoes_com_count').select('*').range(0, 9999).order('nome'),
+    sb.from('v_funcoes').select('funcao')
+  ]);
+
+  if (vRes.error) console.warn('Nenhum vínculo carregado — verifique a tabela vinculos e as permissões RLS');
+  
+  state.vinculos = vRes.data  || [];
+  state.turnos   = tRes.data  || [];
+  state.lotacoes = lRes.data  || [];
+  state.funcoes  = fRes?.data || [];
+
+  $('f-vinculo').innerHTML = '<option value="">Todos os vínculos</option>' +
+    state.vinculos.map(x => `<option value="${x.id}">${htmlEscape(x.categoria)}</option>`).join('');
+
+  $('f-funcao').innerHTML = '<option value="">Todas as funções</option>' +
+    state.funcoes.map(x => `<option value="${htmlEscape(x.funcao)}">${htmlEscape(x.funcao)}</option>`).join('');
+
+  $('f-lotacao').innerHTML = '<option value="">Todas as lotações</option>' +
+    state.lotacoes
+      .filter(x => (x.funcionarios_direto ?? 0) > 0)
+      .map(x => `<option value="${x.id}">${htmlEscape(x.nome)} (${x.funcionarios_direto})</option>`).join('');
+
+  $('f-turno').innerHTML = '<option value="">Todos os turnos</option>' +
+    state.turnos.map(x => `<option value="${x.id}">${htmlEscape(x.nome)}</option>`).join('');
+
+  $('edit-vinculo').innerHTML = '<option value="">— Selecione o vínculo —</option>' +
+    state.vinculos.map(x => `<option value="${x.id}">${htmlEscape(x.categoria)}</option>`).join('');
+  $('edit-turno').innerHTML = '<option value="">—</option>' +
+    state.turnos.map(x => `<option value="${x.id}">${htmlEscape(x.nome)}</option>`).join('');
+  $('trf-vinculo').innerHTML = '<option value="">Manter atual</option>' +
+    state.vinculos.map(x => `<option value="${x.id}">${htmlEscape(x.categoria)}</option>`).join('');
+  $('trf-turno').innerHTML = '<option value="">Manter atual</option>' +
+    state.turnos.map(x => `<option value="${x.id}">${htmlEscape(x.nome)}</option>`).join('');
+}
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                          PAINEL                               ║
+// ╚══════════════════════════════════════════════════════════════╝
+let _chartVinculos = null;
+let _chartLocais = null;
+
+async function renderPainel() {
+  const [kpiRes, vincsRes, locaisRes] = await Promise.all([
+    sb.from('v_dashboard_kpis').select('*').single(),
+    sb.from('v_dashboard_vinculos').select('*'),
+    sb.from('v_locais_resumo').select('*'),
+  ]);
+
+  const kpi   = kpiRes.data   || null;
+  const vincs = vincsRes.data  || [];
+  const locais = locaisRes.data || [];
+
+  const corVinc = {
+    'Efetivo':'#1351b4','Comissionado':'#b28900',
+    'Terceirizado':'#3B6D11','Serviço Prestado':'#534AB7',
+    'Contrato Temporário':'#993C1D','PROCAD':'#0F6E56',
+    'Contrato/SEMUS':'#e52207','Contrato':'#888','Outro':'#999'
+  };
+
+  const irParaFuncionarios = (filtros) => {
+    state.filtros = filtros;
+    state.page = 1;
+    if (location.hash === '#funcionarios') {
+      renderFuncionarios();
+    } else {
+      location.hash = '#funcionarios';
+    }
+  };
+
+  if (kpi || vincs.length > 0) {
+    const totalServ = kpi?.total_servidores ?? vincs.reduce((s,v)=>s+(v.total||0),0);
+    const cards = [
+      {
+        lbl:'Total de Servidores', val: totalServ,
+        sub:'Todos os vínculos · ativos', cor:'#071d41',
+        click: () => irParaFuncionarios({ busca:'', vinculo_id:null, lotacao_id:null, funcao:'', turno_id:null })
+      },
+      ...vincs.map(v => {
+        const vinculoId = v.vinculo_id ?? state.vinculos.find(x => x.categoria === v.vinculo)?.id ?? null;
+        return {
+          lbl: v.vinculo, val: v.total, sub: `${Math.round((v.total/totalServ)*100)||0}% do total`,
+          cor: corVinc[v.vinculo] || '#888',
+          click: () => irParaFuncionarios({ busca:'', vinculo_id: vinculoId, lotacao_id: null, funcao:'', turno_id:null })
+        };
+      })
+    ];
+    $('stats-grid').innerHTML = cards.map(c => `
+      <div class="stat clickable" style="border-left-color:${c.cor};cursor:pointer">
+        <div class="stat-lbl">${htmlEscape(c.lbl)}</div>
+        <div class="stat-val">${(c.val||0).toLocaleString('pt-BR')}</div>
+        <div class="stat-sub">${htmlEscape(c.sub)}</div>
+      </div>`).join('');
+    $$('#stats-grid .stat').forEach((el, i) => { el.onclick = cards[i].click; });
+
+    if (vincs.length > 0) {
+      $('graficos-row').style.display = 'grid';
+      if (_chartVinculos) { _chartVinculos.destroy(); _chartVinculos = null; }
+      await new Promise(r => setTimeout(r, 50));
+      const ctxV = $('chart-vinculos').getContext('2d');
+      _chartVinculos = new Chart(ctxV, {
+        type: 'doughnut',
+        data: {
+          labels: vincs.map(v => v.vinculo),
+          datasets: [{ data: vincs.map(v => v.total), backgroundColor: vincs.map(v => corVinc[v.vinculo] || '#ccc'), borderWidth: 2, borderColor: '#fff' }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'right', labels: { font: { size: 11 }, padding: 10, boxWidth: 12 } },
+            tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed} (${Math.round(ctx.parsed/totalServ*100)}%)` } }
+          },
+          onClick: (e, els) => {
+            if (els.length > 0) {
+              const v = vincs[els[0].index];
+              const vid = v.vinculo_id ?? state.vinculos.find(x => x.categoria === v.vinculo)?.id ?? null;
+              irParaFuncionarios({ busca:'', vinculo_id: vid, lotacao_id: null, funcao:'', turno_id:null });
+            }
+          }
+        }
+      });
+    }
+  }
+
+  if (locais.length > 0) {
+    $('graficos-row').style.display = 'grid';
+    if (_chartLocais) { _chartLocais.destroy(); _chartLocais = null; }
+    await new Promise(r => setTimeout(r, 50));
+    const ctxL = $('chart-locais').getContext('2d');
+    const coresLocais = ['#1351b4','#168821','#e52207','#534AB7','#3B6D11','#0F6E56','#993C1D'];
+    _chartLocais = new Chart(ctxL, {
+      type: 'bar',
+      data: {
+        labels: locais.map(l => l.categoria),
+        datasets: [{
+          label: 'Servidores', data: locais.map(l => l.qtd_funcionarios),
+          backgroundColor: locais.map((_,i) => coresLocais[i % coresLocais.length]),
+          borderRadius: 4
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y} servidores` } } },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0, stepSize: 1 } },
+                  x: { ticks: { font: { size: 11 } } } },
+        onClick: (e, els) => {
+          if (els.length > 0) {
+            const l = locais[els[0].index];
+            location.hash = `#locais/${encodeURIComponent(l.categoria)}`;
+          }
+        }
+      }
+    });
+  }
+
+  if (kpi) {
+    $('stats-estrutura').innerHTML = [
+      { lbl:'Total de Lotações',   val: kpi.total_lotacoes,          sub:'Cadastradas', cor:'#071d41' },
+      { lbl:'Superintendências',   val: kpi.total_superintendencias, sub:'Topo da estrutura', cor:'#1351b4' },
+      { lbl:'Coordenações',        val: kpi.total_coordenacoes,      sub:'Nível tático', cor:'#b28900' },
+      { lbl:'Diretorias Técnicas', val: kpi.total_diretorias,        sub:'Nível técnico', cor:'#3B6D11' },
+      { lbl:'Unidades Operacionais',val: kpi.total_unidades,         sub:'CRAS/CREAS/Abrigos/CT', cor:'#534AB7' },
+    ].map(c => `
+      <div class="stat" style="border-left-color:${c.cor}">
+        <div class="stat-lbl">${c.lbl}</div>
+        <div class="stat-val">${(c.val||0).toLocaleString('pt-BR')}</div>
+        <div class="stat-sub">${c.sub}</div>
+      </div>`).join('');
+  }
+
+  const supers = state.lotacoes.filter(l => l.tipo && l.tipo.toUpperCase().includes('SUPERIN') && !l.parent_id);
+  if (supers.length > 0) {
+    $('cards-superintendencias').innerHTML = supers.map(s => `
+      <div class="big-card" data-id="${s.id}" style="border-left-color:#1351b4">
+        <div class="big-card-title">${htmlEscape(s.nome)}</div>
+        <div class="big-card-meta">
+          <span><strong>${s.funcionarios_total ?? s.funcionarios_direto ?? 0}</strong> servidores</span>
+        </div>
+      </div>`).join('');
+    $$('#cards-superintendencias .big-card').forEach(el => {
+      el.onclick = () => {
+        state.filtros = { busca:'', vinculo_id:null, lotacao_id: Number(el.dataset.id), funcao:'', turno_id:null };
+        location.hash = '#funcionarios';
+      };
+    });
+  }
+
+  $('cards-locais-resumo').innerHTML = locais.map(l => `
+    <div class="big-card" data-cat="${htmlEscape(l.categoria)}">
+      <div class="big-card-title">${htmlEscape(l.categoria)}</div>
+      <div class="big-card-meta">
+        <span><strong>${l.qtd_unidades}</strong> unidades</span>
+        <span><strong>${l.qtd_funcionarios}</strong> servidores</span>
+      </div>
+    </div>`).join('');
+  $$('#cards-locais-resumo .big-card').forEach(el => {
+    el.onclick = () => { location.hash = `#locais/${encodeURIComponent(el.dataset.cat)}`; };
+  });
+}
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                       FUNCIONÁRIOS                            ║
+// ╚══════════════════════════════════════════════════════════════╝
+async function renderFuncionarios() {
+  state.page = 1;
+  $('f-busca').value   = state.filtros.busca || '';
+  $('f-vinculo').value = state.filtros.vinculo_id != null ? String(state.filtros.vinculo_id) : '';
+  $('f-funcao').value  = state.filtros.funcao || '';
+  atualizarDropdownLotacao();
+  $('f-lotacao').value = state.filtros.lotacao_id != null ? String(state.filtros.lotacao_id) : '';
+  $('f-turno').value   = state.filtros.turno_id != null ? String(state.filtros.turno_id) : '';
+  atualizarIconesSort();
+  renderFilterTags();
+  await carregarFuncionarios();
+}
+
+function renderFilterTags() {
+  const tags = [];
+  if (state.filtros.vinculo_id) {
+    const v = state.vinculos.find(x => x.id == state.filtros.vinculo_id);
+    if (v) tags.push(`<span class="filter-tag">Vínculo: ${htmlEscape(v.categoria)} <button data-clear="vinculo_id">x</button></span>`);
+  }
+  if (state.filtros.lotacao_id) {
+    const l = state.lotacoes.find(x => x.id == state.filtros.lotacao_id);
+    if (l) tags.push(`<span class="filter-tag">Lotação: ${htmlEscape(l.nome)} <button data-clear="lotacao_id">x</button></span>`);
+  }
+  $('filter-tags').innerHTML = tags.join(' ');
+  $$('#filter-tags button[data-clear]').forEach(b => b.onclick = () => {
+    state.filtros[b.dataset.clear] = null;
+    if (b.dataset.clear === 'vinculo_id') $('f-vinculo').value = '';
+    if (b.dataset.clear === 'lotacao_id') $('f-lotacao').value = '';
+    state.page = 1;
+    carregarFuncionarios();
+    renderFilterTags();
+  });
+}
+
+async function carregarFuncionarios() {
+  $('table-body').innerHTML = `<tr><td colspan="6" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>`;
+  const params = {
+    p_termo:      state.filtros.busca || null,
+    p_vinculo_id: state.filtros.vinculo_id ? Number(state.filtros.vinculo_id) : null,
+    p_lotacao_id: state.filtros.lotacao_id ? Number(state.filtros.lotacao_id) : null,
+    p_funcao:     state.filtros.funcao || null,
+    p_turno_id:   state.filtros.turno_id ? Number(state.filtros.turno_id) : null,
+    p_limite:     state.pageSize,
+    p_offset:     (state.page - 1) * state.pageSize,
+    p_order_by:   state.sort.col,
+    p_order_dir:  state.sort.dir,
+  };
+  const resp = await sb.rpc('fn_buscar_funcionarios', params);
+  const data = await handleErr(resp, 'busca funcionários');
+
+  if (!data) return;
+  state.total = data?.[0]?.total || 0;
+
+  if (data.length === 0) {
+    $('table-body').innerHTML = `<tr><td colspan="6"><div class="empty-state">Nenhum funcionário encontrado</div></td></tr>`;
+  } else {
+    $('table-body').innerHTML = data.map(f => `
+      <tr>
+        <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(f.nome)}</td>
+        <td>${htmlEscape(f.vinculo || '-')}</td>
+        <td>${htmlEscape(f.funcao || '—')}</td>
+        <td title="${htmlEscape(f.caminho_lotacao || '')}">${htmlEscape(f.lotacao_nome || '—')}</td>
+        <td>${htmlEscape(f.turno || '—')}</td>
+        <td style="text-align:center">
+          <div class="table-actions">
+            <button class="btn-icon" title="Editar" onclick="abrirEdicao(${f.funcionario_id})">Editar</button>
+            <button class="btn-icon" title="Transferir" onclick="abrirTransferencia(${f.funcionario_id})">Transferir</button>
+            <button class="btn-icon" title="Histórico" onclick="verHistorico(${f.funcionario_id})">Histórico</button>
+          </div>
+        </td>
+      </tr>`).join('');
+  }
+  renderPaginacao();
+}
+
+function renderPaginacao() {
+  const total = state.total;
+  const totalPages = Math.max(1, Math.ceil(total / state.pageSize));
+  const ini = (state.page - 1) * state.pageSize + 1;
+  const fim = Math.min(state.page * state.pageSize, total);
+  $('page-info').textContent = total === 0 ? 'Nenhum registro' : `Mostrando ${ini}-${fim} de ${total.toLocaleString('pt-BR')}`;
+
+  const btn = (label, p, dis, active=false) => `<button class="page-btn ${active?'active':''}" ${dis?'disabled':''} data-page="${p}">${label}</button>`;
+  let html = btn('«', state.page-1, state.page===1);
+  const start = Math.max(1, state.page-2), end = Math.min(totalPages, start+4);
+  for (let i = start; i <= end; i++) html += btn(i, i, false, i === state.page);
+  html += btn('»', state.page+1, state.page === totalPages);
+  $('page-controls').innerHTML = html;
+  $$('#page-controls .page-btn').forEach(b => b.onclick = () => {
+    if (b.disabled) return;
+    state.page = Number(b.dataset.page);
+    carregarFuncionarios();
+  });
+}
+
+// Filtros (event listeners)
+$('f-busca').addEventListener('input', debounce(e => {
+  state.filtros.busca = e.target.value; state.page = 1; carregarFuncionarios(); renderFilterTags();
+}, 300));
+$('f-vinculo').addEventListener('change', e => {
+  state.filtros.vinculo_id = e.target.value ? Number(e.target.value) : null;
+  state.page = 1; carregarFuncionarios(); renderFilterTags();
+});
+$('f-lotacao').addEventListener('change', e => {
+  state.filtros.lotacao_id = e.target.value ? Number(e.target.value) : null;
+  state.page = 1; carregarFuncionarios(); renderFilterTags();
+});
+$('f-funcao').addEventListener('change', e => {
+  state.filtros.funcao = e.target.value || null;
+  state.page = 1; carregarFuncionarios(); renderFilterTags();
+});
+$('f-turno').addEventListener('change', e => {
+  state.filtros.turno_id = e.target.value ? Number(e.target.value) : null;
+  state.page = 1; carregarFuncionarios(); renderFilterTags();
+});
+$('btn-limpar').onclick = () => {
+  state.filtros = { busca:'', vinculo_id:null, lotacao_id:null, funcao:'', turno_id:null };
+  state.sort = { col: 'nome', dir: 'asc' };
+  state.page = 1;
+  $('f-busca').value = '';
+  $('f-vinculo').value = '';
+  $('f-funcao').value = '';
+  atualizarDropdownLotacao();
+  $('f-lotacao').value = '';
+  $('f-turno').value = '';
+  atualizarIconesSort();
+  carregarFuncionarios();
+  renderFilterTags();
+};
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║            LOCAIS (drill-down 3 níveis)                       ║
+// ╚══════════════════════════════════════════════════════════════╝
+async function renderLocais(resto) {
+  const [categoria, lotacaoId] = resto || [];
+  renderCrumbsLocais(categoria, lotacaoId);
+
+  if (!categoria) {
+    const locais = await handleErr(await sb.from('v_locais_resumo').select('*'), 'locais') || [];
+    $('locais-content').innerHTML = `
+      <div class="cards-grid">
+        ${locais.map(l => `
+          <div class="big-card" data-cat="${htmlEscape(l.categoria)}">
+            <div class="big-card-title">${htmlEscape(l.categoria)}</div>
+            <div class="big-card-meta">
+              <span><strong>${l.qtd_unidades}</strong> unidades</span>
+              <span><strong>${l.qtd_funcionarios}</strong> servidores</span>
+            </div>
+          </div>`).join('')}
+      </div>`;
+    $$('#locais-content .big-card').forEach(el => {
+      el.onclick = () => { location.hash = `#locais/${encodeURIComponent(el.dataset.cat)}`; };
+    });
+  } else if (!lotacaoId) {
+    const catDecoded = decodeURIComponent(categoria);
+    const { data: catData } = await sb.from('v_locais_resumo').select('*').eq('categoria', catDecoded);
+    
+    let unidades = [];
+    if (catData && catData.length > 0 && catData[0].parent_id_ref != null) {
+      unidades = state.lotacoes.filter(l => l.parent_id === catData[0].parent_id_ref);
+    }
+    if (unidades.length === 0) {
+      unidades = state.lotacoes.filter(l => {
+        const tipo = (l.tipo || '').toLowerCase();
+        const cat  = catDecoded.toLowerCase();
+        return tipo === cat || tipo.includes(cat) || cat.includes(tipo);
+      });
+    }
+    if (unidades.length === 0 && catData && catData.length > 0 && catData[0].marcador) {
+      unidades = state.lotacoes.filter(l => l.marcador === catData[0].marcador);
+    }
+
+    unidades = unidades.sort((a,b) => a.nome.localeCompare(b.nome));
+
+    if (unidades.length === 0) {
+      $('locais-content').innerHTML = `<div class="empty-state">Nenhuma unidade encontrada para "${htmlEscape(catDecoded)}"</div>`;
+      return;
+    }
+
+    $('locais-content').innerHTML = `
+      <div class="cards-grid">
+        ${unidades.map(u => `
+          <div class="big-card" data-id="${u.id}">
+            <div class="big-card-title">${htmlEscape(u.nome)}</div>
+            <div class="big-card-meta">
+              <span><strong>${u.funcionarios_direto ?? 0}</strong> servidores</span>
+            </div>
+          </div>`).join('')}
+      </div>`;
+    $$('#locais-content .big-card').forEach(el => {
+      el.onclick = () => { location.hash = `#locais/${categoria}/${el.dataset.id}`; };
+    });
+  } else {
+    const lot = state.lotacoes.find(x => x.id == lotacaoId);
+    if (!lot) { $('locais-content').innerHTML = '<div class="empty-state">Unidade não encontrada</div>'; return; }
+
+    $('locais-content').innerHTML = `
+      <div class="card">
+        <h3 style="color:var(--gov-blue-dark);margin-bottom:6px">${htmlEscape(lot.nome)}</h3>
+        <div style="color:var(--color-text-muted);font-size:13px;margin-bottom:16px">
+          ${lot.funcionarios_direto} servidor(es)
+          <button class="btn-link" onclick="state.filtros = {busca:'',vinculo_id:null,lotacao_id:${lot.id}}; location.hash = '#funcionarios'">Ver na lista completa</button>
+        </div>
+        <div class="table-container">
+          <table class="gov-table">
+            <thead><tr><th>Nome</th><th>Vínculo</th><th>Função</th><th>Turno</th><th style="width:140px">Ações</th></tr></thead>
+            <tbody id="unidade-tbody"><tr><td colspan="5" class="empty-state"><span class="spinner"></span></td></tr></tbody>
+          </table>
+        </div>
+      </div>`;
+
+    const data = await handleErr(await sb.rpc('fn_buscar_funcionarios', {
+      p_termo: null, p_vinculo_id: null, p_lotacao_id: Number(lotacaoId),
+      p_limite: 500, p_offset: 0,
+    }), 'unidade');
+
+    if (!data || data.length === 0) {
+      $('unidade-tbody').innerHTML = `<tr><td colspan="5" class="empty-state">Sem servidores nessa unidade</td></tr>`;
+    } else {
+      $('unidade-tbody').innerHTML = data.map(f => `
+        <tr>
+          <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(f.nome)}</td>
+          <td>${htmlEscape(f.vinculo || '-')}</td>
+          <td>${htmlEscape(f.funcao || '—')}</td>
+          <td>${htmlEscape(f.turno || '—')}</td>
+          <td style="text-align:center">
+            <div class="table-actions">
+              <button class="btn-icon" title="Editar" onclick="abrirEdicao(${f.funcionario_id})">Editar</button>
+              <button class="btn-icon" title="Transferir" onclick="abrirTransferencia(${f.funcionario_id})">Transferir</button>
+              <button class="btn-icon" title="Histórico" onclick="verHistorico(${f.funcionario_id})">Histórico</button>
+            </div>
+          </td>
+        </tr>`).join('');
+    }
+  }
+}
+
+function renderCrumbsLocais(categoria, lotacaoId) {
+  let html = `<button onclick="location.hash='#locais'">Locais</button>`;
+  if (categoria) {
+    html += `<span class="sep">›</span>`;
+    if (lotacaoId) {
+      html += `<button onclick="location.hash='#locais/${categoria}'">${decodeURIComponent(categoria)}</button>`;
+      const lot = state.lotacoes.find(x => x.id == lotacaoId);
+      html += `<span class="sep">›</span><span class="current">${htmlEscape(lot?.nome || '?')}</span>`;
+    } else {
+      html += `<span class="current">${decodeURIComponent(categoria)}</span>`;
+    }
+  }
+  $('locais-crumbs').innerHTML = html;
+}
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                       ORGANOGRAMA                             ║
+// ╚══════════════════════════════════════════════════════════════╝
+async function renderOrganograma() {
+  if ($('org-tree').dataset.loaded === '1') return;
+  const dados = await handleErr(await sb.rpc('fn_organograma_completo'), 'organograma') || [];
+
+  const byId = Object.fromEntries(dados.map(x => [x.id, { ...x, filhos: [] }]));
+  const raizes = [];
+  for (const n of Object.values(byId)) {
+    if (n.parent_id && byId[n.parent_id]) byId[n.parent_id].filhos.push(n);
+    else raizes.push(n);
+  }
+  Object.values(byId).forEach(n => n.filhos.sort((a,b) => a.nome.localeCompare(b.nome)));
+  raizes.sort((a,b) => a.nome.localeCompare(b.nome));
+
+  function render(n, depth) {
+    const temFilhos = n.filhos.length > 0;
+    const total = n.funcionarios_total;
+    const direto = n.funcionarios_direto;
+    const badge = `<span class="badge-count ${total === 0 ? 'zero' : ''}">${total}</span>`;
+    const tipoLabel = {
+      'superintendencia': 'SUP',
+      'coordenacao': 'COORD',
+      'diretoria': 'DIR',
+      'unidade': 'UNID'
+    }[n.tipo] || n.tipo.slice(0,4).toUpperCase();
+    let html = `
+      <div class="org-node" data-id="${n.id}" data-filhos="${temFilhos}">
+        <span class="toggle ${temFilhos ? '' : 'empty'}">›</span>
+        <span class="tipo-tag" data-tipo="${n.tipo}">${tipoLabel}</span>
+        <span class="nome">${htmlEscape(n.nome)}</span>
+        ${badge}
+        <button class="btn-eye" title="Ver funcionários desta lotação" data-lotid="${n.id}">Ver</button>
+      </div>`;
+    if (temFilhos) {
+      html += `<div class="org-children" data-parent="${n.id}">${n.filhos.map(c => render(c, depth+1)).join('')}</div>`;
+    }
+    return html;
+  }
+  $('org-tree').innerHTML = raizes.map(r => render(r, 0)).join('');
+  $('org-tree').dataset.loaded = '1';
+
+  $$('#org-tree .btn-eye').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      state.filtros = { busca:'', vinculo_id:null, lotacao_id: Number(btn.dataset.lotid) };
+      state.page = 1;
+      location.hash = '#funcionarios';
+    };
+  });
+}
+window.orgExpandirTudo = () => {
+  $$('#org-tree .org-children').forEach(el => el.classList.add('open'));
+};
+window.orgRecolherTudo = () => {
+  $$('#org-tree .org-children').forEach(el => el.classList.remove('open'));
+};
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                     MODAL EDIÇÃO                              ║
+// ╚══════════════════════════════════════════════════════════════╝
+window.abrirEdicao = async (id) => {
+  const data = await handleErr(await sb.from('v_funcionarios_atual').select('*').eq('funcionario_id', id).single(), 'editar');
+  if (!data) return;
+  state.funcionarioAtual = data;
+  
+  $('edit-id').value = id;
+  $('edit-nome').value      = data.nome || '';
+  $('edit-cpf').value       = data.cpf || '';
+  $('edit-matricula').value = data.matricula || '';
+  $('edit-email').value     = data.email || '';
+  $('edit-telefone').value  = data.telefone || '';
+  $('edit-funcao').value    = data.funcao || '';
+  $('edit-ano').value       = data.ano_concurso || '';
+  
+  const v = state.vinculos.find(x => x.categoria === data.vinculo);
+  $('edit-vinculo').value = v ? v.id : '';
+  const t = state.turnos.find(x => x.nome === data.turno);
+  $('edit-turno').value = t ? t.id : '';
+  
+  openModal('modal-edit');
+  setTimeout(() => $('edit-nome').focus(), 100);
+};
+
+$('btn-salvar-edit').onclick = async () => {
+  const btn = $('btn-salvar-edit');
+  btn.disabled = true;
+  const id = Number($('edit-id').value);
+  
+  const r1 = await sb.rpc('fn_editar_funcionario', {
+    p_funcionario_id: id,
+    p_nome:      $('edit-nome').value.trim() || null,
+    p_cpf:       $('edit-cpf').value.trim() || null,
+    p_matricula: $('edit-matricula').value.trim() || null,
+    p_email:     $('edit-email').value.trim() || null,
+    p_telefone:  $('edit-telefone').value.trim() || null,
+  });
+  const r2 = await sb.rpc('fn_editar_lotacao_atual', {
+    p_funcionario_id: id,
+    p_funcao:        $('edit-funcao').value.trim() || null,
+    p_vinculo_id:    $('edit-vinculo').value ? Number($('edit-vinculo').value) : null,
+    p_turno_id:      $('edit-turno').value   ? Number($('edit-turno').value)   : null,
+    p_ano_concurso:  $('edit-ano').value     ? Number($('edit-ano').value)     : null,
+  });
+  btn.disabled = false;
+  
+  if (r1.error || r2.error) {
+    showToast('Erro ao salvar: ' + (r1.error?.message || r2.error?.message), 'error');
+    return;
+  }
+  showToast('Alterações salvas com sucesso', 'success');
+  closeModal('modal-edit');
+  carregarFuncionarios();
+};
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                    MODAL TRANSFERÊNCIA                        ║
+// ╚══════════════════════════════════════════════════════════════╝
+window.abrirTransferencia = async (id) => {
+  const data = await handleErr(await sb.from('v_funcionarios_atual').select('*').eq('funcionario_id', id).single(), 'transfer');
+  if (!data) return;
+  state.funcionarioAtual = data;
+  
+  $('trf-id').value = id;
+  $('trf-servidor-info').innerHTML = `
+    <strong>${htmlEscape(data.nome)}</strong><br>
+    <small>Vínculo: <strong>${htmlEscape(data.vinculo || '—')}</strong> · Função: <strong>${htmlEscape(data.funcao || '—')}</strong></small><br>
+    <small>Lotação atual: ${htmlEscape(data.caminho_lotacao || data.lotacao_nome || '—')}</small>`;
+  $('trf-data').value = new Date().toISOString().slice(0,10);
+  $('trf-motivo').value = '';
+  $('trf-lotacao-id').value = '';
+  $('trf-funcao').value = '';
+  $('trf-alterar').checked = false;
+  $('trf-extras').style.display = 'none';
+  $('trf-search').value = '';
+  renderArvoreTransfer(data.lotacao_id);
+  
+  openModal('modal-transfer');
+};
+
+function renderArvoreTransfer(lotacaoAtualId) {
+  const q = $('trf-search').value.toLowerCase().trim();
+  const byId = Object.fromEntries(state.lotacoes.map(l => [l.id, { ...l, filhos: [] }]));
+  const raizes = [];
+  for (const l of Object.values(byId)) {
+    if (l.parent_id && byId[l.parent_id]) byId[l.parent_id].filhos.push(l);
+    else raizes.push(l);
+  }
+  raizes.sort((a,b) => a.nome.localeCompare(b.nome));
+  Object.values(byId).forEach(l => l.filhos.sort((a,b) => a.nome.localeCompare(b.nome)));
+
+  function matches(l) {
+    if (!q) return true;
+    if (l.nome.toLowerCase().includes(q)) return true;
+    return l.filhos.some(matches);
+  }
+  function render(l, depth) {
+    if (!matches(l)) return '';
+    const isCurrent = l.id == lotacaoAtualId;
+    const dis = isCurrent ? 'opacity:0.4;cursor:not-allowed' : '';
+    return `<div class="lotacao-tree-item" data-id="${l.id}" style="padding-left:${8 + depth*16}px;${dis}">
+              <span style="font-size:9px">${l.tipo}</span>
+              ${htmlEscape(l.nome)}
+              ${isCurrent ? '<small>(atual)</small>' : ''}
+            </div>` + l.filhos.map(c => render(c, depth+1)).join('');
+  }
+  $('trf-tree').innerHTML = raizes.map(r => render(r, 0)).join('');
+  $$('#trf-tree .lotacao-tree-item').forEach(el => {
+    if (el.dataset.id == lotacaoAtualId) return;
+    el.onclick = () => {
+      $('trf-lotacao-id').value = el.dataset.id;
+      $$('#trf-tree .lotacao-tree-item').forEach(e => e.classList.remove('selected'));
+      el.classList.add('selected');
+    };
+  });
+}
+$('trf-alterar').addEventListener('change', e => {
+  $('trf-extras').style.display = e.target.checked ? 'grid' : 'none';
+});
+$('trf-search').addEventListener('input', debounce(() => {
+  const fid = state.funcionarioAtual?.lotacao_id;
+  renderArvoreTransfer(fid);
+}, 200));
+
+$('btn-confirmar-trf').onclick = async () => {
+  const btn = $('btn-confirmar-trf');
+  const id = Number($('trf-id').value);
+  const novaLot = Number($('trf-lotacao-id').value);
+  if (!novaLot) { showToast('Selecione a nova lotação', 'warning'); return; }
+  
+  const params = {
+    p_funcionario_id:  id,
+    p_nova_lotacao_id: novaLot,
+    p_data:    $('trf-data').value || null,
+    p_motivo:  $('trf-motivo').value.trim() || null,
+  };
+  if ($('trf-alterar').checked) {
+    params.p_nova_funcao       = $('trf-funcao').value.trim() || null;
+    params.p_novo_turno_id     = $('trf-turno').value   ? Number($('trf-turno').value)   : null;
+    params.p_novo_vinculo_id   = $('trf-vinculo').value ? Number($('trf-vinculo').value) : null;
+  }
+  btn.disabled = true;
+  const { error } = await sb.rpc('fn_transferir_funcionario', params);
+  btn.disabled = false;
+  if (error) { showToast('Erro: ' + error.message, 'error'); return; }
+  showToast('Transferência registrada com sucesso', 'success');
+  closeModal('modal-transfer');
+  carregarFuncionarios();
+};
+
+window.abrirHistoricoDoTransfer = () => {
+  if (state.funcionarioAtual) verHistorico(state.funcionarioAtual.funcionario_id);
+};
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                     MODAL HISTÓRICO                           ║
+// ╚══════════════════════════════════════════════════════════════╝
+window.verHistorico = async (id) => {
+  openModal('modal-historico');
+  $('hist-content').innerHTML = '<span class="spinner"></span> Carregando…';
+  const data = await handleErr(await sb.from('v_funcionario_historico')
+    .select('*').eq('funcionario_id', id).order('data_inicio', { ascending: false }), 'histórico');
+  if (!data || data.length === 0) {
+    $('hist-content').innerHTML = '<div class="empty-state">Sem histórico</div>';
+    return;
+  }
+  const nome = data[0].funcionario_nome;
+  $('hist-content').innerHTML = `
+    <h4 style="color:var(--gov-blue-dark);margin-bottom:14px">${htmlEscape(nome)}</h4>
+    <ul class="timeline">
+      ${data.map(h => `
+        <li class="${h.lotacao_ativa ? '' : 'inactive'}">
+          <div class="periodo">
+            ${new Date(h.data_inicio).toLocaleDateString('pt-BR')} —
+            ${h.data_fim ? new Date(h.data_fim).toLocaleDateString('pt-BR') : '<strong>ATUAL</strong>'}
+            · ${h.dias_na_lotacao} dias
+          </div>
+          <div class="lot-nome">
+            ${htmlEscape(h.lotacao_nome)}
+            <span style="margin-left:6px; color:var(--color-text-muted); font-size:12px;">(${htmlEscape(h.vinculo || '-')})</span>
+          </div>
+          <div class="meta">${htmlEscape(h.funcao || '—')} · ${htmlEscape(h.turno || '—')}</div>
+          ${h.observacao ? `<div class="meta" style="font-style:italic">${htmlEscape(h.observacao)}</div>` : ''}
+        </li>`).join('')}
+    </ul>`;
+};
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                          BOOT                                 ║
+// ╚══════════════════════════════════════════════════════════════╝
+(async () => {
+  try {
+    // Desativa o hashchange durante o boot para não navegar antes dos domínios carregarem
+    window.removeEventListener('hashchange', navigate);
+
+    await carregarDominios();
+
+    // Reativa e navega manualmente
+    window.addEventListener('hashchange', navigate);
+    if (!location.hash || location.hash === '#') location.hash = '#painel';
+    navigate(); // sempre chama explicitamente após boot
+  } catch (e) {
+    console.error('Boot failed:', e);
+    showToast('Erro ao inicializar: ' + e.message, 'error');
+  }
+})();
+</script>
+
+</body>
+</html>
