@@ -3676,20 +3676,51 @@ window.abrirModalLicenca = async (id = null) => {
     divFunc.innerHTML = `<label class="form-label">Servidor *</label><input type="text" class="form-control" placeholder="Carregando servidores..." disabled>`;
     
     // Fetch data asynchronously
-    sb.from('v_funcionarios_atual').select('funcionario_id, nome, matricula').order('nome').then(({ data }) => {
-      const opts = (data || []).map(f => `<option value="${htmlEscape(f.nome)} - Mat: ${f.matricula || 'S/M'}" data-id="${f.funcionario_id}"></option>`).join('');
+    sb.from('v_funcionarios_atual').select('funcionario_id, nome, matricula').range(0, 9999).order('nome').then(({ data }) => {
+      window._licAutocompleteData = data || [];
       divFunc.innerHTML = `
         <label class="form-label">Servidor *</label>
-        <input list="lic-func-list" id="lic-func-search" class="form-control" placeholder="Digite nome ou matrícula..." oninput="
-          const val = this.value;
-          const opt = Array.from(document.getElementById('lic-func-list').options).find(o => o.value === val);
-          document.getElementById('lic-func-id').value = opt ? opt.dataset.id : '';
-        ">
-        <datalist id="lic-func-list">${opts}</datalist>
+        <div style="position:relative">
+          <input type="text" id="lic-func-search" class="form-control" placeholder="Digite nome ou matrícula..." oninput="filtrarLicAutocomplete(this.value)" autocomplete="off">
+          <div id="lic-func-sugestoes" style="display:none; position:absolute; top:100%; left:0; right:0; max-height:200px; overflow-y:auto; background:#fff; border:1px solid var(--gov-border); z-index:999; border-radius:4px; box-shadow:var(--shadow-md)"></div>
+        </div>
       `;
     });
   }
   openModal('modal-licenca');
+};
+
+window.filtrarLicAutocomplete = (val) => {
+  const box = $('lic-func-sugestoes');
+  $('lic-func-id').value = '';
+  if(!val || val.length < 2) { box.style.display = 'none'; return; }
+  
+  const termo = val.toLowerCase();
+  const filtrados = window._licAutocompleteData.filter(f => 
+    f.nome.toLowerCase().includes(termo) || 
+    (f.matricula && String(f.matricula).toLowerCase().includes(termo))
+  ).slice(0, 30);
+  
+  if(filtrados.length === 0) {
+    box.innerHTML = '<div style="padding:10px; color:var(--color-text-muted); font-size:12px">Nenhum servidor encontrado</div>';
+  } else {
+    box.innerHTML = filtrados.map(f => `
+      <div style="padding:10px; border-bottom:1px solid var(--gov-border); cursor:pointer; font-size:13px; line-height:1.4" 
+           onmouseover="this.style.background='var(--gov-blue-light)'" 
+           onmouseout="this.style.background='#fff'"
+           onclick="selecionarLicAutocomplete(${f.funcionario_id}, '${htmlEscape(f.nome).replace(/'/g,"\\'")} - Mat: ${f.matricula || 'S/M'}')">
+        <div style="font-weight:600; color:var(--gov-blue-dark)">${htmlEscape(f.nome)}</div>
+        <div style="font-size:11px; color:var(--color-text-muted)">Matrícula: ${f.matricula || 'S/M'}</div>
+      </div>
+    `).join('');
+  }
+  box.style.display = 'block';
+};
+
+window.selecionarLicAutocomplete = (id, label) => {
+  $('lic-func-id').value = id;
+  $('lic-func-search').value = label;
+  $('lic-func-sugestoes').style.display = 'none';
 };
 
 $('btn-salvar-licenca').onclick = async () => {
