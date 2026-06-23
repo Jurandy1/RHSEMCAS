@@ -1062,6 +1062,77 @@
     .sortable:hover { background: var(--gov-blue-light); }
     .sort-icon { margin-left: 4px; font-size: 11px; opacity: 0.35; vertical-align: middle; }
     .sort-icon.active { opacity: 1; color: var(--gov-blue-primary); font-weight: 700; }
+
+    /* ============================================================
+       FOLHA DE PONTO
+    ============================================================ */
+    .page-wrapper-fp {
+      width: 100%; display: flex; justify-content: center;
+      padding: 20px 0; overflow-x: auto;
+    }
+    .page-fp {
+      width: 210mm; min-width: 210mm; min-height: 297mm;
+      background: #fff; color: #000;
+      padding: 12mm 15mm;
+      box-sizing: border-box;
+      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.12);
+      margin: 0 auto;
+      font-family: Arial, Helvetica, sans-serif;
+      position: relative;
+    }
+    .folha-table {
+      width: 100%; border-collapse: collapse;
+      table-layout: fixed; border: 2px solid #000;
+    }
+    .folha-table td, .folha-table th {
+      border: 1px solid #000; padding: 2px 4px;
+      font-size: 11px; vertical-align: middle;
+      color: #000; overflow: hidden; white-space: nowrap;
+    }
+    .fp-bg-gray  { background-color: #e5e7eb !important; font-weight: bold; text-align: center; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .fp-bg-head  { background-color: #fff    !important; font-weight: bold; text-align: center; }
+    .fp-inp {
+      border: none; border-bottom: 1px solid #aaa;
+      background: transparent; font-family: inherit;
+      font-size: 11px; font-weight: bold; width: 100%; outline: none;
+    }
+    .fp-inp:focus { border-bottom-color: #1351b4; background: rgba(19,81,180,0.05); }
+    .fp-tab-btn {
+      padding: 8px 18px; font-size: 13px; font-weight: 600;
+      border: none; background: none; cursor: pointer;
+      color: var(--color-text-muted); border-bottom: 3px solid transparent;
+      font-family: var(--font-sans); transition: all 0.2s;
+    }
+    .fp-tab-btn.active { color: var(--gov-blue-primary); border-bottom-color: var(--gov-blue-primary); }
+    .fp-tab-pane { display: none; }
+    .fp-tab-pane.active { display: block; }
+
+    @media print {
+      /* ── Impressão individual (padrão) ── */
+      .sidebar, .topbar, .bottom-nav, .sidebar-overlay,
+      #fp-controls, .fp-no-print { display: none !important; }
+      body, html { margin: 0; padding: 0; background: #fff !important; }
+      .content-area { padding: 0 !important; overflow: visible !important; }
+      .main { overflow: visible !important; }
+      .app { display: block !important; height: auto !important; overflow: visible !important; }
+      .page-wrapper-fp { padding: 0; }
+      .page-fp { box-shadow: none; margin: 0; width: 100%; min-width: 0; page-break-after: always; }
+      .fp-inp { border-bottom: none; }
+      #view-folha-ponto { display: block !important; }
+      #fp-print-lote  { display: none !important; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+      /* ── Impressão em lote (Por Unidade) ── */
+      /* body recebe a classe .fp-lote-print antes do window.print() */
+      body.fp-lote-print .app            { display: none !important; }
+      body.fp-lote-print #fp-print-lote  { display: block !important; }
+      body.fp-lote-print #view-folha-ponto { display: none !important; }
+      #fp-print-lote .page-fp { page-break-after: always; }
+    }
+
+    @media (max-width: 768px) {
+      .page-wrapper-fp { padding: 10px 0; overflow-x: scroll; }
+    }
   </style>
   <div id="conn-banner" class="conn-banner hidden">
     <div class="conn-icon"></div>
@@ -1103,8 +1174,8 @@
       </a>
 
       <div class="nav-group">Gestão</div>
-      <a href="#" class="nav-item" onclick="event.preventDefault(); showToast('Em breve','info')">
-        Folha de Ponto
+      <a href="#folha-ponto" class="nav-item" data-route="folha-ponto">
+        <i class="ti ti-clock"></i> Folha de Ponto
       </a>
       <a href="#" class="nav-item" onclick="event.preventDefault(); showToast('Em breve','info')">
         Relatórios
@@ -1218,6 +1289,197 @@
             </div>
           </div>
           <div id="org-tree" class="org-tree"><span class="spinner"></span> Carregando…</div>
+        </div>
+      </section>
+
+      <!-- ===== FOLHA DE PONTO ===== -->
+      <section id="view-folha-ponto" class="view-section">
+
+        <!-- Painel de Controles -->
+        <div class="card fp-no-print" id="fp-controls" style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+            <div>
+              <div style="font-size:16px;font-weight:700;color:var(--gov-blue-dark)">
+                <i class="ti ti-clock"></i> Gerador de Folha de Ponto
+              </div>
+              <div style="font-size:12px;color:var(--color-text-muted);margin-top:2px">Dados carregados do Supabase &mdash; Papel A4</div>
+            </div>
+            <button onclick="fpImprimir()" class="btn-primary">
+              <i class="ti ti-printer"></i> Imprimir
+            </button>
+          </div>
+
+          <!-- Abas -->
+          <div style="display:flex;border-bottom:2px solid var(--gov-border);margin-bottom:16px">
+            <button class="fp-tab-btn active" id="fp-btn-individual" onclick="fpSwitchTab('individual',this)">Individual</button>
+            <button class="fp-tab-btn" id="fp-btn-unidade"    onclick="fpSwitchTab('unidade',this)">Por Unidade</button>
+            <button class="fp-tab-btn" id="fp-btn-feriados"   onclick="fpSwitchTab('feriados',this)">Feriados</button>
+          </div>
+
+          <!-- Tab: Individual -->
+          <div class="fp-tab-pane active" id="fp-tab-individual">
+            <div style="display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:flex-end">
+              <div>
+                <label class="form-label" style="font-size:12px">Servidor</label>
+                <select id="fp-servidor-select" class="form-control" style="font-size:13px"
+                  onchange="fpPreencherServidor()">
+                  <option value="">Carregando servidores&#8230;</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label" style="font-size:12px">M&ecirc;s</label>
+                <select id="fp-mes" class="form-control" style="font-size:13px;width:130px"
+                  onchange="fpPopularDias()"></select>
+              </div>
+              <div>
+                <label class="form-label" style="font-size:12px">Ano</label>
+                <select id="fp-ano" class="form-control" style="font-size:13px;width:90px"
+                  onchange="fpPopularDias()"></select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: Feriados -->
+          <div class="fp-tab-pane" id="fp-tab-feriados">
+            <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-bottom:12px">
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+                <input type="checkbox" id="fp-chk-nac" checked> Nacionais
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+                <input type="checkbox" id="fp-chk-est" checked> Estaduais (MA)
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+                <input type="checkbox" id="fp-chk-mun" checked> Municipais (S&atilde;o Lu&iacute;s)
+              </label>
+              <div style="display:flex;align-items:center;gap:6px">
+                <label style="font-size:12px;font-weight:600">Ano:</label>
+                <select id="fp-fer-ano" class="form-control" style="width:90px;font-size:13px"
+                  onchange="fpRenderFeriados()"></select>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;margin-bottom:10px">
+              <input type="date" id="fp-fer-data" class="form-control" style="width:160px">
+              <input type="text" id="fp-fer-nome" class="form-control" placeholder="Nome do feriado personalizado" style="flex:1">
+              <button onclick="fpAddFeriado()" class="btn-primary"><i class="ti ti-plus"></i> Adicionar</button>
+            </div>
+            <div id="fp-feriados-lista" style="max-height:200px;overflow-y:auto;border:1px solid var(--gov-border);border-radius:4px;padding:8px;background:var(--gov-bg-light)"></div>
+          </div>
+
+          <!-- Tab: Por Unidade -->
+          <div class="fp-tab-pane" id="fp-tab-unidade">
+            <div style="background:#e8f4fd;border:1px solid #b3d9f7;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#1351b4">
+              <i class="ti ti-info-circle"></i>
+              Gera e imprime a folha de ponto de <strong>todos os servidores</strong> da unidade selecionada em sequência (uma página por servidor).
+              Apenas v&iacute;nculos: <strong>Efetivo, Comissionado e Servi&ccedil;o Prestado</strong>.
+            </div>
+            <div style="display:grid;grid-template-columns:1fr auto auto auto;gap:12px;align-items:flex-end">
+              <div>
+                <label class="form-label" style="font-size:12px">Unidade Administrativa</label>
+                <select id="fp-unidade-select" class="form-control" style="font-size:13px">
+                  <option value="">— Selecione a unidade —</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label" style="font-size:12px">M&ecirc;s</label>
+                <select id="fp-und-mes" class="form-control" style="font-size:13px;width:130px"></select>
+              </div>
+              <div>
+                <label class="form-label" style="font-size:12px">Ano</label>
+                <select id="fp-und-ano" class="form-control" style="font-size:13px;width:90px"></select>
+              </div>
+              <div style="padding-bottom:2px">
+                <button onclick="fpImprimirUnidade()" class="btn-primary" style="height:38px">
+                  <i class="ti ti-printer"></i> Imprimir Todas
+                </button>
+              </div>
+            </div>
+            <div id="fp-und-preview" style="margin-top:14px;font-size:13px;color:var(--color-text-muted)"></div>
+          </div>
+        </div>
+
+        <!-- Papel A4 -->
+        <div class="page-wrapper-fp">
+          <div class="page-fp" id="fp-paper">
+            <!-- Cabeçalho -->
+            <table class="folha-table">
+              <tr>
+                <td class="fp-bg-gray" style="width:70%;font-size:12px">REGISTRO INDIVIDUAL DE FREQU&Ecirc;NCIA</td>
+                <td class="fp-bg-head"><span id="fp-label-mesano">MES/ANO</span></td>
+              </tr>
+              <tr>
+                <td colspan="2" class="fp-bg-head" style="font-size:11px">
+                  Secretaria Municipal da Crian&ccedil;a e Assist&ecirc;ncia Social / SEMCAS
+                </td>
+              </tr>
+              <tr>
+                <td style="background:#fff">Nome: <input id="fp-inp-nome" class="fp-inp"></td>
+                <td style="background:#fff">Matr&iacute;cula: <input id="fp-inp-mat" class="fp-inp" style="width:80px"></td>
+              </tr>
+              <tr>
+                <td style="background:#fff">Cargo/Fun&ccedil;&atilde;o: <input id="fp-inp-cargo" class="fp-inp"></td>
+                <td style="background:#fff">V&iacute;nculo: <input id="fp-inp-vinculo" class="fp-inp"></td>
+              </tr>
+              <tr>
+                <td colspan="2" style="background:#fff">
+                  Unidade Administrativa: <input id="fp-inp-unidade" class="fp-inp">
+                </td>
+              </tr>
+            </table>
+
+            <!-- Grade de dias -->
+            <table class="folha-table" style="margin-top:-1px">
+              <colgroup>
+                <col style="width:6%">
+                <col style="width:10%"><col style="width:10%">
+                <col style="width:10%"><col style="width:10%">
+                <col style="width:10%"><col style="width:10%">
+                <col style="width:10%"><col style="width:10%">
+                <col style="width:14%">
+              </colgroup>
+              <thead>
+                <tr class="fp-bg-head">
+                  <th rowspan="3">Dia</th>
+                  <th colspan="8">Hor&aacute;rio de Trabalho</th>
+                  <th rowspan="3">Ocorr&ecirc;ncia</th>
+                </tr>
+                <tr class="fp-bg-head">
+                  <th colspan="4">Manh&atilde;</th>
+                  <th colspan="4">Tarde</th>
+                </tr>
+                <tr class="fp-bg-head">
+                  <th colspan="2" style="font-size:9px">Entrada:<br>08:00</th>
+                  <th colspan="2" style="font-size:9px">Sa&iacute;da:<br>12:00</th>
+                  <th colspan="2" style="font-size:9px">Entrada:<br>14:00</th>
+                  <th colspan="2" style="font-size:9px">Sa&iacute;da:<br>18:00</th>
+                </tr>
+                <tr class="fp-bg-gray">
+                  <th></th>
+                  <th style="font-size:9px">Hora</th><th style="font-size:9px">Rubrica</th>
+                  <th style="font-size:9px">Hora</th><th style="font-size:9px">Rubrica</th>
+                  <th style="font-size:9px">Hora</th><th style="font-size:9px">Rubrica</th>
+                  <th style="font-size:9px">Hora</th><th style="font-size:9px">Rubrica</th>
+                  <th style="font-size:9px">Obs</th>
+                </tr>
+              </thead>
+              <tbody id="fp-days-body"></tbody>
+            </table>
+
+            <!-- Assinaturas -->
+            <table style="width:100%;border-collapse:collapse;margin-top:-1px">
+              <tr>
+                <td style="border:1px solid #000;height:90px;vertical-align:top;padding:5px;width:50%">
+                  <div style="font-weight:bold;font-size:11px">Chefia Imediata:</div>
+                  <div style="margin-top:40px;border-top:1px solid #000;width:80%"></div>
+                  <div style="font-size:10px;margin-top:4px">S&atilde;o Lu&iacute;s, <span contenteditable="true" style="display:inline-block;min-width:100px;border-bottom:1px dotted #000">__/__/____</span></div>
+                </td>
+                <td style="border:1px solid #000;height:90px;vertical-align:top;padding:5px;width:50%">
+                  <div style="font-weight:bold;font-size:11px">Visto (Recursos Humanos):</div>
+                  <div style="margin-top:40px;border-top:1px solid #000;width:80%"></div>
+                  <div style="font-size:10px;margin-top:4px">S&atilde;o Lu&iacute;s, <span contenteditable="true" style="display:inline-block;min-width:100px;border-bottom:1px dotted #000">__/__/____</span></div>
+                </td>
+              </tr>
+            </table>
+          </div>
         </div>
       </section>
 
@@ -1513,10 +1775,11 @@ async function handleErr(resp, contexto = '') {
 // ║                      ROUTER POR HASH                          ║
 // ╚══════════════════════════════════════════════════════════════╝
 const rotas = {
-  'painel':       { titulo: 'Painel de Gestão',     bread: 'Painel',       render: renderPainel },
-  'funcionarios': { titulo: 'Funcionários',          bread: 'Funcionários', render: renderFuncionarios },
-  'locais':       { titulo: 'Locais Operacionais',   bread: 'Locais',       render: renderLocais },
-  'organograma':  { titulo: 'Organograma',           bread: 'Organograma',  render: renderOrganograma },
+  'painel':       { titulo: 'Painel de Gestão',     bread: 'Painel',         render: renderPainel },
+  'funcionarios': { titulo: 'Funcionários',          bread: 'Funcionários',   render: renderFuncionarios },
+  'locais':       { titulo: 'Locais Operacionais',   bread: 'Locais',         render: renderLocais },
+  'organograma':  { titulo: 'Organograma',           bread: 'Organograma',    render: renderOrganograma },
+  'folha-ponto':  { titulo: 'Folha de Ponto',        bread: 'Folha de Ponto', render: renderFolhaPonto },
 };
 
 function navigate() {
@@ -2286,6 +2549,442 @@ window.verHistorico = async (id) => {
     showToast('Erro ao inicializar: ' + e.message, 'error');
   }
 })();
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                     FOLHA DE PONTO                           ║
+// ╚══════════════════════════════════════════════════════════════╝
+let _fpServidores = [];
+let _fpInited = false;
+const _fpHolCfg = { nac: true, est: true, mun: true, custom: [] };
+
+async function renderFolhaPonto() {
+  const now = new Date();
+
+  // Inicializa selects de Mês/Ano (apenas uma vez)
+  const selMes = $('fp-mes');
+  const selAno = $('fp-ano');
+  if (selMes && selMes.options.length === 0) {
+    ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+     'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
+      .forEach((m, i) => {
+        selMes.innerHTML += `<option value="${String(i+1).padStart(2,'0')}" ${i===now.getMonth()?'selected':''}>${m}</option>`;
+      });
+  }
+  if (selAno && selAno.options.length === 0) {
+    for (let y = now.getFullYear()-1; y <= now.getFullYear()+2; y++)
+      selAno.innerHTML += `<option value="${y}" ${y===now.getFullYear()?'selected':''}>${y}</option>`;
+  }
+  const ferAno = $('fp-fer-ano');
+  if (ferAno && ferAno.options.length === 0) {
+    for (let y = now.getFullYear()-1; y <= now.getFullYear()+2; y++)
+      ferAno.innerHTML += `<option value="${y}" ${y===now.getFullYear()?'selected':''}>${y}</option>`;
+  }
+
+  // Registra checkboxes de feriado (uma vez)
+  if (!_fpInited) {
+    _fpInited = true;
+    const chkN = $('fp-chk-nac'), chkE = $('fp-chk-est'), chkM = $('fp-chk-mun');
+    if (chkN) chkN.onchange = () => { _fpHolCfg.nac = chkN.checked; fpRenderFeriados(); fpPopularDias(); };
+    if (chkE) chkE.onchange = () => { _fpHolCfg.est = chkE.checked; fpRenderFeriados(); fpPopularDias(); };
+    if (chkM) chkM.onchange = () => { _fpHolCfg.mun = chkM.checked; fpRenderFeriados(); fpPopularDias(); };
+  }
+
+  // Carrega servidores do Supabase (uma vez)
+  if (_fpServidores.length === 0) {
+    const sel = $('fp-servidor-select');
+    if (sel) sel.innerHTML = '<option value="">Carregando&#8230;</option>';
+    const { data, error } = await sb
+      .from('v_funcionarios_atual')
+      .select('funcionario_id, nome, funcao, matricula, vinculo, lotacao_nome')
+      .order('nome');
+    if (!error && data && data.length > 0) {
+      _fpServidores = data;
+    } else {
+      // fallback via RPC
+      const r = await sb.rpc('fn_buscar_funcionarios', {
+        p_termo: null, p_vinculo_id: null, p_lotacao_id: null,
+        p_funcao: null, p_turno_id: null,
+        p_limite: 9999, p_offset: 0, p_order_by: 'nome', p_order_dir: 'asc'
+      });
+      _fpServidores = r.data || [];
+    }
+  // Filtra apenas vínculos permitidos (Efetivo, Comissionado, Serviço Prestado)
+    const vincPermitidos = d => {
+      const v = (d.vinculo || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      return v.includes('efetivo') || v.includes('comission') ||
+             v.includes('servico prestado') || v.includes('servico pres') ||
+             v.includes('prestado') || v.includes('ps ');
+    };
+    _fpServidores = _fpServidores.filter(vincPermitidos);
+
+    const sel2 = $('fp-servidor-select');
+    if (sel2) {
+      sel2.innerHTML = '<option value="">— Selecione o servidor —</option>' +
+        _fpServidores.map(s =>
+          `<option value="${s.funcionario_id}">${htmlEscape(s.nome)} <small>(${s.vinculo || ''})</small></option>`
+        ).join('');
+    }
+  }
+
+  fpRenderFeriados();
+
+  // Adiciona listener no select de servidor (gera folha ao trocar)
+  const selSrv = $('fp-servidor-select');
+  if (selSrv && !selSrv._fpListenerOk) {
+    selSrv._fpListenerOk = true;
+    selSrv.addEventListener('change', fpPreencherServidor);
+  }
+
+  // Listeners de mês/ano (individual)
+  const selM = $('fp-mes'), selA = $('fp-ano');
+  if (selM && !selM._fpListenerOk) { selM._fpListenerOk = true; selM.addEventListener('change', fpPopularDias); }
+  if (selA && !selA._fpListenerOk) { selA._fpListenerOk = true; selA.addEventListener('change', fpPopularDias); }
+
+  // Listener feriados ano
+  const ferA = $('fp-fer-ano');
+  if (ferA && !ferA._fpListenerOk) { ferA._fpListenerOk = true; ferA.addEventListener('change', fpRenderFeriados); }
+
+  // Pré-seleciona Jurandy se disponível
+  const jurandy = _fpServidores.find(s =>
+    (s.nome || '').toUpperCase().includes('JURANDY')
+  );
+  if (jurandy) {
+    $('fp-servidor-select').value = jurandy.funcionario_id;
+  }
+  fpPreencherServidor();
+}
+
+function fpPreencherServidor() {
+  const sel = $('fp-servidor-select');
+  const id  = sel ? Number(sel.value) : null;
+  const srv = _fpServidores.find(s =>
+    s.funcionario_id === id || s.funcionario_id == id
+  );
+
+  if (srv) {
+    $('fp-inp-nome').value    = srv.nome      || '';
+    $('fp-inp-mat').value     = srv.matricula || '';
+    $('fp-inp-vinculo').value = srv.vinculo   || '';
+
+    // Regra de negócio: Jurandy → Cargo e Unidade específicos
+    const nomeUp = (srv.nome || '').toUpperCase();
+    if (nomeUp.includes('JURANDY')) {
+      $('fp-inp-cargo').value   = 'Chefe de Serviço - Patrimônio';
+      $('fp-inp-unidade').value = 'Coordenação de Administração e Patrimônio';
+    } else {
+      $('fp-inp-cargo').value   = srv.funcao      || '';
+      $('fp-inp-unidade').value = srv.lotacao_nome || '';
+    }
+  } else {
+    // Limpa campos se nada selecionado
+    ['fp-inp-nome','fp-inp-mat','fp-inp-cargo','fp-inp-vinculo','fp-inp-unidade']
+      .forEach(id => { const el = $(id); if (el) el.value = ''; });
+  }
+  fpPopularDias();
+}
+
+function fpPopularDias() {
+  const tbody = $('fp-days-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  const mm = $('fp-mes')?.value  || String(new Date().getMonth()+1).padStart(2,'0');
+  const aa = $('fp-ano')?.value  || String(new Date().getFullYear());
+  const diasNoMes = new Date(Number(aa), Number(mm), 0).getDate();
+  const labelMes  = $('fp-label-mesano');
+  if (labelMes) labelMes.textContent = `${mm}/${aa}`;
+
+  const ferList = fpGetHolidays(parseInt(aa));
+  const ferMap  = new Map(ferList.map(h => [h.date, h.nome]));
+
+  for (let i = 1; i <= 31; i++) {
+    const tr = document.createElement('tr');
+    tr.style.height = '18px';
+
+    if (i <= diasNoMes) {
+      const dt  = new Date(Number(aa), Number(mm)-1, i);
+      const dow = dt.getDay();
+      const iso = `${aa}-${String(mm).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+
+      if (ferMap.has(iso)) {
+        tr.innerHTML =
+          `<td style="text-align:center;font-weight:bold">${i}</td>` +
+          `<td colspan="9" style="text-align:center;background:#ffe4e6;color:#991b1b;font-weight:bold;font-size:9px">` +
+          `FERIADO &#8226; ${htmlEscape(ferMap.get(iso))}</td>`;
+      } else if (dow === 0 || dow === 6) {
+        const txt = dow === 6 ? 'SÁBADO' : 'DOMINGO';
+        tr.innerHTML =
+          `<td style="text-align:center;font-weight:bold">${i}</td>` +
+          `<td colspan="9" style="text-align:center;background:#e5e7eb;color:#374151;font-weight:bold;font-size:9px;letter-spacing:1px">${txt}</td>`;
+      } else {
+        tr.innerHTML =
+          `<td style="text-align:center;font-weight:bold">${i}</td>` +
+          `<td contenteditable="true"></td><td contenteditable="true"></td>` +
+          `<td contenteditable="true"></td><td contenteditable="true"></td>` +
+          `<td contenteditable="true"></td><td contenteditable="true"></td>` +
+          `<td contenteditable="true"></td><td contenteditable="true"></td>` +
+          `<td contenteditable="true" style="font-size:9px"></td>`;
+      }
+    } else {
+      tr.innerHTML =
+        `<td style="text-align:center;color:#bbb">—</td>` +
+        `<td colspan="9" style="background:#d1d5db"></td>`;
+    }
+    tbody.appendChild(tr);
+  }
+}
+
+function fpSwitchTab(tab, btn) {
+  $$('.fp-tab-pane').forEach(el => el.classList.remove('active'));
+  $$('.fp-tab-btn').forEach(el  => el.classList.remove('active'));
+  $(`fp-tab-${tab}`)?.classList.add('active');
+  btn.classList.add('active');
+  if (tab === 'feriados') fpRenderFeriados();
+  if (tab === 'unidade')  fpIniciarAbaUnidade();
+}
+
+function fpImprimir() {
+  fpPopularDias(); // garante atualização
+  setTimeout(() => window.print(), 150);
+}
+
+// --- Feriados ---
+function fpGetHolidays(year) {
+  const out = [];
+  if (_fpHolCfg.nac) out.push(...fpFerNacionais(year));
+  if (_fpHolCfg.est) out.push(...fpFerEstaduais(year));
+  if (_fpHolCfg.mun) out.push(...fpFerMunicipais(year));
+  (_fpHolCfg.custom || []).forEach(c => out.push({ date: c.date, nome: c.nome, tipo: 'Personalizado' }));
+  return out;
+}
+
+function fpFerNacionais(year) {
+  const fixed = [
+    ['01-01','Confraternização Universal'],['04-21','Tiradentes'],
+    ['05-01','Dia do Trabalhador'],['09-07','Independência do Brasil'],
+    ['10-12','N. Sra. Aparecida'],['11-02','Finados'],
+    ['11-15','Proclamação da República'],['12-25','Natal']
+  ].map(([md,n]) => ({ date: `${year}-${md}`, nome: n, tipo: 'Nacional' }));
+  const E = fpEaster(year);
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const add = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x; };
+  return [...fixed,
+    { date: iso(add(E,-47)), nome: 'Carnaval',          tipo: 'Nacional' },
+    { date: iso(add(E,-2)),  nome: 'Sexta-feira Santa', tipo: 'Nacional' },
+    { date: iso(E),          nome: 'Páscoa',             tipo: 'Nacional' },
+    { date: iso(add(E,60)),  nome: 'Corpus Christi',     tipo: 'Nacional' },
+  ];
+}
+function fpFerEstaduais(year) {
+  return [{ date:`${year}-07-28`, nome:'Adesão do MA à Independência', tipo:'Estadual (MA)' }];
+}
+function fpFerMunicipais(year) {
+  return [{ date:`${year}-09-08`, nome:'Aniversário de São Luís', tipo:'Municipal' }];
+}
+function fpEaster(Y) {
+  const a=Y%19,b=Math.floor(Y/100),c=Y%100,d=Math.floor(b/4),e=b%4;
+  const f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3);
+  const h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4;
+  const L=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*L)/451);
+  return new Date(Y,Math.floor((h+L-7*m+114)/31)-1,((h+L-7*m+114)%31)+1);
+}
+
+function fpRenderFeriados() {
+  const ano  = parseInt($('fp-fer-ano')?.value || new Date().getFullYear());
+  const list = fpGetHolidays(ano);
+  const cont = $('fp-feriados-lista');
+  if (!cont) return;
+  if (!list.length) {
+    cont.innerHTML = '<div style="color:var(--color-text-muted);font-size:13px;padding:8px">Nenhum feriado ativo.</div>';
+    return;
+  }
+  cont.innerHTML = list
+    .sort((a,b) => a.date.localeCompare(b.date))
+    .map(h => `
+      <div style="display:flex;gap:8px;padding:5px 4px;border-bottom:1px solid var(--gov-border);font-size:12px;align-items:center">
+        <span style="min-width:72px;color:var(--color-text-muted)">${new Date(h.date+'T00:00:00').toLocaleDateString('pt-BR')}</span>
+        <span style="flex:1;font-weight:600">${htmlEscape(h.nome)}</span>
+        <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:#f1f3f5;color:#555">${h.tipo}</span>
+      </div>`
+    ).join('');
+}
+
+function fpAddFeriado() {
+  const dt   = $('fp-fer-data')?.value;
+  const nome = $('fp-fer-nome')?.value?.trim();
+  if (!dt || !nome) { showToast('Informe data e nome do feriado', 'warning'); return; }
+  _fpHolCfg.custom = _fpHolCfg.custom || [];
+  _fpHolCfg.custom.push({ date: dt, nome });
+  $('fp-fer-data').value = '';
+  $('fp-fer-nome').value = '';
+  fpRenderFeriados();
+  fpPopularDias();
+  showToast('Feriado personalizado adicionado!', 'success');
+}
+
+// ── Expor funções ao window (necessário pois o script é um ES module) ──────────
+// Inline handlers (onclick/onchange no HTML) não enxergam escopo de módulo.
+window.fpSwitchTab         = fpSwitchTab;
+window.fpImprimir          = fpImprimir;
+window.fpAddFeriado        = fpAddFeriado;
+window.fpPreencherServidor = fpPreencherServidor;
+window.fpPopularDias       = fpPopularDias;
+window.fpRenderFeriados    = fpRenderFeriados;
+window.fpImprimirUnidade   = fpImprimirUnidade;
+
+// ── Aba Por Unidade ────────────────────────────────────────────────────────────
+function fpIniciarAbaUnidade() {
+  // Popula selects de mês/ano para a aba unidade (se ainda não preenchidos)
+  const now  = new Date();
+  const undM = $('fp-und-mes');
+  const undA = $('fp-und-ano');
+  if (undM && undM.options.length === 0) {
+    ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+     'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
+      .forEach((m, i) => {
+        undM.innerHTML += `<option value="${String(i+1).padStart(2,'0')}" ${i===now.getMonth()?'selected':''}>${m}</option>`;
+      });
+  }
+  if (undA && undA.options.length === 0) {
+    for (let y = now.getFullYear()-1; y <= now.getFullYear()+2; y++)
+      undA.innerHTML += `<option value="${y}" ${y===now.getFullYear()?'selected':''}>${y}</option>`;
+  }
+
+  // Popula select de unidades (lotacao_nome únicas)
+  const sel = $('fp-unidade-select');
+  if (sel && _fpServidores.length > 0) {
+    const unidades = [...new Set(
+      _fpServidores
+        .map(s => (s.lotacao_nome || '').trim())
+        .filter(Boolean)
+    )].sort();
+    sel.innerHTML = '<option value="">— Selecione a unidade —</option>' +
+      unidades.map(u => `<option value="${htmlEscape(u)}">${htmlEscape(u)}</option>`).join('');
+    // Listener para atualizar contagem de servidores
+    if (!sel._fpUndListenerOk) {
+      sel._fpUndListenerOk = true;
+      sel.addEventListener('change', () => {
+        const unit = sel.value;
+        const prev = $('fp-und-preview');
+        if (!unit || !prev) return;
+        const lista = _fpServidores.filter(s => (s.lotacao_nome||'').trim() === unit);
+        prev.innerHTML = lista.length === 0
+          ? '<span style="color:#e52207">Nenhum servidor encontrado nesta unidade.</span>'
+          : `<i class="ti ti-users"></i> <strong>${lista.length}</strong> servidor(es) encontrado(s):&nbsp;` +
+            lista.map(s => htmlEscape(s.nome)).join(' &bull; ');
+      });
+    }
+  }
+}
+
+function fpImprimirUnidade() {
+  const unidade = $('fp-unidade-select')?.value?.trim();
+  const mm      = $('fp-und-mes')?.value || String(new Date().getMonth()+1).padStart(2,'0');
+  const aa      = $('fp-und-ano')?.value || String(new Date().getFullYear());
+
+  if (!unidade) { showToast('Selecione a Unidade Administrativa', 'warning'); return; }
+
+  const lista = _fpServidores.filter(s => (s.lotacao_nome||'').trim() === unidade);
+  if (lista.length === 0) { showToast('Nenhum servidor na unidade selecionada', 'warning'); return; }
+
+  showToast(`Gerando ${lista.length} folha(s) para impressão…`, 'info');
+
+  // Pega o template A4 atual, clona para cada servidor, imprime
+  const container = document.createElement('div');
+  container.id = 'fp-print-lote';
+  container.style.cssText = 'display:none';
+
+  const ferList = fpGetHolidays(parseInt(aa));
+  const ferMap  = new Map(ferList.map(h => [h.date, h.nome]));
+
+  lista.forEach(srv => {
+    const wrap = document.createElement('div');
+    wrap.className = 'page-fp';
+    wrap.style.pageBreakAfter = 'always';
+
+    const nomeUp = (srv.nome || '').toUpperCase();
+    const cargo  = nomeUp.includes('JURANDY')
+      ? 'Chefe de Serviço - Patrimônio'
+      : (srv.funcao || '');
+    const unidadeTexto = nomeUp.includes('JURANDY')
+      ? 'Coordenação de Administração e Patrimônio'
+      : unidade;
+    const diasNoMes = new Date(Number(aa), Number(mm), 0).getDate();
+
+    // Monta os dias
+    let linhasDias = '';
+    for (let i = 1; i <= 31; i++) {
+      if (i <= diasNoMes) {
+        const dt  = new Date(Number(aa), Number(mm)-1, i);
+        const dow = dt.getDay();
+        const iso = `${aa}-${String(mm).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+        if (ferMap.has(iso)) {
+          linhasDias += `<tr style="height:18px"><td style="text-align:center;font-weight:bold">${i}</td><td colspan="9" style="text-align:center;background:#ffe4e6;color:#991b1b;font-weight:bold;font-size:9px">FERIADO &#8226; ${htmlEscape(ferMap.get(iso))}</td></tr>`;
+        } else if (dow === 0 || dow === 6) {
+          const txt = dow === 6 ? 'SÁBADO' : 'DOMINGO';
+          linhasDias += `<tr style="height:18px"><td style="text-align:center;font-weight:bold">${i}</td><td colspan="9" style="text-align:center;background:#e5e7eb;color:#374151;font-weight:bold;font-size:9px">${txt}</td></tr>`;
+        } else {
+          linhasDias += `<tr style="height:18px"><td style="text-align:center;font-weight:bold">${i}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+        }
+      } else {
+        linhasDias += `<tr style="height:18px"><td style="text-align:center;color:#bbb">—</td><td colspan="9" style="background:#d1d5db"></td></tr>`;
+      }
+    }
+
+    wrap.innerHTML = `
+      <table class="folha-table">
+        <tr><td class="fp-bg-gray" style="width:70%;font-size:12px">REGISTRO INDIVIDUAL DE FREQUÊNCIA</td><td class="fp-bg-head">${mm}/${aa}</td></tr>
+        <tr><td colspan="2" class="fp-bg-head" style="font-size:11px">Secretaria Municipal da Criança e Assistência Social / SEMCAS</td></tr>
+        <tr><td style="background:#fff">Nome: <strong>${htmlEscape(srv.nome)}</strong></td><td style="background:#fff">Matrícula: <strong>${htmlEscape(srv.matricula||'')}</strong></td></tr>
+        <tr><td style="background:#fff">Cargo/Função: <strong>${htmlEscape(cargo)}</strong></td><td style="background:#fff">Vínculo: <strong>${htmlEscape(srv.vinculo||'')}</strong></td></tr>
+        <tr><td colspan="2" style="background:#fff">Unidade Administrativa: <strong>${htmlEscape(unidadeTexto)}</strong></td></tr>
+      </table>
+      <table class="folha-table" style="margin-top:-1px">
+        <colgroup><col style="width:6%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:14%"></colgroup>
+        <thead>
+          <tr class="fp-bg-head"><th rowspan="3">Dia</th><th colspan="8">Horário de Trabalho</th><th rowspan="3">Ocorrência</th></tr>
+          <tr class="fp-bg-head"><th colspan="4">Manhã</th><th colspan="4">Tarde</th></tr>
+          <tr class="fp-bg-head">
+            <th colspan="2" style="font-size:9px">Entrada:<br>08:00</th>
+            <th colspan="2" style="font-size:9px">Saída:<br>12:00</th>
+            <th colspan="2" style="font-size:9px">Entrada:<br>14:00</th>
+            <th colspan="2" style="font-size:9px">Saída:<br>18:00</th>
+          </tr>
+          <tr class="fp-bg-gray"><th></th><th style="font-size:9px">Hora</th><th style="font-size:9px">Rubrica</th><th style="font-size:9px">Hora</th><th style="font-size:9px">Rubrica</th><th style="font-size:9px">Hora</th><th style="font-size:9px">Rubrica</th><th style="font-size:9px">Hora</th><th style="font-size:9px">Rubrica</th><th style="font-size:9px">Obs</th></tr>
+        </thead>
+        <tbody>${linhasDias}</tbody>
+      </table>
+      <table style="width:100%;border-collapse:collapse;margin-top:-1px">
+        <tr>
+          <td style="border:1px solid #000;height:90px;vertical-align:top;padding:5px;width:50%">
+            <div style="font-weight:bold;font-size:11px">Chefia Imediata:</div>
+            <div style="margin-top:40px;border-top:1px solid #000;width:80%"></div>
+            <div style="font-size:10px;margin-top:4px">São Luís, __/__/____</div>
+          </td>
+          <td style="border:1px solid #000;height:90px;vertical-align:top;padding:5px;width:50%">
+            <div style="font-weight:bold;font-size:11px">Visto (Recursos Humanos):</div>
+            <div style="margin-top:40px;border-top:1px solid #000;width:80%"></div>
+            <div style="font-size:10px;margin-top:4px">São Luís, __/__/____</div>
+          </td>
+        </tr>
+      </table>`;
+    container.appendChild(wrap);
+  });
+
+  document.body.appendChild(container);
+
+  // Ativa classe que controla @media print (não pode usar display:none inline
+  // pois .app { display:block !important } no @media print sobrescreveria)
+  document.body.classList.add('fp-lote-print');
+
+  setTimeout(() => {
+    window.print();
+    // Aguarda o diálogo fechar antes de limpar
+    setTimeout(() => {
+      document.body.classList.remove('fp-lote-print');
+      container.remove();
+    }, 800);
+  }, 100);
+}
 </script>
 
 </body>
