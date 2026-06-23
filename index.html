@@ -3674,18 +3674,23 @@ window.abrirModalLicenca = async (id = null) => {
                  await sb.from('funcionarios').select('nome').eq('id', id).single().then(r => r.data);
     divFunc.innerHTML = `<label class="form-label">Servidor</label><input type="text" id="lic-func-nome" class="form-control" disabled value="${func ? htmlEscape(func.nome) : ''}">`;
   } else {
-    const opts = (state.funcionariosFiltrados || []).map(f => `<option value="${f.funcionario_id}">${htmlEscape(f.nome)}</option>`).join('');
-    divFunc.innerHTML = `<label class="form-label">Servidor *</label><select id="lic-func-id-select" class="form-control" onchange="$('lic-func-id').value = this.value"><option value="">-- Selecione o Servidor --</option>${opts}</select>`;
+    const opts = (state.funcionariosFiltrados || []).map(f => `<option value="${htmlEscape(f.nome)} - Mat: ${f.matricula || 'S/M'}" data-id="${f.funcionario_id}"></option>`).join('');
+    divFunc.innerHTML = `
+      <label class="form-label">Servidor *</label>
+      <input list="lic-func-list" id="lic-func-search" class="form-control" placeholder="Digite nome ou matrícula..." onchange="
+        const val = this.value;
+        const opt = Array.from(document.getElementById('lic-func-list').options).find(o => o.value === val);
+        $('lic-func-id').value = opt ? opt.dataset.id : '';
+      ">
+      <datalist id="lic-func-list">${opts}</datalist>
+    `;
   }
   openModal('modal-licenca');
 };
 
 $('btn-salvar-licenca').onclick = async () => {
   let fId = $('lic-func-id').value;
-  if(!fId) {
-    if($('lic-func-id-select')) fId = $('lic-func-id-select').value;
-  }
-  if(!fId) return showToast('Selecione um servidor', 'warning');
+  if(!fId) return showToast('Selecione um servidor na lista', 'warning');
   const btn = $('btn-salvar-licenca');
   btn.disabled = true;
   
