@@ -1174,6 +1174,9 @@
       </a>
 
       <div class="nav-group">Gestão</div>
+      <a href="#licencas" class="nav-item" data-route="licencas">
+        <i class="ti ti-activity"></i> Licenças
+      </a>
       <a href="#ferias" class="nav-item" data-route="ferias">
         <i class="ti ti-beach"></i> Férias
       </a>
@@ -3570,6 +3573,108 @@ async function salvarCadastrarPendente() {
     $('badge-pendentes').style.display = data.pendentes > 0 ? '' : 'none';
   }
 })();
+
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                         LICENÇAS                              ║
+// ╚══════════════════════════════════════════════════════════════╝
+rotas.licencas = { titulo: 'Licenças e Afastamentos', bread: 'Licenças', render: renderLicencas };
+
+async function renderLicencas() {
+  const kpis = await handleErr(await sb.from('v_licencas_kpis').select('*').single(), 'KPIs licencas');
+  if (kpis) {
+    $('licencas-kpis').innerHTML = [
+      ['Total Afastados',  kpis.total_afastados,    'No momento', 'var(--gov-orange)'],
+      ['Licença Prêmio',   kpis.premio,             'Concedidas', 'var(--gov-blue-primary)'],
+      ['Licença Médica',   kpis.medica,             'Tratamento de Saúde', 'var(--gov-red)'],
+      ['Maternidade',      kpis.maternidade,        'Mães / Gestantes', 'var(--gov-green)'],
+    ].map(([lbl, val, sub, cor]) => `
+      <div class="stat" style="border-left-color:${cor}">
+        <div class="stat-lbl">${lbl}</div>
+        <div class="stat-val">${(val||0).toLocaleString('pt-BR')}</div>
+        <div class="stat-sub">${sub}</div>
+      </div>`).join('');
+  }
+  
+  carregarTabelaLicencas();
+}
+
+async function carregarTabelaLicencas() {
+  const { data } = await sb.from('v_licencas_atuais').select('*').order('nome');
+  if(data) {
+    $('tbody-licencas').innerHTML = data.map(l => `
+      <tr>
+        <td>
+          <div style="font-weight:600">${htmlEscape(l.nome)}</div>
+          <div style="font-size:11px;color:var(--color-text-muted)">Mat: ${l.matricula||'-'} | ${l.lotacao_nome||'-'}</div>
+        </td>
+        <td>
+          <span style="background:var(--gov-bg-light);padding:3px 6px;border-radius:4px;font-size:11px;border:1px solid var(--gov-border)">${htmlEscape(l.tipo_afastamento)}</span>
+        </td>
+        <td>
+          <div style="font-size:12px">${l.data_inicial ? l.data_inicial.split('-').reverse().join('/') : '-'} até</div>
+          <div style="font-size:12px">${l.data_final ? l.data_final.split('-').reverse().join('/') : 'Indeterminado'}</div>
+        </td>
+        <td>
+          <div style="font-size:12px">Portaria: ${htmlEscape(l.portaria||'-')}</div>
+          <div style="font-size:12px">SEI: ${htmlEscape(l.num_sei||'-')}</div>
+        </td>
+        <td><span style="color:var(--gov-orange);font-weight:600;font-size:12px"><i class="ti ti-clock"></i> Afastado</span></td>
+      </tr>
+    `).join('');
+  }
+}
+
+window.abrirModalLicenca = async (id = null) => {
+  $('lic-func-id').value = id || '';
+  $('lic-func-nome').value = '';
+  $('lic-inicio').value = '';
+  $('lic-fim').value = '';
+  $('lic-portaria').value = '';
+  $('lic-sei').value = '';
+  $('lic-obs').value = '';
+
+  if (id) {
+    const func = state.funcionariosFiltrados?.find(x => x.funcionario_id === id) || 
+                 await sb.from('funcionarios').select('nome').eq('id', id).single().then(r => r.data);
+    if(func) $('lic-func-nome').value = func.nome;
+  } else {
+    // Se quiser abrir sem id, precisaria de um select, mas focamos em abrir pela tabela
+    showToast('Ação deve ser iniciada a partir de um servidor específico.', 'warning');
+    return;
+  }
+  openModal('modal-licenca');
+};
+
+$('btn-salvar-licenca').onclick = async () => {
+  const fId = $('lic-func-id').value;
+  if(!fId) return;
+  const btn = $('btn-salvar-licenca');
+  btn.disabled = true;
+  
+  const payload = {
+    funcionario_id: Number(fId),
+    tipo_afastamento: $('lic-tipo').value,
+    data_inicial: $('lic-inicio').value || null,
+    data_final: $('lic-fim').value || null,
+    portaria: $('lic-portaria').value || null,
+    num_sei: $('lic-sei').value || null,
+    observacao: $('lic-obs').value || null,
+    ativo: true
+  };
+  
+  const { error } = await sb.from('funcionario_licencas').insert([payload]);
+  btn.disabled = false;
+  
+  if (error) {
+    showToast('Erro ao salvar licença: ' + error.message, 'error');
+  } else {
+    showToast('Licença registrada!', 'success');
+    closeModal('modal-licenca');
+    if (state.rotaAtual === 'licencas') renderLicencas();
+  }
+};
+
 </script>
 
 <style>
@@ -3731,5 +3836,93 @@ async function salvarCadastrarPendente() {
   </div>
 </div>
 
-</body>
-</html>
+
+  <!-- MODAL LICENÇA -->
+  <div class="modal" id="modal-licenca">
+    <div class="modal-content" style="max-width: 500px">
+      <div class="modal-header">
+        <h3>Registrar Afastamento / Licença</h3>
+        <button class="btn-action" onclick="closeModal('modal-licenca')"><i class="ti ti-x"></i></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="lic-func-id">
+        <div class="form-group">
+          <label>Servidor</label>
+          <input type="text" id="lic-func-nome" class="form-control" disabled>
+        </div>
+        <div class="form-group">
+          <label>Tipo de Afastamento</label>
+          <select id="lic-tipo" class="form-control">
+            <option value="Licença Prêmio">Licença Prêmio</option>
+            <option value="Licença Médica / Tratamento de Saúde">Licença Médica / Tratamento de Saúde</option>
+            <option value="Licença Maternidade">Licença Maternidade</option>
+            <option value="Licença para Trato de Interesses Particulares">Interesses Particulares</option>
+            <option value="Afastamento para Estudo">Estudo / Mestrado / Doutorado</option>
+            <option value="Outros">Outros</option>
+          </select>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px">
+          <div class="form-group">
+            <label>Data Inicial</label>
+            <input type="date" id="lic-inicio" class="form-control">
+          </div>
+          <div class="form-group">
+            <label>Data Final (Opcional)</label>
+            <input type="date" id="lic-fim" class="form-control">
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px">
+          <div class="form-group">
+            <label>Portaria</label>
+            <input type="text" id="lic-portaria" class="form-control" placeholder="Ex: 001/2026">
+          </div>
+          <div class="form-group">
+            <label>Nº SEI</label>
+            <input type="text" id="lic-sei" class="form-control">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Observação</label>
+          <textarea id="lic-obs" class="form-control" rows="3"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeModal('modal-licenca')">Cancelar</button>
+        <button class="btn-primary" id="btn-salvar-licenca">Salvar Afastamento</button>
+      </div>
+    </div>
+  </div>
+  </body>
+</html
+    <!-- VIEW: LICENÇAS -->
+    <div id="view-licencas" class="view">
+      <div class="view-header">
+        <h2 class="view-title"><i class="ti ti-activity"></i> Controle de Licenças e Afastamentos</h2>
+        <button class="btn-primary" onclick="abrirModalLicenca()"><i class="ti ti-plus"></i> Registrar Afastamento</button>
+      </div>
+
+      <div class="stats-grid" id="licencas-kpis" style="margin-bottom:20px;">
+        <!-- KPIs inseridos via JS -->
+      </div>
+
+      <div class="card">
+        <div style="padding:15px; border-bottom:1px solid var(--gov-border); display:flex; gap:10px;">
+          <input type="text" id="lic-search" class="form-control" placeholder="Buscar por nome ou matrícula..." style="max-width:300px">
+        </div>
+        <div class="table-container">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Servidor</th>
+                <th>Tipo / Categoria</th>
+                <th>Período</th>
+                <th>Portaria / SEI</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-licencas"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    >
