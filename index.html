@@ -6,33 +6,45 @@
   <title>Painel RH SEMCAS - Gov.br</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://cdngovbr-ds.estaleiro.serpro.gov.br" crossorigin>
+  <!-- Fontes oficiais Gov.br: Rawline (títulos) + Raleway (texto), com Inter como fallback -->
+  <link rel="stylesheet" href="https://cdngovbr-ds.estaleiro.serpro.gov.br/design-system/fonts/rawline/css/rawline.css">
+  <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
   
   <style>
     :root {
-      /* Paleta Gov.br */
+      /* Paleta oficial Gov.br — DSGov */
       --gov-blue-primary: #1351b4;
       --gov-blue-dark: #071d41;
-      --gov-blue-light: #e3f2fd;
+      --gov-blue-90: #0c326f;
+      --gov-blue-light: #e8eefc;
+      --gov-blue-50: #dbe8fb;
       --gov-yellow: #ffcd07;
       --gov-green: #168821;
       --gov-red: #e52207;
-      --gov-bg-light: #f8f9fa;
-      --gov-border: #e6e6e6;
-      
-      /* Tipografia Gov.br (Inter como fallback para Rawline) */
-      --font-sans: 'Inter', sans-serif;
-      --color-text-main: #333333;
-      --color-text-sec: #555555;
-      --color-text-muted: #888888;
-      
+      --gov-bg-light: #f4f6fa;
+      --gov-surface: #ffffff;
+      --gov-border: #e3e6ec;
+      --gov-border-strong: #ccd2de;
+
+      /* Tipografia oficial Gov.br: Rawline + Raleway (Inter como fallback) */
+      --font-sans: 'Rawline', 'Raleway', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-heading: 'Rawline', 'Raleway', 'Inter', sans-serif;
+      --color-text-main: #1c2331;
+      --color-text-sec: #555d6b;
+      --color-text-muted: #8a909c;
+
+      /* Altura da barra de governo */
+      --govbar-h: 40px;
+
       /* Sombras e Raios padrão */
       --br-sm: 4px;
       --br-md: 8px;
-      --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
-      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.05);
-      --shadow-modal: 0 10px 25px -5px rgba(0,0,0,0.2);
+      --br-lg: 12px;
+      --shadow-sm: 0 1px 2px rgba(7,29,65,0.06);
+      --shadow-md: 0 4px 12px -2px rgba(7,29,65,0.10);
+      --shadow-modal: 0 16px 40px -8px rgba(7,29,65,0.28);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -42,22 +54,64 @@
       color: var(--color-text-main);
       font-family: var(--font-sans);
       -webkit-font-smoothing: antialiased;
-    }
-
-    .app {
       display: flex;
+      flex-direction: column;
       height: 100vh;
       overflow: hidden;
     }
 
+    .app {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* --- BARRA DE GOVERNO (Gov.br oficial) --- */
+    .gov-top-bar {
+      height: var(--govbar-h);
+      flex-shrink: 0;
+      background: #fff;
+      border-bottom: 1px solid var(--gov-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      gap: 16px;
+      z-index: 210;
+    }
+    .gov-top-bar-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .brasao-topo {
+      width: 28px; height: 28px; flex-shrink: 0;
+      border-radius: var(--br-sm);
+      background: var(--gov-blue-primary);
+      display: inline-flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 16px;
+    }
+    .govbr-org {
+      font-size: 13px; font-weight: 700; color: var(--gov-blue-dark);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      font-family: var(--font-heading);
+    }
+    .govbr-uf { color: var(--gov-blue-primary); font-weight: 700; }
+    .gov-top-bar-actions { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .govbr-org-full {
+      font-size: 11px; color: var(--color-text-sec); font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    @media (max-width: 768px) {
+      .gov-top-bar { padding: 0 16px; }
+      .govbr-org-full { display: none; }
+    }
+
     /* --- SIDEBAR --- */
     .sidebar {
-      width: 260px;
+      width: 264px;
       flex-shrink: 0;
-      background: var(--gov-blue-primary);
+      background: var(--gov-blue-dark);
       display: flex;
       flex-direction: column;
-      box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+      box-shadow: 1px 0 0 rgba(0,0,0,0.08);
       z-index: 200;
       transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
     }
@@ -105,83 +159,87 @@
     .btn-close-sidebar:hover { color: #fff; background: rgba(255,255,255,0.15); }
 
     .sidebar-logo {
-      padding: 20px 20px;
-      border-bottom: 1px solid rgba(255,255,255,0.15);
-      background: var(--gov-blue-dark);
+      padding: 18px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.10);
+      background: rgba(0,0,0,0.18);
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
     }
 
     .sidebar-logo-info { flex: 1; min-width: 0; }
 
     .brasao {
-      width: 32px;
-      height: 32px;
+      width: 40px;
+      height: 40px;
       background: var(--gov-yellow);
-      border-radius: 50%;
+      border-radius: var(--br-md);
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: 14px;
+      font-size: 16px;
       color: var(--gov-blue-dark);
-      font-weight: 700;
+      font-weight: 800;
       flex-shrink: 0;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
     }
 
     .org-name {
-      font-size: 14px;
-      font-weight: 700;
+      font-size: 15px;
+      font-weight: 800;
       color: #fff;
-      letter-spacing: 0.02em;
+      letter-spacing: 0.01em;
       display: block;
+      font-family: var(--font-heading);
     }
 
     .org-sub {
       font-size: 11px;
-      color: rgba(255,255,255,0.7);
+      color: rgba(255,255,255,0.65);
       margin-top: 2px;
       display: block;
     }
 
     .nav-group {
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.05em;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: rgba(255,255,255,0.6);
-      padding: 24px 20px 8px;
+      color: rgba(255,255,255,0.45);
+      padding: 22px 24px 8px;
     }
 
     .nav-item {
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 12px 20px;
+      padding: 11px 24px;
       cursor: pointer;
-      color: rgba(255,255,255,0.8);
+      color: rgba(255,255,255,0.78);
       font-size: 14px;
-      border-left: 4px solid transparent;
-      transition: all 0.2s ease;
+      font-weight: 500;
+      border-left: 3px solid transparent;
+      transition: all 0.18s ease;
       text-decoration: none;
     }
 
     .nav-item:hover {
-      background: rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.06);
       color: #fff;
     }
 
     .nav-item.active {
-      background: var(--gov-blue-dark);
+      background: rgba(19,81,180,0.35);
       color: #fff;
-      border-left: 4px solid var(--gov-yellow);
+      border-left: 3px solid var(--gov-yellow);
       font-weight: 600;
     }
 
     .nav-item i {
-      font-size: 18px;
-      width: 20px;
+      font-size: 19px;
+      width: 22px;
       text-align: center;
+      flex-shrink: 0;
     }
 
     .sidebar-nav {
@@ -191,9 +249,9 @@
     }
 
     .sidebar-footer {
-      padding: 16px 20px;
-      border-top: 1px solid rgba(255,255,255,0.1);
-      background: var(--gov-blue-dark);
+      padding: 14px 20px;
+      border-top: 1px solid rgba(255,255,255,0.10);
+      background: rgba(0,0,0,0.18);
     }
 
     .user-av {
@@ -262,9 +320,11 @@
     .topbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
     .topbar-title {
-      font-size: 18px;
-      font-weight: 700;
+      font-size: 19px;
+      font-weight: 800;
       color: var(--gov-blue-dark);
+      font-family: var(--font-heading);
+      letter-spacing: -0.01em;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -272,10 +332,11 @@
 
     .topbar-bread {
       font-size: 12px;
-      color: var(--gov-blue-primary);
+      color: var(--color-text-muted);
       margin-top: 2px;
       font-weight: 500;
     }
+    .topbar-bread strong { color: var(--gov-blue-primary); font-weight: 600; }
 
     .topbar-bread span { color: var(--color-text-muted); margin: 0 4px; }
 
@@ -327,13 +388,18 @@
 
     /* --- COMPONENTES GOV.BR --- */
     .row-label {
-      font-size: 18px;
-      font-weight: 600;
-      color: var(--gov-blue-primary);
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--gov-blue-dark);
+      font-family: var(--font-heading);
+      letter-spacing: -0.01em;
       margin-bottom: 20px;
-      padding-bottom: 8px;
-      border-bottom: 2px solid var(--gov-blue-primary);
-      display: inline-block;
+      padding-left: 12px;
+      border-left: 4px solid var(--gov-yellow);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      line-height: 1.2;
     }
 
     .stats-grid {
@@ -360,18 +426,18 @@
     .stat-sub { font-size: 11px; color: var(--color-text-muted); margin-top: 8px; }
 
     .card {
-      background: #fff;
-      border-radius: var(--br-sm);
+      background: var(--gov-surface);
+      border-radius: var(--br-md);
       border: 1px solid var(--gov-border);
       box-shadow: var(--shadow-sm);
-      padding: 20px;
+      padding: 22px;
       margin-bottom: 20px;
     }
 
     /* Tabela de Dados Gov.br */
     .table-container {
-      background: #fff;
-      border-radius: var(--br-sm);
+      background: var(--gov-surface);
+      border-radius: var(--br-md);
       border: 1px solid var(--gov-border);
       box-shadow: var(--shadow-sm);
       overflow-x: auto;
@@ -384,10 +450,12 @@
     }
 
     .gov-table th {
-      background-color: #f2f5f8;
+      background-color: #eef2f8;
       color: var(--gov-blue-dark);
-      font-weight: 600;
-      font-size: 13px;
+      font-weight: 700;
+      font-size: 12px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
       padding: 14px 16px;
       border-bottom: 2px solid var(--gov-blue-primary);
       white-space: nowrap;
@@ -516,17 +584,18 @@
       background: var(--gov-blue-primary);
       color: #fff;
       border: none;
-      padding: 10px 20px;
-      border-radius: var(--br-sm);
-      font-size: 13px;
+      padding: 10px 24px;
+      border-radius: 100em;
+      font-size: 14px;
       font-weight: 600;
+      font-family: var(--font-sans);
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      transition: background 0.2s;
+      transition: background 0.2s, box-shadow 0.2s;
     }
-    .btn-primary:hover { background: var(--gov-blue-dark); }
+    .btn-primary:hover { background: var(--gov-blue-90); box-shadow: 0 4px 12px rgba(19,81,180,0.28); }
 
     /* --- MODAL (Edição de Perfil) --- */
     .modal-overlay {
@@ -611,16 +680,30 @@
 
     .btn-secondary {
       background: #fff;
-      color: var(--color-text-sec);
-      border: 1px solid var(--gov-border);
-      padding: 10px 20px;
-      border-radius: var(--br-sm);
-      font-size: 13px;
+      color: var(--gov-blue-primary);
+      border: 1px solid var(--gov-blue-primary);
+      padding: 9px 22px;
+      border-radius: 100em;
+      font-size: 14px;
       font-weight: 600;
+      font-family: var(--font-sans);
       cursor: pointer;
       transition: all 0.2s;
     }
-    .btn-secondary:hover { background: #f2f5f8; color: var(--color-text-main); }
+    .btn-secondary:hover { background: var(--gov-blue-light); color: var(--gov-blue-90); }
+
+    /* Botão genérico / outline (usado em filtros) */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 9px 18px; border-radius: 100em; font-size: 13px; font-weight: 600;
+      font-family: var(--font-sans); cursor: pointer; border: 1px solid transparent;
+      transition: all 0.2s; line-height: 1; min-height: 38px;
+    }
+    .btn-outline {
+      background: #fff; color: var(--gov-blue-primary);
+      border-color: var(--gov-border-strong);
+    }
+    .btn-outline:hover { background: var(--gov-blue-light); border-color: var(--gov-blue-primary); }
 
     /* Alertas */
     .alerta-box {
@@ -650,14 +733,16 @@
     }
     .dash-section-header:first-child { margin-top: 0; }
     .dash-section-header h2 {
-      font-size: 14px; font-weight: 700;
+      font-size: 15px; font-weight: 800;
       color: var(--gov-blue-dark); margin: 0; white-space: nowrap;
+      font-family: var(--font-heading); letter-spacing: -0.01em;
     }
     .dash-section-header .dash-icon {
-      width: 28px; height: 28px; border-radius: 6px;
+      width: 30px; height: 30px; border-radius: var(--br-md);
       background: var(--gov-blue-primary);
       display: flex; align-items: center; justify-content: center;
-      color: #fff; font-size: 14px; flex-shrink: 0;
+      color: #fff; font-size: 15px; flex-shrink: 0;
+      box-shadow: 0 2px 6px rgba(19,81,180,0.25);
     }
     .dash-section-header .dash-line {
       flex: 1; height: 1px; background: var(--gov-border);
@@ -670,20 +755,20 @@
       gap: 12px;
     }
     .kpi-card {
-      background: #fff; border-radius: 6px;
+      background: var(--gov-surface); border-radius: var(--br-md);
       border: 1px solid var(--gov-border);
-      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-      padding: 16px 14px 12px;
+      box-shadow: var(--shadow-sm);
+      padding: 18px 16px 14px;
       position: relative; overflow: hidden;
       border-top: 3px solid var(--gov-blue-primary);
       transition: transform 0.15s, box-shadow 0.15s;
       cursor: pointer;
     }
-    .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.09); }
-    .kpi-card-label { font-size: 10px; font-weight: 700; letter-spacing: 0.05em;
+    .kpi-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+    .kpi-card-label { font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
       text-transform: uppercase; color: var(--color-text-sec); margin-bottom: 8px; }
-    .kpi-card-value { font-size: 28px; font-weight: 800; color: var(--gov-blue-dark);
-      line-height: 1; letter-spacing: -0.02em; }
+    .kpi-card-value { font-size: 30px; font-weight: 800; color: var(--gov-blue-dark);
+      line-height: 1; letter-spacing: -0.02em; font-family: var(--font-heading); }
     .kpi-card-sub { font-size: 11px; color: var(--color-text-muted); margin-top: 5px; }
     .kpi-card-bg-icon {
       position: absolute; bottom: 6px; right: 10px;
@@ -968,7 +1053,7 @@
 
     /* sidebar item ativo (override pra ser mais visível) */
     .sidebar-nav .nav-item.active {
-      background: var(--gov-blue-dark);
+      background: rgba(19,81,180,0.35);
       border-left: 3px solid var(--gov-yellow);
     }
 
@@ -1235,9 +1320,9 @@
 
     @media print {
       /* ── Impressão individual (padrão) ── */
-      .sidebar, .topbar, .bottom-nav, .sidebar-overlay,
+      .sidebar, .topbar, .bottom-nav, .sidebar-overlay, .gov-top-bar,
       #fp-controls, .fp-no-print { display: none !important; }
-      body, html { margin: 0; padding: 0; background: #fff !important; }
+      body, html { margin: 0; padding: 0; background: #fff !important; height: auto !important; overflow: visible !important; display: block !important; }
       .content-area { padding: 0 !important; overflow: visible !important; }
       .main { overflow: visible !important; }
       .app { display: block !important; height: auto !important; overflow: visible !important; }
@@ -1262,6 +1347,17 @@
   </style>
 </head>
 <body>
+
+<!-- Barra institucional (Prefeitura de São Luís - MA) -->
+<div class="gov-top-bar">
+  <div class="gov-top-bar-brand">
+    <span class="brasao-topo" aria-hidden="true"><i class="ti ti-building-bank"></i></span>
+    <span class="govbr-org">Prefeitura de São Luís&nbsp;<span class="govbr-uf">/ MA</span></span>
+  </div>
+  <div class="gov-top-bar-actions">
+    <span class="govbr-org-full">Secretaria Municipal da Criança e Assistência Social — SEMCAS</span>
+  </div>
+</div>
 
 <div id="conn-banner" class="conn-banner hidden">
   <div class="conn-text">
