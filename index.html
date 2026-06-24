@@ -4118,7 +4118,7 @@ window.editarCedencia = async (id) => {
   if(!data) return;
   abrirModalCedido();
   $('cedido-func-id').value = data.funcionario_id;
-  $('cedido-func-nome-container').innerHTML = \`<label class="form-label">Servidor *</label><input type="text" class="form-control" value="\${data.funcionarios?.nome || ''}" disabled>\`;
+  $('cedido-func-nome-container').innerHTML = `<label class="form-label">Servidor *</label><input type="text" class="form-control" value="${data.funcionarios?.nome || ''}" disabled>`;
   $('cedido-tipo').value = data.tipo;
   $('cedido-orgao').value = data.orgao_destino_origem;
   $('cedido-obs').value = data.observacao || '';
