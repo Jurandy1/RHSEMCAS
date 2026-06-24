@@ -1180,6 +1180,9 @@
       <a href="#ferias" class="nav-item" data-route="ferias">
         <i class="ti ti-beach"></i> Férias
       </a>
+      <a href="#cedidos" class="nav-item" data-route="cedidos">
+        <i class="ti ti-arrows-left-right"></i> Cedidos/Recebidos
+      </a>
       <a href="#folha-ponto" class="nav-item" data-route="folha-ponto">
         <i class="ti ti-clock"></i> Folha de Ponto
       </a>
@@ -1303,6 +1306,36 @@
             </div>
           </div>
           <div id="org-tree" class="org-tree"><span class="spinner"></span> Carregando…</div>
+        </div>
+      </section>
+
+      <!-- ===== CEDIDOS E RECEBIDOS ===== -->
+      <section id="view-cedidos" class="view-section">
+        <div class="header-actions">
+          <h2 class="section-title">Cedidos e Recebidos</h2>
+          <button class="btn-primary" onclick="abrirModalCedido()"><i class="ti ti-plus"></i> Registrar Cessão/Recebimento</button>
+        </div>
+        <div class="stats-grid" id="cedidos-kpis" style="margin-bottom:20px;"></div>
+        <div class="card">
+          <div class="card-header">
+            <h3>Histórico e Servidores Atuais</h3>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Servidor</th>
+                  <th>Tipo</th>
+                  <th>Órgão Envolvido</th>
+                  <th>Lotação SEMCAS / Vínculo</th>
+                  <th>Data Registro</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-cedidos">
+                <tr><td colspan="5" class="empty-state">Carregando cedências...</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
 
@@ -1994,15 +2027,17 @@ let _chartVinculos = null;
 let _chartLocais = null;
 
 async function renderPainel() {
-  const [kpiRes, vincsRes, locaisRes] = await Promise.all([
+  const [kpiRes, vincsRes, locaisRes, cedKpiRes] = await Promise.all([
     sb.from('v_dashboard_kpis').select('*').single(),
     sb.from('v_dashboard_vinculos').select('*'),
     sb.from('v_locais_resumo').select('*'),
+    sb.from('v_cedencias_kpis').select('*').single().then(r=>r).catch(()=>({data:null, error:true}))
   ]);
 
-  const kpi   = kpiRes.data   || null;
-  const vincs = vincsRes.data  || [];
+  const kpi    = kpiRes.data    || null;
+  const vincs  = vincsRes.data  || [];
   const locais = locaisRes.data || [];
+  const cedKpi = cedKpiRes.data || null;
 
   const corVinc = {
     'Efetivo':'#1351b4','Comissionado':'#b28900',
@@ -2038,6 +2073,19 @@ async function renderPainel() {
         };
       })
     ];
+    
+    if (cedKpi) {
+      cards.push({
+        lbl:'Servidores Cedidos', val: cedKpi.total_cedidos || 0,
+        sub:'Afastados / Emprestados', cor:'var(--gov-yellow)',
+        click: () => { location.hash = '#cedidos'; }
+      });
+      cards.push({
+        lbl:'Servidores Recebidos', val: cedKpi.total_recebidos || 0,
+        sub:'Origem Externa', cor:'var(--gov-green)',
+        click: () => { location.hash = '#cedidos'; }
+      });
+    }
     $('stats-grid').innerHTML = cards.map(c => `
       <div class="stat clickable" style="border-left-color:${c.cor};cursor:pointer">
         <div class="stat-lbl">${htmlEscape(c.lbl)}</div>
@@ -3608,7 +3656,6 @@ async function salvarCadastrarPendente() {
   }
 })();
 
-
 // ╔══════════════════════════════════════════════════════════════╗
 // ║                         LICENÇAS                              ║
 // ╚══════════════════════════════════════════════════════════════╝
@@ -3635,6 +3682,276 @@ async function renderLicencas() {
 
 async function carregarTabelaLicencas() {
   const { data } = await sb.from('v_licencas_atuais').select('*').order('nome');
+  if(data) {
+    $('tbody-licencas').innerHTML = data.map(l => `
+      <tr>
+        <td>
+          <div style="font-weight:600;color:var(--gov-blue-dark)">${htmlEscape(l.nome)}</div>
+          <div style="font-size:12px;color:var(--color-text-sec)">Mat: ${htmlEscape(l.matricula||'S/M')}</div>
+        </td>
+        <td>
+          <span class="badge" style="background:#fff9e6;color:var(--gov-orange)"><i class="ti ti-activity"></i> ${htmlEscape(l.tipo_afastamento)}</span>
+        </td>
+        <td>
+          <div style="font-size:12px">${l.data_inicial ? l.data_inicial.split('-').reverse().join('/') : 'Indeterminado'}</div>
+          <div style="font-size:12px">${l.data_final ? l.data_final.split('-').reverse().join('/') : 'Indeterminado'}</div>
+        </td>
+        <td>
+          <div style="font-size:12px">Portaria: ${htmlEscape(l.portaria||'-')}</div>
+          <div style="font-size:12px">SEI: ${htmlEscape(l.num_sei||'-')}</div>
+        </td>
+        <td><span style="color:var(--gov-orange);font-weight:600;font-size:12px"><i class="ti ti-clock"></i> Afastado</span></td>
+      </tr>
+    `).join('');
+  }
+}
+
+window.abrirModalLicenca = async (id = null) => {
+  $('lic-func-id').value = id || '';
+  $('lic-inicio').value = '';
+  $('lic-fim').value = '';
+  $('lic-portaria').value = '';
+  $('lic-sei').value = '';
+  $('lic-obs').value = '';
+
+  const divFunc = $('lic-func-nome').parentNode;
+
+  if (id) {
+    const func = await sb.from('funcionarios').select('nome').eq('id', id).single().then(r => r.data);
+    divFunc.innerHTML = `<label class="form-label">Servidor</label><input type="text" id="lic-func-nome" class="form-control" disabled value="${func ? htmlEscape(func.nome) : ''}">`;
+  } else {
+    divFunc.innerHTML = `<label class="form-label">Servidor *</label><input type="text" class="form-control" placeholder="Carregando servidores..." disabled>`;
+    
+    // Fetch data asynchronously
+    sb.from('v_funcionarios_atual').select('funcionario_id, nome, matricula').range(0, 9999).order('nome').then(({ data }) => {
+      window._licAutocompleteData = data || [];
+      divFunc.innerHTML = `
+        <label class="form-label">Servidor *</label>
+        <div style="position:relative">
+          <input type="text" id="lic-func-search" class="form-control" placeholder="Digite nome ou matrícula..." oninput="filtrarLicAutocomplete(this.value)" autocomplete="off">
+          <div id="lic-func-sugestoes" style="display:none; position:absolute; top:100%; left:0; right:0; max-height:200px; overflow-y:auto; background:#fff; border:1px solid var(--gov-border); z-index:999; border-radius:4px; box-shadow:var(--shadow-md)"></div>
+        </div>
+      `;
+    });
+  }
+  openModal('modal-licenca');
+};
+
+window.filtrarLicAutocomplete = (val) => {
+  const box = $('lic-func-sugestoes');
+  $('lic-func-id').value = '';
+  if(!val || val.length < 2) { box.style.display = 'none'; return; }
+  
+  const termo = val.toLowerCase();
+  const filtrados = window._licAutocompleteData.filter(f => 
+    f.nome.toLowerCase().includes(termo) || 
+    (f.matricula && String(f.matricula).toLowerCase().includes(termo))
+  ).slice(0, 30);
+  
+  if(filtrados.length === 0) {
+    box.innerHTML = '<div style="padding:10px; color:var(--color-text-muted); font-size:12px">Nenhum servidor encontrado</div>';
+  } else {
+    box.innerHTML = filtrados.map(f => `
+      <div style="padding:10px; border-bottom:1px solid var(--gov-border); cursor:pointer; font-size:13px; line-height:1.4" 
+           onmouseover="this.style.background='var(--gov-blue-light)'" 
+           onmouseout="this.style.background='#fff'"
+           onclick="selecionarLicAutocomplete(${f.funcionario_id}, '${htmlEscape(f.nome).replace(/'/g,"\\'")} - Mat: ${f.matricula || 'S/M'}')">
+        <div style="font-weight:600; color:var(--gov-blue-dark)">${htmlEscape(f.nome)}</div>
+        <div style="font-size:11px; color:var(--color-text-muted)">Matrícula: ${f.matricula || 'S/M'}</div>
+      </div>
+    `).join('');
+  }
+  box.style.display = 'block';
+};
+
+window.selecionarLicAutocomplete = (id, label) => {
+
+$('btn-salvar-licenca').onclick = async () => {
+  let fId = $('lic-func-id').value;
+  if(!fId) return showToast('Selecione um servidor na lista', 'warning');
+  const btn = $('btn-salvar-licenca');
+  btn.disabled = true;
+  
+  const payload = {
+    funcionario_id: Number(fId),
+    tipo_afastamento: $('lic-tipo').value,
+    data_inicial: $('lic-inicio').value || null,
+    data_final: $('lic-fim').value || null,
+    portaria: $('lic-portaria').value || null,
+    num_sei: $('lic-sei').value || null,
+    observacao: $('lic-obs').value || null,
+    ativo: true
+  };
+  
+  const { error } = await sb.from('funcionario_licencas').insert([payload]);
+  
+  // Mover o servidor para a Lotação "LICENÇAS E AFASTAMENTOS" para sair da contagem da lotação atual
+  const { data: lotData } = await sb.from('lotacoes').select('id').ilike('nome', '%LICENÇAS E AFASTAMENTOS%').limit(1).single();
+  if (lotData) {
+    await sb.rpc('fn_transferir_funcionario', {
+      p_funcionario_id: Number(fId),
+      p_nova_lotacao_id: lotData.id,
+      p_novo_vinculo_id: null,
+      p_nova_funcao: null,
+      p_novo_turno_id: null,
+      p_motivo: 'Afastamento: ' + $('lic-tipo').value
+    });
+  }
+
+  btn.disabled = false;
+  
+  if (error) {
+    showToast('Erro ao salvar licença: ' + error.message, 'error');
+  } else {
+    showToast('Licença registrada e servidor transferido!', 'success');
+    closeModal('modal-licenca');
+    carregarFuncionarios();
+    if (state.rotaAtual === 'licencas') renderLicencas();
+  }
+};
+
+// ==========================================
+// MÓDULO CEDIDOS E RECEBIDOS
+// ==========================================
+rotas.cedidos = { titulo: 'Cedidos e Recebidos', bread: 'Cessão e Recebimento', render: renderCedidos };
+
+async function renderCedidos() {
+  const kpis = await handleErr(await sb.from('v_cedencias_kpis').select('*').single(), 'KPIs cedidos');
+  if (kpis) {
+    $('cedidos-kpis').innerHTML = [
+      { lbl: 'Total Registrados', val: kpis.total_registros || 0, color: 'var(--gov-blue-primary)', bg: 'var(--gov-blue-light)' },
+      { lbl: 'Cedidos (Saíram)', val: kpis.total_cedidos || 0, color: 'var(--gov-yellow)', bg: '#fff9e6' },
+      { lbl: 'Recebidos (Entraram)', val: kpis.total_recebidos || 0, color: 'var(--gov-green)', bg: '#e6f4ea' }
+    ].map(k => `
+      <div class="stat-card" style="border-left: 4px solid ${k.color}">
+        <div class="stat-info"><div class="stat-value" style="color:${k.color}">${k.val}</div><div class="stat-label">${k.lbl}</div></div>
+      </div>
+    `).join('');
+  }
+  carregarTabelaCedidos();
+}
+
+async function carregarTabelaCedidos() {
+  const { data } = await sb.from('v_cedencias_atuais').select('*').order('created_at', { ascending: false });
+  if (!data || data.length === 0) {
+    $('tbody-cedidos').innerHTML = '<tr><td colspan="5" class="empty-state">Nenhum registro encontrado.</td></tr>';
+  } else {
+    $('tbody-cedidos').innerHTML = data.map(c => `
+      <tr>
+        <td>
+          <div style="font-weight:600;color:var(--gov-blue-dark)">${htmlEscape(c.nome)}</div>
+          <div style="font-size:12px;color:var(--color-text-sec)">Mat: ${htmlEscape(c.matricula||'S/M')}</div>
+        </td>
+        <td>
+          <span class="badge" style="background:${c.tipo === 'CEDIDO' ? '#fff9e6' : '#e6f4ea'}; color:${c.tipo === 'CEDIDO' ? 'var(--gov-yellow)' : 'var(--gov-green)'}">
+            <i class="ti ${c.tipo === 'CEDIDO' ? 'ti-arrow-up-right' : 'ti-arrow-down-left'}"></i> ${htmlEscape(c.tipo)}
+          </span>
+        </td>
+        <td>
+          <div style="font-weight:500">${htmlEscape(c.orgao_destino_origem)}</div>
+          <div style="font-size:11px;color:var(--color-text-muted);font-style:italic">${htmlEscape(c.observacao||'')}</div>
+        </td>
+        <td>
+          <div style="font-size:12px;font-weight:600">${htmlEscape(c.lotacao_nome||'S/Lotação')}</div>
+          <div style="font-size:11px;color:var(--color-text-sec)">${htmlEscape(c.vinculo||'-')}</div>
+        </td>
+        <td style="font-size:12px;color:var(--color-text-muted)">${c.data_inicio ? fmtDt(c.data_inicio) : fmtDt(c.created_at)}</td>
+      </tr>
+    `).join('');
+  }
+}
+
+window.abrirModalCedido = async () => {
+  $('cedido-func-id').value = '';
+  $('cedido-orgao').value = '';
+  $('cedido-obs').value = '';
+  
+  const divFunc = $('cedido-func-nome-container');
+  divFunc.innerHTML = `<label class="form-label">Servidor *</label><input type="text" class="form-control" placeholder="Carregando servidores..." disabled>`;
+  
+  // Fetch autocomplete
+  sb.from('v_funcionarios_atual').select('funcionario_id, nome, matricula').range(0, 9999).order('nome').then(({ data }) => {
+    window._cedAutocompleteData = data || [];
+    divFunc.innerHTML = `
+      <label class="form-label">Servidor *</label>
+      <div style="position:relative">
+        <input type="text" id="cedido-func-search" class="form-control" placeholder="Digite nome ou matrícula..." oninput="filtrarCedAutocomplete(this.value)" autocomplete="off">
+        <div id="cedido-func-sugestoes" style="display:none; position:absolute; top:100%; left:0; right:0; max-height:200px; overflow-y:auto; background:#fff; border:1px solid var(--gov-border); z-index:999; border-radius:4px; box-shadow:var(--shadow-md)"></div>
+      </div>
+    `;
+  });
+  
+  openModal('modal-cedido');
+};
+
+window.filtrarCedAutocomplete = (val) => {
+  const box = $('cedido-func-sugestoes');
+  $('cedido-func-id').value = '';
+  if(!val || val.length < 2) { box.style.display = 'none'; return; }
+  const termo = val.toLowerCase();
+  const filtrados = window._cedAutocompleteData.filter(f => f.nome.toLowerCase().includes(termo) || (f.matricula && String(f.matricula).toLowerCase().includes(termo))).slice(0, 30);
+  if(filtrados.length === 0) {
+    box.innerHTML = '<div style="padding:10px; color:var(--color-text-muted); font-size:12px">Nenhum servidor encontrado</div>';
+  } else {
+    box.innerHTML = filtrados.map(f => `
+      <div style="padding:10px; border-bottom:1px solid var(--gov-border); cursor:pointer; font-size:13px; line-height:1.4" 
+           onmouseover="this.style.background='var(--gov-blue-light)'" onmouseout="this.style.background='#fff'"
+           onclick="selecionarCedAutocomplete(${f.funcionario_id}, '${htmlEscape(f.nome).replace(/'/g,"\\'")} - Mat: ${f.matricula || 'S/M'}')">
+        <div style="font-weight:600; color:var(--gov-blue-dark)">${htmlEscape(f.nome)}</div>
+        <div style="font-size:11px; color:var(--color-text-muted)">Matrícula: ${f.matricula || 'S/M'}</div>
+      </div>
+    `).join('');
+  }
+  box.style.display = 'block';
+};
+
+window.selecionarCedAutocomplete = (id, label) => {
+  $('cedido-func-id').value = id;
+  $('cedido-func-search').value = label;
+  $('cedido-func-sugestoes').style.display = 'none';
+};
+
+window.salvarCedencia = async () => {
+  const fId = $('cedido-func-id').value;
+  if (!fId) return showToast('Selecione um servidor na lista', 'warning');
+  const tipo = $('cedido-tipo').value;
+  const orgao = $('cedido-orgao').value;
+  if (!orgao) return showToast('Preencha o Órgão', 'warning');
+
+  const btn = $('btn-salvar-cedencia');
+  btn.disabled = true;
+
+  const payload = {
+    funcionario_id: Number(fId),
+    tipo: tipo,
+    orgao_destino_origem: orgao,
+    observacao: $('cedido-obs').value || null,
+    data_inicio: new Date().toISOString().split('T')[0],
+    ativo: true
+  };
+
+  const { error } = await sb.from('funcionario_cedencias').insert([payload]);
+  
+  if (tipo === 'CEDIDO') {
+    const { data: lotData } = await sb.from('lotacoes').select('id').eq('nome', 'SERVIDORES CEDIDOS (OUTROS ÓRGÃOS)').limit(1).single();
+    if (lotData) {
+      await sb.rpc('fn_transferir_funcionario', {
+        p_funcionario_id: Number(fId), p_nova_lotacao_id: lotData.id, p_novo_vinculo_id: null, p_nova_funcao: null, p_novo_turno_id: null, p_motivo: `Cedido para ${orgao}`
+      });
+    }
+  }
+
+  btn.disabled = false;
+  if (error) {
+    showToast('Erro: ' + error.message, 'error');
+  } else {
+    showToast('Registro salvo com sucesso!', 'success');
+    closeModal('modal-cedido');
+    carregarFuncionarios();
+    if (state.rotaAtual === 'cedidos') renderCedidos();
+  }
+};
+</script>');
   if(data) {
     $('tbody-licencas').innerHTML = data.map(l => `
       <tr>
@@ -3980,6 +4297,44 @@ $('btn-salvar-licenca').onclick = async () => {
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal('modal-licenca')">Cancelar</button>
       <button class="btn-primary" id="btn-salvar-licenca">Salvar Afastamento</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · CEDIDOS E RECEBIDOS -->
+<div class="modal-overlay" id="modal-cedido">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title"><i class="ti ti-arrows-left-right"></i> Registrar Cessão / Recebimento</div>
+      <button class="modal-close" onclick="closeModal('modal-cedido')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <input type="hidden" id="cedido-func-id">
+        <div class="form-group full-width" id="cedido-func-nome-container">
+          <label class="form-label">Servidor *</label>
+          <input type="text" class="form-control" disabled>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tipo de Movimentação *</label>
+          <select id="cedido-tipo" class="form-control">
+            <option value="CEDIDO">CEDIDO (Saiu da SEMCAS)</option>
+            <option value="RECEBIDO">RECEBIDO (Veio para a SEMCAS)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Órgão Origem/Destino *</label>
+          <input type="text" id="cedido-orgao" class="form-control" placeholder="Ex: SEMUS, SEMGOV, MINISTÉRIO PÚBLICO">
+        </div>
+        <div class="form-group full-width">
+          <label class="form-label">Observações / Detalhes (Opcional)</label>
+          <textarea id="cedido-obs" class="form-control" rows="3" placeholder="Insira número da portaria, termo de cessão, etc."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-cedido')">Cancelar</button>
+      <button class="btn-primary" onclick="salvarCedencia()" id="btn-salvar-cedencia">Salvar Registro</button>
     </div>
   </div>
 </div>
