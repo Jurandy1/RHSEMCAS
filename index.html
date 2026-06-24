@@ -1571,10 +1571,11 @@
                 <th>Órgão Envolvido</th>
                 <th>Lotação SEMCAS / Vínculo</th>
                 <th>Data Registro</th>
+                <th style="width:100px;text-align:center">Ações</th>
               </tr>
             </thead>
             <tbody id="tbody-cedidos">
-              <tr><td colspan="5" class="empty-state"><span class="spinner"></span> Carregando cedências...</td></tr>
+              <tr><td colspan="6" class="empty-state"><span class="spinner"></span> Carregando cedências…</td></tr>
             </tbody>
           </table>
         </div>
@@ -4081,7 +4082,7 @@ async function renderCedidos() {
 async function carregarTabelaCedidos() {
   const { data } = await sb.from('v_cedencias_atuais').select('*').order('created_at', { ascending: false });
   if (!data || data.length === 0) {
-    $('tbody-cedidos').innerHTML = '<tr><td colspan="5" class="empty-state">Nenhum registro encontrado.</td></tr>';
+    $('tbody-cedidos').innerHTML = '<tr><td colspan="6" class="empty-state">Nenhum registro encontrado.</td></tr>';
   } else {
     $('tbody-cedidos').innerHTML = data.map(c => `
       <tr>
@@ -4103,10 +4104,36 @@ async function carregarTabelaCedidos() {
           <div style="font-size:11px;color:var(--color-text-sec)">${htmlEscape(c.vinculo||'-')}</div>
         </td>
         <td style="font-size:12px;color:var(--color-text-muted)">${c.data_inicio ? fmtDt(c.data_inicio) : fmtDt(c.created_at)}</td>
+        <td style="text-align:center">
+          <button class="btn-icon" style="color:var(--gov-blue-primary)" title="Editar" onclick="editarCedencia(${c.id})"><i class="ti ti-pencil"></i></button>
+          <button class="btn-icon" style="color:var(--gov-red)" title="Excluir" onclick="excluirCedencia(${c.id})"><i class="ti ti-trash"></i></button>
+        </td>
       </tr>
     `).join('');
   }
 }
+
+window.editarCedencia = async (id) => {
+  const { data } = await sb.from('funcionario_cedencias').select('*, funcionarios(nome, matricula)').eq('id', id).single();
+  if(!data) return;
+  abrirModalCedido();
+  $('cedido-func-id').value = data.funcionario_id;
+  $('cedido-func-nome-container').innerHTML = \`<label class="form-label">Servidor *</label><input type="text" class="form-control" value="\${data.funcionarios?.nome || ''}" disabled>\`;
+  $('cedido-tipo').value = data.tipo;
+  $('cedido-orgao').value = data.orgao_destino_origem;
+  $('cedido-obs').value = data.observacao || '';
+  let hid = $('cedencia-id-editar');
+  if(!hid) { hid = document.createElement('input'); hid.type = 'hidden'; hid.id = 'cedencia-id-editar'; $('cedido-func-nome-container').appendChild(hid); }
+  hid.value = id;
+};
+
+window.excluirCedencia = async (id) => {
+  if(confirm('Tem certeza que deseja excluir este registro de cedência?')) {
+    await sb.from('funcionario_cedencias').delete().eq('id', id);
+    showToast('Registro excluído com sucesso.', 'success');
+    renderCedidos();
+  }
+};
 
 window.abrirModalCedido = async () => {
   $('cedido-func-id').value = '';
@@ -4169,22 +4196,31 @@ window.salvarCedencia = async () => {
   btn.disabled = true;
 
   const payload = {
-    funcionario_id: Number(fId),
     tipo: tipo,
     orgao_destino_origem: orgao,
     observacao: $('cedido-obs').value || null,
-    data_inicio: new Date().toISOString().split('T')[0],
-    ativo: true
   };
 
-  const { error } = await sb.from('funcionario_cedencias').insert([payload]);
-  
-  if (tipo === 'CEDIDO') {
-    const { data: lotData } = await sb.from('lotacoes').select('id').eq('nome', 'SERVIDORES CEDIDOS (OUTROS ÓRGÃOS)').limit(1).single();
-    if (lotData) {
-      await sb.rpc('fn_transferir_funcionario', {
-        p_funcionario_id: Number(fId), p_nova_lotacao_id: lotData.id, p_novo_vinculo_id: null, p_nova_funcao: null, p_novo_turno_id: null, p_motivo: `Cedido para ${orgao}`
-      });
+  const editId = $('cedencia-id-editar')?.value;
+  let error;
+
+  if (editId) {
+    const res = await sb.from('funcionario_cedencias').update(payload).eq('id', editId);
+    error = res.error;
+  } else {
+    payload.funcionario_id = Number(fId);
+    payload.data_inicio = new Date().toISOString().split('T')[0];
+    payload.ativo = true;
+    const res = await sb.from('funcionario_cedencias').insert([payload]);
+    error = res.error;
+    
+    if (tipo === 'CEDIDO' && !error) {
+      const { data: lotData } = await sb.from('lotacoes').select('id').eq('nome', 'SERVIDORES CEDIDOS (OUTROS ÓRGÃOS)').limit(1).single();
+      if (lotData) {
+        await sb.rpc('fn_transferir_funcionario', {
+          p_funcionario_id: Number(fId), p_nova_lotacao_id: lotData.id, p_novo_vinculo_id: null, p_nova_funcao: null, p_novo_turno_id: null, p_motivo: `Cedido para ${orgao}`
+        });
+      }
     }
   }
 
@@ -4193,9 +4229,10 @@ window.salvarCedencia = async () => {
     showToast('Erro: ' + error.message, 'error');
   } else {
     showToast('Registro salvo com sucesso!', 'success');
+    if ($('cedencia-id-editar')) $('cedencia-id-editar').remove();
     closeModal('modal-cedido');
     carregarFuncionarios();
-    if (state.rotaAtual === 'cedidos') renderCedidos();
+    if (state.rotaAtual === 'cedidos' || document.getElementById('view-cedidos')?.classList.contains('active')) renderCedidos();
   }
 };
 </script>
