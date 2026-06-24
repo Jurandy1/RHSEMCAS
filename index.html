@@ -640,17 +640,143 @@
     /* ============ EXTENSÕES ============ */
     
     /* Cards do dashboard clicáveis */
-    .stat.clickable { cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; }
-    .stat.clickable:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(0,0,0,0.1); }
-    .stat.clickable::after {
-      content: '\f061'; /* arrow icon */
-      font-family: 'tabler-icons';
-      position: absolute; top: 12px; right: 12px;
-      color: var(--color-text-muted); opacity: 0; transition: opacity 0.15s;
-      font-size: 14px;
-    }
-    .stat.clickable:hover::after { opacity: 1; }
+    .stat.clickable { cursor: pointer; }
     .stat { position: relative; }
+
+    /* ─── DASHBOARD MELHORADO ─── */
+    .dash-section-header {
+      display: flex; align-items: center; gap: 10px;
+      margin: 28px 0 14px;
+    }
+    .dash-section-header:first-child { margin-top: 0; }
+    .dash-section-header h2 {
+      font-size: 14px; font-weight: 700;
+      color: var(--gov-blue-dark); margin: 0; white-space: nowrap;
+    }
+    .dash-section-header .dash-icon {
+      width: 28px; height: 28px; border-radius: 6px;
+      background: var(--gov-blue-primary);
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 14px; flex-shrink: 0;
+    }
+    .dash-section-header .dash-line {
+      flex: 1; height: 1px; background: var(--gov-border);
+    }
+
+    /* KPI Cards (linha principal de servidores) */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+      gap: 12px;
+    }
+    .kpi-card {
+      background: #fff; border-radius: 6px;
+      border: 1px solid var(--gov-border);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      padding: 16px 14px 12px;
+      position: relative; overflow: hidden;
+      border-top: 3px solid var(--gov-blue-primary);
+      transition: transform 0.15s, box-shadow 0.15s;
+      cursor: pointer;
+    }
+    .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.09); }
+    .kpi-card-label { font-size: 10px; font-weight: 700; letter-spacing: 0.05em;
+      text-transform: uppercase; color: var(--color-text-sec); margin-bottom: 8px; }
+    .kpi-card-value { font-size: 28px; font-weight: 800; color: var(--gov-blue-dark);
+      line-height: 1; letter-spacing: -0.02em; }
+    .kpi-card-sub { font-size: 11px; color: var(--color-text-muted); margin-top: 5px; }
+    .kpi-card-bg-icon {
+      position: absolute; bottom: 6px; right: 10px;
+      font-size: 36px; opacity: 0.06; color: var(--gov-blue-dark);
+      pointer-events: none;
+    }
+
+    /* Gráficos */
+    .chart-row {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .chart-card {
+      background: #fff; border-radius: 6px;
+      border: 1px solid var(--gov-border);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      padding: 18px;
+    }
+    .chart-card-title {
+      font-size: 12px; font-weight: 700; letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--gov-blue-dark); margin-bottom: 14px;
+      display: flex; align-items: center; gap: 6px;
+      padding-bottom: 10px; border-bottom: 1px solid var(--gov-border);
+    }
+    .chart-card-title i { font-size: 15px; color: var(--gov-blue-primary); }
+
+    /* Cards de Superintendências */
+    .super-grid {
+      display: grid; gap: 12px;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    }
+    .super-card {
+      background: #fff; border: 1px solid var(--gov-border);
+      border-radius: 6px; padding: 16px;
+      cursor: pointer; transition: all 0.15s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      border-left: 4px solid var(--gov-blue-primary);
+    }
+    .super-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+      border-left-color: var(--gov-yellow);
+    }
+    .super-card-name { font-size: 13px; font-weight: 600; color: var(--gov-blue-dark); line-height: 1.35; margin-bottom: 8px; }
+    .super-card-count { font-size: 22px; font-weight: 800; color: var(--gov-blue-primary); }
+    .super-card-label { font-size: 11px; color: var(--color-text-muted); }
+
+    /* Cards de Locais Operacionais */
+    .locais-op-grid {
+      display: grid; gap: 12px;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    }
+    .loc-card {
+      background: #fff; border: 1px solid var(--gov-border);
+      border-radius: 6px; padding: 16px;
+      cursor: pointer; transition: all 0.15s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      text-align: center;
+    }
+    .loc-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+      border-color: var(--gov-blue-primary);
+    }
+    .loc-card i { font-size: 28px; color: var(--gov-blue-primary); margin-bottom: 8px; display: block; }
+    .loc-card-name { font-size: 14px; font-weight: 700; color: var(--gov-blue-dark); margin-bottom: 6px; }
+    .loc-card-units { font-size: 12px; color: var(--color-text-sec); }
+    .loc-card-units strong { color: var(--gov-blue-dark); }
+
+    /* Estrutura organizacional em grid compacto */
+    .estrutura-grid {
+      display: grid; gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    }
+    .estrutura-item {
+      background: #fff; border: 1px solid var(--gov-border);
+      border-radius: 6px; padding: 14px 12px;
+      text-align: center;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .estrutura-item-val {
+      font-size: 26px; font-weight: 800; color: var(--gov-blue-dark); line-height: 1;
+    }
+    .estrutura-item-lbl { font-size: 11px; color: var(--color-text-sec); margin-top: 5px; font-weight: 600; }
+    .estrutura-item-sub { font-size: 10px; color: var(--color-text-muted); margin-top: 2px; }
+
+    @media (max-width: 768px) {
+      .chart-row { grid-template-columns: 1fr; }
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .super-grid { grid-template-columns: repeat(2, 1fr); }
+      .locais-op-grid { grid-template-columns: repeat(2, 1fr); }
+    }
 
     /* Filtros */
     .toolbar-filters {
@@ -1134,16 +1260,15 @@
       .page-wrapper-fp { padding: 10px 0; overflow-x: scroll; }
     }
   </style>
-  <div id="conn-banner" class="conn-banner hidden">
-    <div class="conn-icon"></div>
-    <div class="conn-text">
-      <strong>Não foi possível conectar ao banco de dados.</strong><br>
-      Configure suas credenciais Supabase no script: <code>SUPABASE_URL</code> e <code>SUPABASE_ANON</code>
-    </div>
-  </div>
-
 </head>
 <body>
+
+<div id="conn-banner" class="conn-banner hidden">
+  <div class="conn-text">
+    <strong>Não foi possível conectar ao banco de dados.</strong>
+    Configure suas credenciais Supabase no script: <code>SUPABASE_URL</code> e <code>SUPABASE_ANON</code>
+  </div>
+</div>
 
 <div class="app">
   <nav class="sidebar" id="sidebar" aria-label="Menu Principal">
@@ -1227,31 +1352,56 @@
 
       <!-- ===== PAINEL ===== -->
       <section id="view-painel" class="view-section">
-        <div class="row-label">Visão Geral</div>
-        <div class="stats-grid" id="stats-grid">
-          <div class="stat"><div class="stat-lbl">Carregando<span class="spinner"></span></div></div>
+
+        <!-- Cabeçalho do Painel -->
+        <div class="dash-section-header" style="margin-top:0">
+          <div class="dash-icon"><i class="ti ti-users"></i></div>
+          <h2>Quadro de Servidores</h2>
+          <div class="dash-line"></div>
+        </div>
+        <div class="kpi-grid" id="stats-grid">
+          <div class="kpi-card" style="border-top-color:var(--gov-blue-dark)">
+            <div class="kpi-card-label">Carregando</div>
+            <div class="kpi-card-value"><span class="spinner"></span></div>
+          </div>
         </div>
 
         <!-- Gráficos -->
-        <div style="display:none;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:32px;margin-top:8px" id="graficos-row">
-          <div class="card" style="padding:20px">
-            <div style="font-weight:600;color:var(--gov-blue-dark);margin-bottom:14px;font-size:14px">Distribuição por Vínculo</div>
-            <div style="position:relative;height:220px"><canvas id="chart-vinculos"></canvas></div>
+        <div id="graficos-row" class="chart-row" style="display:none;margin-top:16px">
+          <div class="chart-card">
+            <div class="chart-card-title"><i class="ti ti-chart-donut"></i> Distribuição por Vínculo</div>
+            <div style="position:relative;height:210px"><canvas id="chart-vinculos"></canvas></div>
           </div>
-          <div class="card" style="padding:20px">
-            <div style="font-weight:600;color:var(--gov-blue-dark);margin-bottom:14px;font-size:14px">Servidores por Tipo de Local</div>
-            <div style="position:relative;height:220px"><canvas id="chart-locais"></canvas></div>
+          <div class="chart-card">
+            <div class="chart-card-title"><i class="ti ti-chart-bar"></i> Servidores por Tipo de Local</div>
+            <div style="position:relative;height:210px"><canvas id="chart-locais"></canvas></div>
           </div>
         </div>
 
-        <div class="row-label" style="margin-top:4px">Estrutura Organizacional</div>
-        <div class="stats-grid" id="stats-estrutura"></div>
+        <!-- Estrutura Organizacional -->
+        <div class="dash-section-header">
+          <div class="dash-icon"><i class="ti ti-hierarchy"></i></div>
+          <h2>Estrutura Organizacional</h2>
+          <div class="dash-line"></div>
+        </div>
+        <div class="estrutura-grid" id="stats-estrutura"></div>
 
-        <div class="row-label" style="margin-top:20px">Superintendências</div>
-        <div class="cards-grid" id="cards-superintendencias"></div>
+        <!-- Superintendências -->
+        <div class="dash-section-header">
+          <div class="dash-icon"><i class="ti ti-building-skyscraper"></i></div>
+          <h2>Superintendências</h2>
+          <div class="dash-line"></div>
+        </div>
+        <div class="super-grid" id="cards-superintendencias"></div>
 
-        <div class="row-label" style="margin-top:20px">Locais Operacionais</div>
-        <div class="cards-grid" id="cards-locais-resumo"></div>
+        <!-- Locais Operacionais -->
+        <div class="dash-section-header">
+          <div class="dash-icon"><i class="ti ti-map-pin"></i></div>
+          <h2>Locais Operacionais</h2>
+          <div class="dash-line"></div>
+        </div>
+        <div class="locais-op-grid" id="cards-locais-resumo"></div>
+
       </section>
 
       <!-- ===== FUNCIONÁRIOS ===== -->
@@ -1311,31 +1461,26 @@
 
       <!-- ===== CEDIDOS E RECEBIDOS ===== -->
       <section id="view-cedidos" class="view-section">
-        <div class="header-actions">
-          <h2 class="section-title">Cedidos e Recebidos</h2>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+          <div class="row-label" style="margin:0"><i class="ti ti-arrows-left-right"></i> Cedidos e Recebidos</div>
           <button class="btn-primary" onclick="abrirModalCedido()"><i class="ti ti-plus"></i> Registrar Cessão/Recebimento</button>
         </div>
         <div class="stats-grid" id="cedidos-kpis" style="margin-bottom:20px;"></div>
-        <div class="card">
-          <div class="card-header">
-            <h3>Histórico e Servidores Atuais</h3>
-          </div>
-          <div class="table-responsive">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Servidor</th>
-                  <th>Tipo</th>
-                  <th>Órgão Envolvido</th>
-                  <th>Lotação SEMCAS / Vínculo</th>
-                  <th>Data Registro</th>
-                </tr>
-              </thead>
-              <tbody id="tbody-cedidos">
-                <tr><td colspan="5" class="empty-state">Carregando cedências...</td></tr>
-              </tbody>
-            </table>
-          </div>
+        <div class="table-container">
+          <table class="gov-table">
+            <thead>
+              <tr>
+                <th>Servidor</th>
+                <th>Tipo</th>
+                <th>Órgão Envolvido</th>
+                <th>Lotação SEMCAS / Vínculo</th>
+                <th>Data Registro</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-cedidos">
+              <tr><td colspan="5" class="empty-state"><span class="spinner"></span> Carregando cedências...</td></tr>
+            </tbody>
+          </table>
         </div>
       </section>
 
@@ -2087,12 +2232,13 @@ async function renderPainel() {
       });
     }
     $('stats-grid').innerHTML = cards.map(c => `
-      <div class="stat clickable" style="border-left-color:${c.cor};cursor:pointer">
-        <div class="stat-lbl">${htmlEscape(c.lbl)}</div>
-        <div class="stat-val">${(c.val||0).toLocaleString('pt-BR')}</div>
-        <div class="stat-sub">${htmlEscape(c.sub)}</div>
+      <div class="kpi-card" style="border-top-color:${c.cor}">
+        <div class="kpi-card-label">${htmlEscape(c.lbl)}</div>
+        <div class="kpi-card-value">${(c.val||0).toLocaleString('pt-BR')}</div>
+        <div class="kpi-card-sub">${htmlEscape(c.sub)}</div>
+        <i class="ti ti-users kpi-card-bg-icon"></i>
       </div>`).join('');
-    $$('#stats-grid .stat').forEach((el, i) => { el.onclick = cards[i].click; });
+    $$('#stats-grid .kpi-card').forEach((el, i) => { el.onclick = cards[i].click; });
 
     if (vincs.length > 0) {
       $('graficos-row').style.display = 'grid';
@@ -2156,29 +2302,28 @@ async function renderPainel() {
 
   if (kpi) {
     $('stats-estrutura').innerHTML = [
-      { lbl:'Total de Lotações',   val: kpi.total_lotacoes,          sub:'Cadastradas', cor:'#071d41' },
-      { lbl:'Superintendências',   val: kpi.total_superintendencias, sub:'Topo da estrutura', cor:'#1351b4' },
-      { lbl:'Coordenações',        val: kpi.total_coordenacoes,      sub:'Nível tático', cor:'#b28900' },
-      { lbl:'Diretorias Técnicas', val: kpi.total_diretorias,        sub:'Nível técnico', cor:'#3B6D11' },
-      { lbl:'Unidades Operacionais',val: kpi.total_unidades,         sub:'CRAS/CREAS/Abrigos/CT', cor:'#534AB7' },
+      { lbl:'Total de Lotações',    val: kpi.total_lotacoes,          sub:'Cadastradas',          cor:'#071d41' },
+      { lbl:'Superintendências',    val: kpi.total_superintendencias, sub:'Topo da estrutura',    cor:'#1351b4' },
+      { lbl:'Coordenações',         val: kpi.total_coordenacoes,      sub:'Nível tático',         cor:'#b28900' },
+      { lbl:'Diretorias Técnicas',  val: kpi.total_diretorias,        sub:'Nível técnico',        cor:'#3B6D11' },
+      { lbl:'Unidades Operacionais',val: kpi.total_unidades,          sub:'CRAS/CREAS/Abrigos/CT',cor:'#534AB7' },
     ].map(c => `
-      <div class="stat" style="border-left-color:${c.cor}">
-        <div class="stat-lbl">${c.lbl}</div>
-        <div class="stat-val">${(c.val||0).toLocaleString('pt-BR')}</div>
-        <div class="stat-sub">${c.sub}</div>
+      <div class="estrutura-item" style="border-bottom:3px solid ${c.cor}">
+        <div class="estrutura-item-val">${(c.val||0).toLocaleString('pt-BR')}</div>
+        <div class="estrutura-item-lbl">${c.lbl}</div>
+        <div class="estrutura-item-sub">${c.sub}</div>
       </div>`).join('');
   }
 
   const supers = state.lotacoes.filter(l => l.tipo && l.tipo.toUpperCase().includes('SUPERIN') && !l.parent_id);
   if (supers.length > 0) {
     $('cards-superintendencias').innerHTML = supers.map(s => `
-      <div class="big-card" data-id="${s.id}" style="border-left-color:#1351b4">
-        <div class="big-card-title">${htmlEscape(s.nome)}</div>
-        <div class="big-card-meta">
-          <span><strong>${s.funcionarios_total ?? s.funcionarios_direto ?? 0}</strong> servidores</span>
-        </div>
+      <div class="super-card" data-id="${s.id}">
+        <div class="super-card-name">${htmlEscape(s.nome)}</div>
+        <div class="super-card-count">${(s.funcionarios_total ?? s.funcionarios_direto ?? 0).toLocaleString('pt-BR')}</div>
+        <div class="super-card-label">servidores</div>
       </div>`).join('');
-    $$('#cards-superintendencias .big-card').forEach(el => {
+    $$('#cards-superintendencias .super-card').forEach(el => {
       el.onclick = () => {
         state.filtros = { busca:'', vinculo_id:null, lotacao_id: Number(el.dataset.id), funcao:'', turno_id:null };
         location.hash = '#funcionarios';
@@ -2186,15 +2331,17 @@ async function renderPainel() {
     });
   }
 
-  $('cards-locais-resumo').innerHTML = locais.map(l => `
-    <div class="big-card" data-cat="${htmlEscape(l.categoria)}">
-      <div class="big-card-title">${htmlEscape(l.categoria)}</div>
-      <div class="big-card-meta">
-        <span><strong>${l.qtd_unidades}</strong> unidades</span>
-        <span><strong>${l.qtd_funcionarios}</strong> servidores</span>
-      </div>
-    </div>`).join('');
-  $$('#cards-locais-resumo .big-card').forEach(el => {
+  const iconeLocal = { 'CRAS':'ti-home-heart','CREAS':'ti-alert-circle','Conselho Tutelar':'ti-shield-check','Conselho':'ti-shield-check','Abrigo':'ti-home-2','Centro POP':'ti-building-community','Outros':'ti-building' };
+  $('cards-locais-resumo').innerHTML = locais.map(l => {
+    const ico = Object.entries(iconeLocal).find(([k]) => l.categoria.toUpperCase().includes(k.toUpperCase()))?.[1] || 'ti-building';
+    return `
+    <div class="loc-card" data-cat="${htmlEscape(l.categoria)}">
+      <i class="ti ${ico}"></i>
+      <div class="loc-card-name">${htmlEscape(l.categoria)}</div>
+      <div class="loc-card-units"><strong>${l.qtd_unidades}</strong> unidades &nbsp;·&nbsp; <strong>${l.qtd_funcionarios}</strong> servidores</div>
+    </div>`;
+  }).join('');
+  $$('#cards-locais-resumo .loc-card').forEach(el => {
     el.onclick = () => { location.hash = `#locais/${encodeURIComponent(el.dataset.cat)}`; };
   });
 }
@@ -4344,5 +4491,6 @@ $('btn-salvar-licenca').onclick = async () => {
 </div>
 
 </body>
-</html>< ! - -   c a c h e   b u s t e r   - - >  
+</html>< ! - -   c a c h e   b u s t e r   - - > 
+ 
  
