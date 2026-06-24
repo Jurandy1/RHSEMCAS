@@ -3765,6 +3765,10 @@ window.filtrarLicAutocomplete = (val) => {
 };
 
 window.selecionarLicAutocomplete = (id, label) => {
+  $('lic-func-id').value = id;
+  $('lic-func-search').value = label;
+  $('lic-func-sugestoes').style.display = 'none';
+};
 
 $('btn-salvar-licenca').onclick = async () => {
   let fId = $('lic-func-id').value;
