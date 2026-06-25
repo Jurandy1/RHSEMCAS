@@ -1407,13 +1407,14 @@
         <i class="ti ti-clock"></i> Folha de Ponto
       </a>
       <a href="#pendentes" class="nav-item" data-route="pendentes">
-        <i class="ti ti-user-question"></i> Pendentes <span id="badge-pendentes" style="background:var(--gov-red);color:#fff;font-size:10px;padding:2px 7px;border-radius:10px;margin-left:6px;font-weight:600">0</span>
+        <i class="ti ti-user-exclamation"></i> Auditoria de Dados
       </a>
+      <a href="#logs" class="nav-item" data-route="logs">
+        <i class="ti ti-history"></i> Histórico de Ações
+      </a>
+      <div style="border-top:1px solid var(--gov-border); margin:10px 16px"></div>
       <a href="#lotacoes" class="nav-item" data-route="lotacoes">
         <i class="ti ti-building"></i> Gestão de Lotações
-      </a>
-      <a href="#" class="nav-item" onclick="event.preventDefault(); showToast('Em breve','info')">
-        Relatórios
       </a>
     </div>
 
@@ -1914,6 +1915,34 @@
         </div>
       </section>
 
+      <!-- ===== LOGS DO SISTEMA ===== -->
+      <section id="view-logs" class="view-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+          <div>
+            <div class="row-label" style="margin:0">Histórico de Ações</div>
+            <small style="color:var(--color-text-muted)">Registro automático de auditoria das atividades do sistema</small>
+          </div>
+          <button class="btn-secondary" onclick="renderLogs()"><i class="ti ti-reload"></i> Atualizar</button>
+        </div>
+        <div class="card">
+          <div class="table-container">
+            <table class="gov-table">
+              <thead>
+                <tr>
+                  <th>Data/Hora</th>
+                  <th>Ação</th>
+                  <th>Servidor</th>
+                  <th>Detalhes</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-logs">
+                <tr><td colspan="4" class="empty-state"><span class="spinner"></span> Carregando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <!-- ===== GESTÃO DE LOTAÇÕES ===== -->
       <section id="view-lotacoes" class="view-section">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
@@ -1957,9 +1986,9 @@
       <i class="ti ti-map-pin"></i>
       <span>Locais</span>
     </a>
-    <a href="#organograma" class="bottom-nav-item" data-route="organograma">
-      <i class="ti ti-sitemap"></i>
-      <span>Organograma</span>
+    <a href="#logs" class="bottom-nav-item" data-route="logs">
+      <i class="ti ti-history"></i>
+      <span>Histórico</span>
     </a>
   </div>
 </nav>
@@ -2124,6 +2153,28 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 window.sb = sb;
 
 // ╔══════════════════════════════════════════════════════════════╗
+// ║                    REGISTRAR LOG SISTEMA                      ║
+// ╚══════════════════════════════════════════════════════════════╝
+window.registrarLog = async (tipo_acao, funcionario_id, funcionario_nome, detalhes_obj = {}) => {
+  await sb.from('sistema_logs').insert([{
+    tipo_acao, 
+    funcionario_id, 
+    funcionario_nome, 
+    detalhes: detalhes_obj,
+    usuario: 'Administrador'
+  }]);
+};
+
+window.removerFuncionario = async (id, nome) => {
+  if (!confirm(`TEM CERTEZA que deseja inativar/remover o servidor ${nome}?\n\nEsta ação o deixará inativo no sistema, mas manterá seu histórico para auditoria.`)) return;
+  const { error } = await sb.from('funcionarios').update({ ativo: false }).eq('id', id);
+  if (error) { showToast('Erro ao remover servidor', 'error'); return; }
+  await registrarLog('INATIVAÇÃO / REMOÇÃO', id, nome, { motivo: 'Inativado manualmente pelo usuário' });
+  showToast('Servidor removido com sucesso!', 'success');
+  if (state.rotaAtual === 'funcionarios') renderFuncionarios();
+};
+
+// ╔══════════════════════════════════════════════════════════════╗
 // ║                       ESTADO GLOBAL                           ║
 // ╚══════════════════════════════════════════════════════════════╝
 const state = {
@@ -2236,6 +2287,7 @@ const rotas = {
   'locais':       { titulo: 'Locais Operacionais',   bread: 'Locais',         render: renderLocais },
   'organograma':  { titulo: 'Organograma',           bread: 'Organograma',    render: renderOrganograma },
   'folha-ponto':  { titulo: 'Folha de Ponto',        bread: 'Folha de Ponto', render: renderFolhaPonto },
+  'logs':         { titulo: 'Histórico de Ações',     bread: 'Logs',           render: renderLogs }
 };
 
 function navigate() {
@@ -2502,6 +2554,30 @@ async function renderPainel() {
 }
 
 // ╔══════════════════════════════════════════════════════════════╗
+// ║            LOGS SISTEMA                                       ║
+// ╚══════════════════════════════════════════════════════════════╝
+async function renderLogs() {
+  const { data, error } = await sb.from('sistema_logs').select('*').order('created_at', { ascending: false }).limit(50);
+  if (error) { console.error('logs', error); return; }
+  $('tbody-logs').innerHTML = (data || []).map(l => {
+    let det = '';
+    if (l.detalhes) {
+      try {
+        const d = typeof l.detalhes === 'string' ? JSON.parse(l.detalhes) : l.detalhes;
+        det = Object.entries(d).map(([k,v]) => `<b>${k}</b>: ${v}`).join(' | ');
+      } catch(e) { det = l.detalhes; }
+    }
+    return `
+    <tr>
+      <td style="font-size:12px;color:var(--color-text-sec)">${new Date(l.created_at).toLocaleString('pt-BR')}</td>
+      <td><span style="background:var(--gov-blue-light);color:var(--gov-blue-dark);padding:2px 6px;border-radius:4px;font-size:11px;font-weight:bold">${htmlEscape(l.tipo_acao)}</span></td>
+      <td><strong>${htmlEscape(l.funcionario_nome || '')}</strong></td>
+      <td style="font-size:12px;color:var(--color-text-sec)">${det}</td>
+    </tr>
+  `;}).join('');
+}
+
+// ╔══════════════════════════════════════════════════════════════╗
 // ║                       FUNCIONÁRIOS                            ║
 // ╚══════════════════════════════════════════════════════════════╝
 async function renderFuncionarios() {
@@ -2582,6 +2658,7 @@ async function carregarFuncionarios() {
             <button class="btn-icon" title="Editar" onclick="abrirEdicao(${f.funcionario_id})">Editar</button>
             <button class="btn-icon" title="Transferir" onclick="abrirTransferencia(${f.funcionario_id})">Transferir</button>
             <button class="btn-icon" title="Histórico" onclick="verHistorico(${f.funcionario_id})">Histórico</button>
+            <button class="btn-icon" style="color:var(--gov-red)" title="Excluir" onclick="excluirFuncionario(${f.funcionario_id})">Excluir</button>
           </div>
         </td>
       </tr>`;
@@ -2749,6 +2826,7 @@ async function renderLocais(resto) {
               <button class="btn-icon" title="Editar" onclick="abrirEdicao(${f.funcionario_id})">Editar</button>
               <button class="btn-icon" title="Transferir" onclick="abrirTransferencia(${f.funcionario_id})">Transferir</button>
               <button class="btn-icon" title="Histórico" onclick="verHistorico(${f.funcionario_id})">Histórico</button>
+              <button class="btn-icon" style="color:var(--gov-red)" title="Excluir" onclick="excluirFuncionario(${f.funcionario_id})">Excluir</button>
             </div>
           </td>
         </tr>`).join('');
@@ -2833,6 +2911,18 @@ window.orgRecolherTudo = () => {
 // ╔══════════════════════════════════════════════════════════════╗
 // ║                     MODAL EDIÇÃO                              ║
 // ╚══════════════════════════════════════════════════════════════╝
+window.excluirFuncionario = async (id) => {
+  if (!confirm('Tem certeza que deseja excluir este funcionário? Esta ação não pode ser desfeita.')) return;
+  
+  const res = await sb.rpc('fn_excluir_funcionario', { p_id: id });
+  if (res.error) {
+    showToast(`Erro ao excluir: ${res.error.message}`, 'error');
+  } else {
+    showToast('Funcionário excluído com sucesso!', 'success');
+    carregarFuncionarios();
+  }
+};
+
 window.abrirEdicao = async (id) => {
   const data = await handleErr(await sb.from('v_funcionarios_atual').select('*').eq('funcionario_id', id).limit(1).single(), 'editar');
   if (!data) return;
@@ -2984,6 +3074,7 @@ $('btn-confirmar-trf').onclick = async () => {
   const { error } = await sb.rpc('fn_transferir_funcionario', params);
   btn.disabled = false;
   if (error) { showToast('Erro: ' + error.message, 'error'); return; }
+  await registrarLog('TRANSFERÊNCIA', id, $('trf-nome').innerHTML || 'Servidor(a)', { nova_lot_id: novaLot, motivo: params.p_motivo });
   showToast('Transferência registrada com sucesso', 'success');
   closeModal('modal-transfer');
   carregarFuncionarios();
@@ -3623,6 +3714,7 @@ window.cancelarFerias = async (id) => {
   const motivo = prompt('Motivo do cancelamento (opcional):');
   const { error } = await sb.rpc('fn_cancelar_ferias', { p_ferias_id: id, p_motivo: motivo || null });
   if (error) return showToast('Erro: ' + error.message, 'error');
+  await registrarLog('FÉRIAS CANCELADA', null, 'Servidor', { ferias_id: id, motivo });
   showToast('Férias canceladas', 'success');
   renderFerias();
 };
@@ -3847,7 +3939,7 @@ window.associarPendente = async (pendId, funcId) => {
     });
     
     if (error) throw error;
-
+    await registrarLog('ASSOCIAÇÃO DE MATRÍCULA', funcId, 'Servidor(a)', { pendente_id: pendId });
     showToast('Associado com sucesso. Histórico atualizado!', 'success');
     renderPendentes();
   } catch (e) {
@@ -4033,6 +4125,7 @@ async function salvarFerias() {
   });
   btn.disabled = false;
   if (error) return showToast('Erro: ' + error.message, 'error');
+  await registrarLog('FÉRIAS AGENDADA', funcId, $('fer-func-nome').value, { inicio: $('fer-inicio').value, fim: $('fer-fim').value });
   showToast('Férias agendadas', 'success');
   closeModal('modal-ferias');
   renderFerias();
