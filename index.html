@@ -3781,8 +3781,11 @@ async function renderPendentes() {
         <div class="stat-val">${(val||0).toLocaleString('pt-BR')}</div>
         <div class="stat-sub">${sub}</div>
       </div>`).join('');
-    $('badge-pendentes').textContent = kpis.pendentes || 0;
-    $('badge-pendentes').style.display = (kpis.pendentes || 0) > 0 ? '' : 'none';
+    const badge = $('badge-pendentes');
+    if (badge) {
+      badge.textContent = kpis.pendentes || 0;
+      badge.style.display = (kpis.pendentes || 0) > 0 ? '' : 'none';
+    }
   }
   carregarPendentes();
   carregarAuditoria();
