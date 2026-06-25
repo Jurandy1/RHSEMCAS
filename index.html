@@ -1795,7 +1795,7 @@
           <strong>Como funciona:</strong> Esses servidores aparecem na folha de pagamento mas não foram encontrados na planilha de lotações. Pra cada um, você pode <strong>casar com um servidor existente</strong> (atualiza matrícula+admissão) ou <strong>criar novo cadastro</strong> escolhendo a lotação. Servidores não relevantes podem ser <strong>descartados</strong>.
         </div>
         <div class="stats-grid" id="pendentes-kpis"></div>
-        <div class="toolbar-filters" style="margin-top:16px">
+        <div class="toolbar-filters" style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
           <input type="text" id="pend-busca" placeholder="🔍 Buscar por nome ou matrícula…" style="flex:1;min-width:240px">
           <select id="pend-status-filtro">
             <option value="pendente">Pendentes</option>
@@ -1804,21 +1804,79 @@
             <option value="descartado">Descartados</option>
             <option value="">Todos</option>
           </select>
+          <select id="pend-ordem">
+            <option value="alfabetica">Ordem Alfabética</option>
+            <option value="match_desc">Maior Match (Recomendado)</option>
+          </select>
         </div>
         <div class="table-container" style="margin-top:12px">
           <table class="gov-table">
             <thead>
               <tr>
-                <th style="width:90px">Matrícula</th>
-                <th>Nome</th>
-                <th style="width:110px">Admissão</th>
-                <th>Sugestões de Match</th>
-                <th style="width:100px">Status</th>
-                <th style="width:220px;text-align:center">Ações</th>
+                <th>Matrícula</th>
+                <th>Nome na Folha</th>
+                <th>Admissão</th>
+                <th>Lotação / Cargo (Folha)</th>
+                <th>Sugestões de Cadastro (Banco Atual)</th>
+                <th>Status</th>
+                <th style="text-align:center">Ações</th>
               </tr>
             </thead>
-            <tbody id="pend-tbody"><tr><td colspan="6" class="empty-state"><span class="spinner"></span> Carregando…</td></tr></tbody>
+            <tbody id="pend-tbody"><tr><td colspan="7" class="empty-state"><span class="spinner"></span> Carregando…</td></tr></tbody>
           </table>
+        </div>
+
+        <!-- Nova Seção: Auditoria de Dados -->
+        <div style="margin-top: 40px;">
+          <div class="dash-section-header">
+            <div class="dash-icon" style="background:var(--gov-red)"><i class="ti ti-shield-search" style="color:#fff"></i></div>
+            <h2>Auditoria e Qualidade de Dados</h2>
+            <div class="dash-line"></div>
+          </div>
+          
+          <div class="form-grid" style="grid-template-columns: 1fr 1fr; align-items: start;">
+            <!-- Servidores sem Matrícula -->
+            <div style="background:var(--gov-surface); border:1px solid var(--gov-border); border-radius:var(--br-md); padding:16px;">
+              <h3 style="font-size:15px; font-weight:700; color:var(--gov-blue-dark); margin-bottom:12px; display:flex; justify-content:space-between;">
+                <span>⚠️ Servidores Sem Matrícula</span>
+                <span id="badge-sem-matricula" style="background:var(--gov-bg-light); color:var(--color-text-sec); font-size:12px; padding:2px 8px; border-radius:12px;">0</span>
+              </h3>
+              <div class="table-container" style="max-height: 400px; overflow-y: auto;">
+                <table class="gov-table" style="font-size:12px;">
+                  <thead>
+                    <tr>
+                      <th>Nome</th>
+                      <th>Lotação</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbody-sem-matricula">
+                    <tr><td colspan="2" class="empty-state">Carregando…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Possíveis Duplicidades -->
+            <div style="background:var(--gov-surface); border:1px solid var(--gov-border); border-radius:var(--br-md); padding:16px;">
+              <h3 style="font-size:15px; font-weight:700; color:var(--gov-blue-dark); margin-bottom:12px; display:flex; justify-content:space-between;">
+                <span>👥 Nomes Duplicados</span>
+                <span id="badge-duplicados" style="background:var(--gov-bg-light); color:var(--color-text-sec); font-size:12px; padding:2px 8px; border-radius:12px;">0</span>
+              </h3>
+              <div class="table-container" style="max-height: 400px; overflow-y: auto;">
+                <table class="gov-table" style="font-size:12px;">
+                  <thead>
+                    <tr>
+                      <th>Nome Duplicado</th>
+                      <th>Lotações Cadastradas</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbody-duplicados">
+                    <tr><td colspan="2" class="empty-state">Carregando…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -2338,7 +2396,8 @@ async function renderPainel() {
 
     if (vincs.length > 0) {
       $('graficos-row').style.display = 'grid';
-      if (_chartVinculos) { _chartVinculos.destroy(); _chartVinculos = null; }
+      const chartInstance = Chart.getChart('chart-vinculos');
+      if (chartInstance) { chartInstance.destroy(); }
       await new Promise(r => setTimeout(r, 50));
       const ctxV = $('chart-vinculos').getContext('2d');
       _chartVinculos = new Chart(ctxV, {
@@ -2615,17 +2674,21 @@ async function renderLocais(resto) {
     
     let unidades = [];
     if (catData && catData.length > 0 && catData[0].parent_id_ref != null) {
-      unidades = state.lotacoes.filter(l => l.parent_id === catData[0].parent_id_ref);
+      unidades = state.lotacoes.filter(l => l.parent_id == catData[0].parent_id_ref);
     }
+    // Fallback agressivo se não encontrou pelo parent_id_ref ou se não havia parent_id_ref
     if (unidades.length === 0) {
       unidades = state.lotacoes.filter(l => {
         const tipo = (l.tipo || '').toLowerCase();
+        const nome = (l.nome || '').toLowerCase();
+        const marc = (l.marcador || '').toLowerCase();
         const cat  = catDecoded.toLowerCase();
-        return tipo === cat || tipo.includes(cat) || cat.includes(tipo);
+        const catSingular = cat.endsWith('s') ? cat.slice(0, -1) : cat;
+        return tipo.includes(catSingular) || 
+               nome.includes(catSingular) || 
+               marc.includes(catSingular) || 
+               cat.includes(tipo);
       });
-    }
-    if (unidades.length === 0 && catData && catData.length > 0 && catData[0].marcador) {
-      unidades = state.lotacoes.filter(l => l.marcador === catData[0].marcador);
     }
 
     unidades = unidades.sort((a,b) => a.nome.localeCompare(b.nome));
@@ -3610,7 +3673,7 @@ document.addEventListener('change', (e) => {
 // ╔══════════════════════════════════════════════════════════════╗
 // ║                       PENDENTES                               ║
 // ╚══════════════════════════════════════════════════════════════╝
-const statePend = { busca: '', status: 'pendente' };
+const statePend = { busca: '', status: 'pendente', ordem: 'alfabetica' };
 
 async function renderPendentes() {
   const kpis = await handleErr(await sb.from('v_pendentes_kpis').select('*').single(), 'pend kpis');
@@ -3630,6 +3693,7 @@ async function renderPendentes() {
     $('badge-pendentes').style.display = (kpis.pendentes || 0) > 0 ? '' : 'none';
   }
   carregarPendentes();
+  carregarAuditoria();
 }
 
 async function carregarPendentes() {
@@ -3642,18 +3706,33 @@ async function carregarPendentes() {
     q = sb.from('funcionarios_folha_pendentes').select('*').eq('status', statePend.status);
     if (statePend.busca) q = q.or(`nome.ilike.%${statePend.busca}%,matricula.ilike.%${statePend.busca}%`);
   }
-  const data = await handleErr(await q.order('nome').range(0, 9999), 'pendentes') || [];
+  let data = await handleErr(await q.order('nome').range(0, 9999), 'pendentes') || [];
+  
+  // Ordenação
+  if (statePend.ordem === 'match_desc') {
+    data.sort((a, b) => {
+      const maxA = (a.sugestoes || []).length > 0 ? Math.max(...a.sugestoes.map(s => s.similarity)) : 0;
+      const maxB = (b.sugestoes || []).length > 0 ? Math.max(...b.sugestoes.map(s => s.similarity)) : 0;
+      return maxB - maxA;
+    });
+  }
+
   if (data.length === 0) {
-    $('pend-tbody').innerHTML = '<tr><td colspan="6" class="empty-state">Nenhum registro</td></tr>';
+    $('pend-tbody').innerHTML = '<tr><td colspan="7" class="empty-state">Nenhum registro</td></tr>';
     return;
   }
   $('pend-tbody').innerHTML = data.map(p => {
-    const sugs = (p.sugestoes || []).slice(0, 3);
+    const sugs = (p.sugestoes || []).sort((a,b) => b.similarity - a.similarity).slice(0, 3);
     const sugHtml = sugs.length === 0
       ? '<small style="color:var(--color-text-muted)">Nenhuma sugestão automática</small>'
-      : sugs.map(s => `<div style="font-size:12px;padding:2px 0">
-          <strong>${(s.similarity*100).toFixed(0)}%</strong> · ${htmlEscape(s.nome)}
-          ${p.status === 'pendente' ? `<button class="btn-link" onclick="associarPendente(${p.id}, ${s.id})">associar →</button>` : ''}
+      : sugs.map(s => `<div style="font-size:12px;padding:4px 0; border-bottom: 1px dashed #E5E7EB; margin-bottom: 2px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span><strong>${(s.similarity*100).toFixed(0)}%</strong> · ${htmlEscape(s.nome)}</span>
+            ${p.status === 'pendente' ? `<button type="button" class="btn-link" style="font-size:11px" onclick="window.associarPendente(${p.id}, ${s.id})">associar →</button>` : ''}
+          </div>
+          <div style="font-size: 11px; color: var(--color-text-sec); margin-top: 2px;">
+            ${htmlEscape(s.funcao || 'Sem função')} | Lotação: ${htmlEscape(s.lotacao_nome || 'N/A')}
+          </div>
         </div>`).join('');
     const statusBadge = {
       'pendente':        '<span style="background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">PENDENTE</span>',
@@ -3669,6 +3748,10 @@ async function carregarPendentes() {
       <td style="font-family:monospace">${htmlEscape(p.matricula)}</td>
       <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(p.nome)}</td>
       <td style="font-size:12px">${fmtDt(p.data_admissao)}</td>
+      <td style="font-size:12px;color:var(--color-text-sec)">
+        <div>${htmlEscape(p.lotacao_origem || '—')}</div>
+        <div style="font-weight:600;margin-top:2px">${htmlEscape(p.cargo_origem || '—')}</div>
+      </td>
       <td>${sugHtml}</td>
       <td>${statusBadge}</td>
       <td style="text-align:center"><div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap">${acoes}</div></td>
@@ -3676,19 +3759,102 @@ async function carregarPendentes() {
   }).join('');
 }
 
+async function carregarAuditoria() {
+  $('tbody-sem-matricula').innerHTML = '<tr><td colspan="2" class="empty-state"><span class="spinner"></span> Carregando...</td></tr>';
+  $('tbody-duplicados').innerHTML = '<tr><td colspan="2" class="empty-state"><span class="spinner"></span> Carregando...</td></tr>';
+
+  // Buscar todos os funcionários da view consolidada (v_funcionarios_atual traz a coluna vinculo!)
+  const data = await handleErr(await sb.from('v_funcionarios_atual').select('*').order('nome'), 'auditoria') || [];
+  
+  if (data.length === 0) return;
+
+  // 1. Sem matrícula (Ignorando terceirizados e celetistas, pois é esperado que não tenham matrícula do município)
+  const semMatricula = data.filter(f => {
+    const isSemMatricula = !f.matricula || f.matricula.trim() === '';
+    const vinc = (f.vinculo || '').toLowerCase();
+    const isTerceirOuCel = vinc.includes('terceirizado') || vinc.includes('celetista');
+    return isSemMatricula && !isTerceirOuCel;
+  });
+  $('badge-sem-matricula').textContent = semMatricula.length;
+  if (semMatricula.length === 0) {
+    $('tbody-sem-matricula').innerHTML = '<tr><td colspan="2" class="empty-state" style="color:var(--gov-green);font-weight:600">Tudo certo! Nenhum servidor sem matrícula.</td></tr>';
+  } else {
+    $('tbody-sem-matricula').innerHTML = semMatricula.map(f => `
+      <tr>
+        <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(f.nome)}</td>
+        <td>${f.lotacao_nome ? htmlEscape(f.lotacao_nome) : '<span style="color:var(--gov-red)">Sem Lotação</span>'}</td>
+      </tr>
+    `).join('');
+  }
+
+  // 2. Duplicidades
+  const mapNomes = {};
+  data.forEach(f => {
+    if (!f.nome) return;
+    const n = f.nome.trim().toUpperCase();
+    if (!mapNomes[n]) mapNomes[n] = [];
+    mapNomes[n].push(f);
+  });
+
+  const duplicados = Object.keys(mapNomes)
+    .map(nome => mapNomes[nome])
+    .filter(grupo => grupo.length > 1);
+
+  let totalDuplicados = 0;
+  if (duplicados.length === 0) {
+    $('tbody-duplicados').innerHTML = '<tr><td colspan="2" class="empty-state" style="color:var(--gov-green);font-weight:600">Tudo certo! Nenhuma duplicidade de nome encontrada.</td></tr>';
+    $('badge-duplicados').textContent = '0';
+  } else {
+    let html = '';
+    duplicados.forEach(grupo => {
+      totalDuplicados += grupo.length;
+      const lotacoesHtml = grupo.map(f => `
+        <div style="background:var(--gov-bg-light); border:1px solid var(--gov-border); border-radius:4px; padding:6px 10px; margin-bottom:6px;">
+          <div style="font-size:11px; color:var(--color-text-sec); margin-bottom:2px;">Matrícula: <strong>${htmlEscape(f.matricula || 'N/A')}</strong></div>
+          <div style="font-weight:500; color:var(--gov-blue-dark);"><i class="ti ti-map-pin"></i> ${f.lotacao_nome ? htmlEscape(f.lotacao_nome) : '<span style="color:var(--gov-red)">Sem Lotação</span>'}</div>
+        </div>
+      `).join('');
+      
+      html += `
+        <tr>
+          <td style="font-weight:600;color:var(--gov-red);vertical-align:top;padding-top:12px;">${htmlEscape(grupo[0].nome)}</td>
+          <td style="vertical-align:top">${lotacoesHtml}</td>
+        </tr>
+      `;
+    });
+    $('tbody-duplicados').innerHTML = html;
+    $('badge-duplicados').textContent = totalDuplicados + ' registros';
+  }
+}
+
 document.addEventListener('input', debounce((e) => {
   if (e.target.id === 'pend-busca') { statePend.busca = e.target.value.trim(); carregarPendentes(); }
 }, 300));
 document.addEventListener('change', (e) => {
   if (e.target.id === 'pend-status-filtro') { statePend.status = e.target.value; carregarPendentes(); }
+  if (e.target.id === 'pend-ordem') { statePend.ordem = e.target.value; carregarPendentes(); }
 });
 
 window.associarPendente = async (pendId, funcId) => {
-  if (!confirm('Confirmar associação? Isso vai atualizar matrícula e data de admissão do servidor selecionado.')) return;
-  const { error } = await sb.rpc('fn_resolver_pendente_associar', { p_pendente_id: pendId, p_funcionario_id: funcId });
-  if (error) return showToast('Erro: ' + error.message, 'error');
-  showToast('Associado com sucesso', 'success');
-  renderPendentes();
+  if (!confirm('Confirmar associação? Isso vai atualizar matrícula e data de admissão do servidor selecionado, e registrar no histórico.')) return;
+  
+  try {
+    console.log(`Associando pendente ${pendId} ao funcionario ${funcId}`);
+    
+    const { error } = await sb.rpc('fn_associar_pendente', { 
+      p_pendente_id: pendId, 
+      p_funcionario_id: funcId 
+    });
+    
+    if (error) throw error;
+
+    showToast('Associado com sucesso. Histórico atualizado!', 'success');
+    renderPendentes();
+  } catch (e) {
+    console.error("Erro ao associar:", e);
+    showToast('Erro: ' + (e.message || e), 'error');
+    alert('Ocorreu um erro ao associar. ' + (e.message || e));
+  }
 };
 
 window.descartarPendente = async (pendId) => {
