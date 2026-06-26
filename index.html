@@ -1509,6 +1509,7 @@
           <select id="f-lotacao"><option value="">Todas as lotações</option></select>
           <select id="f-turno"><option value="">Todos os turnos</option></select>
           <button id="btn-limpar" class="btn btn-outline" style="padding:0 12px" title="Limpar Filtros">Limpar</button>
+          <button class="btn-primary" style="padding:0 16px" onclick="abrirModalAddFuncionario()"><i class="ti ti-plus"></i> Adicionar Servidor</button>
         </div>
         <div id="filter-tags" style="margin-bottom:12px"></div>
 
@@ -1992,6 +1993,71 @@
     </a>
   </div>
 </nav>
+
+<!-- MODAL · ADICIONAR SERVIDOR -->
+<div class="modal-overlay" id="modal-add-funcionario">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title">Adicionar Servidor</div>
+      <button class="modal-close" onclick="closeModal('modal-add-funcionario')"></button>
+    </div>
+    <div class="modal-body">
+      <form id="add-form" class="form-grid" autocomplete="off">
+        <div class="form-group full-width">
+          <label class="form-label">Nome Completo *</label>
+          <input type="text" class="form-control" id="add-nome">
+        </div>
+        <div class="form-group">
+          <label class="form-label">CPF</label>
+          <input type="text" class="form-control" id="add-cpf" placeholder="000.000.000-00">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Matrícula</label>
+          <input type="text" class="form-control" id="add-matricula">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data de Admissão</label>
+          <input type="date" class="form-control" id="add-admissao">
+        </div>
+        <div class="form-group">
+          <label class="form-label">E-mail</label>
+          <input type="email" class="form-control" id="add-email">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Telefone</label>
+          <input type="text" class="form-control" id="add-telefone">
+        </div>
+        <div style="grid-column:1/-1;padding-top:12px;margin-top:4px;border-top:1px solid var(--gov-border)">
+          <strong style="font-size:13px;color:var(--gov-blue-dark)">Lotação Inicial</strong>
+        </div>
+        <div class="form-group full-width">
+          <label class="form-label">Lotação *</label>
+          <select class="form-control" id="add-lotacao"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Vínculo *</label>
+          <select class="form-control" id="add-vinculo"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Turno</label>
+          <select class="form-control" id="add-turno"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Função / Cargo</label>
+          <input type="text" class="form-control" id="add-funcao">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Ano do Concurso</label>
+          <input type="number" class="form-control" id="add-ano" min="2000" max="2099" step="1">
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-add-funcionario')">Cancelar</button>
+      <button class="btn-primary" id="btn-salvar-add">Cadastrar Servidor</button>
+    </div>
+  </div>
+</div>
 
 <!-- MODAL · EDITAR -->
 <div class="modal-overlay" id="modal-edit">
@@ -2921,6 +2987,100 @@ window.excluirFuncionario = async (id) => {
     showToast('Funcionário excluído com sucesso!', 'success');
     carregarFuncionarios();
   }
+};
+
+window.abrirModalAddFuncionario = () => {
+  $('add-nome').value = '';
+  $('add-cpf').value = '';
+  $('add-matricula').value = '';
+  $('add-admissao').value = '';
+  $('add-email').value = '';
+  $('add-telefone').value = '';
+  $('add-funcao').value = '';
+  $('add-ano').value = '';
+  
+  $('add-vinculo').innerHTML = '<option value="">Selecione...</option>' + state.vinculos.map(v => `<option value="${v.id}">${htmlEscape(v.categoria)}</option>`).join('');
+  $('add-turno').innerHTML = '<option value="">Selecione...</option>' + state.turnos.map(t => `<option value="${t.id}">${htmlEscape(t.nome)}</option>`).join('');
+  
+  const lotacoesOrdenadas = [...state.lotacoes].sort((a,b) => a.nome.localeCompare(b.nome));
+  $('add-lotacao').innerHTML = '<option value="">Selecione a lotação inicial...</option>' + lotacoesOrdenadas.map(l => `<option value="${l.id}">${htmlEscape(l.nome)}</option>`).join('');
+  
+  openModal('modal-add-funcionario');
+  setTimeout(() => $('add-nome').focus(), 100);
+};
+
+$('btn-salvar-add').onclick = async () => {
+  const nome = $('add-nome').value.trim();
+  const lotacaoId = $('add-lotacao').value;
+  const vinculoId = $('add-vinculo').value;
+  
+  if (!nome || !lotacaoId || !vinculoId) {
+    return showToast('Nome, Lotação e Vínculo são obrigatórios.', 'warning');
+  }
+
+  const cpfVal = $('add-cpf').value.trim();
+  const matVal = $('add-matricula').value.trim();
+  
+  if (cpfVal || matVal) {
+    let query = sb.from('funcionarios').select('id, nome, cpf, matricula');
+    if (cpfVal && matVal) {
+      query = query.or(`cpf.eq.${cpfVal},matricula.eq.${matVal}`);
+    } else if (cpfVal) {
+      query = query.eq('cpf', cpfVal);
+    } else {
+      query = query.eq('matricula', matVal);
+    }
+    
+    const { data: dups } = await query;
+    if (dups && dups.length > 0) {
+      const d = dups[0];
+      return showToast(`Já existe um servidor com esse CPF ou Matrícula: ${d.nome}`, 'error');
+    }
+  }
+
+  const btn = $('btn-salvar-add');
+  btn.disabled = true;
+
+  const funcPayload = {
+    nome: nome,
+    cpf: $('add-cpf').value.trim() || null,
+    matricula: $('add-matricula').value.trim() || null,
+    data_admissao: $('add-admissao').value || null,
+    email: $('add-email').value.trim() || null,
+    telefone: $('add-telefone').value.trim() || null,
+    ativo: true
+  };
+
+  const { data: funcData, error: funcError } = await sb.from('funcionarios').insert([funcPayload]).select('id').single();
+
+  if (funcError) {
+    btn.disabled = false;
+    return showToast('Erro ao criar servidor: ' + funcError.message, 'error');
+  }
+
+  const histPayload = {
+    funcionario_id: funcData.id,
+    lotacao_id: Number(lotacaoId),
+    vinculo_id: Number(vinculoId),
+    turno_id: $('add-turno').value ? Number($('add-turno').value) : null,
+    funcao: $('add-funcao').value.trim() || null,
+    ano_concurso: $('add-ano').value ? Number($('add-ano').value) : null,
+    data_inicio: new Date().toISOString().split('T')[0],
+    ativo: true,
+    motivo: 'Cadastro Inicial'
+  };
+
+  const { error: histError } = await sb.from('historico_lotacao').insert([histPayload]);
+
+  btn.disabled = false;
+
+  if (histError) {
+    return showToast('Servidor criado, mas erro na lotação: ' + histError.message, 'error');
+  }
+
+  showToast('Servidor cadastrado com sucesso!', 'success');
+  closeModal('modal-add-funcionario');
+  carregarFuncionarios();
 };
 
 window.abrirEdicao = async (id) => {
@@ -4205,11 +4365,39 @@ async function carregarTabelaLicencas() {
           <div style="font-size:12px">Portaria: ${htmlEscape(l.portaria||'-')}</div>
           <div style="font-size:12px">SEI: ${htmlEscape(l.num_sei||'-')}</div>
         </td>
-        <td><span style="color:var(--gov-orange);font-weight:600;font-size:12px"><i class="ti ti-clock"></i> Afastado</span></td>
+        <td>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span style="color:var(--gov-orange);font-weight:600;font-size:12px"><i class="ti ti-clock"></i> Afastado</span>
+            <button class="btn-icon" onclick="retornarAtiva(${l.funcionario_id})" title="Encerrar e Retornar à Ativa">
+              <i class="ti ti-arrow-back-up"></i> Retornar à Ativa
+            </button>
+          </div>
+        </td>
       </tr>
     `).join('');
   }
 }
+
+window.retornarAtiva = async (funcionario_id) => {
+  if (!confirm('Deseja encerrar este afastamento e retornar o servidor à ativa?')) return;
+  
+  const hoje = new Date().toISOString().split('T')[0];
+  const { error } = await sb.from('funcionario_licencas')
+    .update({ ativo: false, data_final: hoje })
+    .eq('funcionario_id', funcionario_id)
+    .eq('ativo', true);
+    
+  if (error) {
+    return showToast('Erro ao encerrar afastamento: ' + error.message, 'error');
+  }
+  
+  showToast('Afastamento encerrado! Selecione a nova lotação do servidor.', 'success');
+  carregarTabelaLicencas();
+  carregarFuncionarios();
+  
+  // Abre o modal de transferência para definir para onde ele volta
+  abrirTransferencia(funcionario_id);
+};
 
 window.abrirModalLicenca = async (id = null) => {
   $('lic-func-id').value = id || '';
