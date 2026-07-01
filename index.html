@@ -2456,6 +2456,13 @@ async function renderPainel() {
   const locais = locaisRes.data || [];
   const cedKpi = cedKpiRes.data || null;
 
+  let conselho = locais.find(l => l.categoria.toUpperCase().includes('TUTELAR'));
+  if (!conselho) {
+    locais.push({ categoria: 'Conselho Tutelar', qtd_unidades: 10, qtd_funcionarios: 0 });
+  } else {
+    conselho.qtd_unidades = 10;
+  }
+
   const corVinc = {
     'Efetivo':'#1351b4','Comissionado':'#b28900',
     'Terceirizado':'#3B6D11','Serviço Prestado':'#534AB7',
@@ -3022,9 +3029,9 @@ $('btn-salvar-add').onclick = async () => {
   const matVal = $('add-matricula').value.trim();
   
   if (cpfVal || matVal) {
-    let query = sb.from('funcionarios').select('id, nome, cpf, matricula');
+    let query = sb.from('funcionarios').select('id, nome, cpf, matricula, ativo');
     if (cpfVal && matVal) {
-      query = query.or(`cpf.eq.${cpfVal},matricula.eq.${matVal}`);
+      query = query.or(`cpf.eq."${cpfVal}",matricula.eq."${matVal}"`);
     } else if (cpfVal) {
       query = query.eq('cpf', cpfVal);
     } else {
@@ -3034,7 +3041,11 @@ $('btn-salvar-add').onclick = async () => {
     const { data: dups } = await query;
     if (dups && dups.length > 0) {
       const d = dups[0];
-      return showToast(`Já existe um servidor com esse CPF ou Matrícula: ${d.nome}`, 'error');
+      if (d.ativo === false) {
+        return showToast(`O servidor ${d.nome} já possui este CPF/Matrícula, mas está INATIVO.`, 'error');
+      } else {
+        return showToast(`Já existe um servidor com esse CPF ou Matrícula: ${d.nome}`, 'error');
+      }
     }
   }
 
