@@ -2826,18 +2826,22 @@ async function renderLocais(resto) {
     if (catData && catData.length > 0 && catData[0].parent_id_ref != null) {
       unidades = state.lotacoes.filter(l => l.parent_id == catData[0].parent_id_ref);
     }
-    // Fallback agressivo se não encontrou pelo parent_id_ref ou se não havia parent_id_ref
+    // Fallback agressivo usando a mesma regra da View do banco
     if (unidades.length === 0) {
       unidades = state.lotacoes.filter(l => {
-        const tipo = (l.tipo || '').toLowerCase();
         const nome = (l.nome || '').toLowerCase();
-        const marc = (l.marcador || '').toLowerCase();
-        const cat  = catDecoded.toLowerCase();
-        const catSingular = cat.endsWith('s') ? cat.slice(0, -1) : cat;
-        return tipo.includes(catSingular) || 
-               nome.includes(catSingular) || 
-               marc.includes(catSingular) || 
-               cat.includes(tipo);
+        let catCalculada = 'outros';
+        
+        if (nome.includes('cras')) catCalculada = 'cras';
+        else if (nome.includes('creas')) catCalculada = 'creas';
+        else if (nome.includes('abrigo')) catCalculada = 'abrigos';
+        else if (nome.includes('centro pop')) catCalculada = 'centros pop';
+        else if (nome.startsWith('ct ') || nome.includes('conselho tutelar')) catCalculada = 'conselhos tutelares';
+        else if (nome.includes('cmas') || nome.includes('cmdca') || nome.includes('cmdi') || nome.includes('conselho')) catCalculada = 'conselhos';
+
+        const catSingular = catDecoded.toLowerCase().endsWith('s') ? catDecoded.toLowerCase().slice(0, -1) : catDecoded.toLowerCase();
+        
+        return catCalculada === catDecoded.toLowerCase() || catCalculada === catSingular || catCalculada === catDecoded.toLowerCase() + 's';
       });
     }
 
