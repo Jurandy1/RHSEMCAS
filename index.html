@@ -2839,9 +2839,15 @@ async function renderLocais(resto) {
         else if (nome.startsWith('ct ') || nome.includes('conselho tutelar')) catCalculada = 'conselhos tutelares';
         else if (nome.includes('cmas') || nome.includes('cmdca') || nome.includes('cmdi') || nome.includes('conselho')) catCalculada = 'conselhos';
 
-        const catSingular = catDecoded.toLowerCase().endsWith('s') ? catDecoded.toLowerCase().slice(0, -1) : catDecoded.toLowerCase();
+        const catLower = catDecoded.toLowerCase();
         
-        return catCalculada === catDecoded.toLowerCase() || catCalculada === catSingular || catCalculada === catDecoded.toLowerCase() + 's';
+        // Se ambos referem-se a conselho tutelar
+        if (catCalculada === 'conselhos tutelares' && catLower.includes('tutelar')) return true;
+        // Se ambos referem-se a conselhos normais (e não tutelar)
+        if (catCalculada === 'conselhos' && catLower.includes('conselho') && !catLower.includes('tutelar')) return true;
+
+        const catSingular = catLower.endsWith('s') ? catLower.slice(0, -1) : catLower;
+        return catCalculada === catLower || catCalculada === catSingular || catCalculada === catLower + 's';
       });
     }
 
