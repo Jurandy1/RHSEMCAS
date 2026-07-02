@@ -3244,10 +3244,25 @@ $('btn-salvar-edit').onclick = async () => {
     p_email:     $('edit-email').value.trim() || null,
     p_telefone:  $('edit-telefone').value.trim() || null,
   });
-  // data_admissao não está na RPC (coluna nova), atualiza direto
-  const r1b = await sb.from('funcionarios')
-    .update({ data_admissao: $('edit-admissao').value || null })
-    .eq('id', id);
+  // data_admissao não está na RPC (coluna nova), atualiza direto.
+  // Campos deixados em branco também: a RPC ignora nulos, então não apaga valores — limpa direto na tabela
+  const diretos = { data_admissao: $('edit-admissao').value || null };
+  if (!$('edit-cpf').value.trim())       diretos.cpf = null;
+  if (!$('edit-matricula').value.trim()) diretos.matricula = null;
+  if (!$('edit-email').value.trim())     diretos.email = null;
+  if (!$('edit-telefone').value.trim())  diretos.telefone = null;
+  const r1b = await sb.from('funcionarios').update(diretos).eq('id', id);
+  let r2b = { error: null };
+  if (!semLotacao) {
+    const limposLot = {};
+    if (!$('edit-funcao').value.trim()) limposLot.funcao = null;
+    if (!$('edit-vinculo').value)       limposLot.vinculo_id = null;
+    if (!$('edit-turno').value)         limposLot.turno_id = null;
+    if (!$('edit-ano').value)           limposLot.ano_concurso = null;
+    if (Object.keys(limposLot).length) {
+      r2b = await sb.from('funcionario_lotacao').update(limposLot).eq('funcionario_id', id).eq('ativo', true);
+    }
+  }
   let r2;
   if (semLotacao) {
     // Sem registro ativo em funcionario_lotacao: cria um pra regularizar
@@ -3273,8 +3288,8 @@ $('btn-salvar-edit').onclick = async () => {
   }
   btn.disabled = false;
   
-  if (r1.error || r1b.error || r2.error) {
-    showToast('Erro ao salvar: ' + (r1.error?.message || r1b.error?.message || r2.error?.message), 'error');
+  if (r1.error || r1b.error || r2.error || r2b.error) {
+    showToast('Erro ao salvar: ' + (r1.error?.message || r1b.error?.message || r2.error?.message || r2b.error?.message), 'error');
     return;
   }
   showToast('Alterações salvas com sucesso', 'success');
