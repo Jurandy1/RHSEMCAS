@@ -4124,12 +4124,40 @@ async function carregarPendentes() {
     if (statePend.busca) q = q.or(`nome.ilike.%${statePend.busca}%,matricula.ilike.%${statePend.busca}%`);
   }
   let data = await handleErr(await q.order('nome').range(0, 9999), 'pendentes') || [];
-  
+
+  // Sugestões confiáveis: exclui quem já foi associado a outro pendente e quem
+  // já possui matrícula diferente (pertence a outra linha da folha); remove nomes repetidos
+  const [usadosRes, matsRes] = await Promise.all([
+    sb.from('funcionarios_folha_pendentes').select('funcionario_id').not('funcionario_id', 'is', null),
+    fetchTudo('funcionarios', 'id, matricula', 'id')
+  ]);
+  const jaAssociados = new Set((usadosRes.data || []).map(r => r.funcionario_id));
+  const soDigitos = s => String(s || '').replace(/\D/g, '').replace(/^0+/, '');
+  const matriculaDe = {};
+  (matsRes.data || []).forEach(f => matriculaDe[f.id] = soDigitos(f.matricula));
+  const normNome = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
+  function filtrarSugestoes(p) {
+    const vistos = new Set();
+    const matPend = soDigitos(p.matricula);
+    return (p.sugestoes || [])
+      .sort((a, b) => b.similarity - a.similarity)
+      .filter(s => {
+        if (jaAssociados.has(s.id)) return false;
+        const m = matriculaDe[s.id];
+        if (m && m !== matPend) return false;
+        const n = normNome(s.nome);
+        if (vistos.has(n)) return false;
+        vistos.add(n);
+        return true;
+      })
+      .slice(0, 3);
+  }
+
   // Ordenação
   if (statePend.ordem === 'match_desc') {
     data.sort((a, b) => {
-      const maxA = (a.sugestoes || []).length > 0 ? Math.max(...a.sugestoes.map(s => s.similarity)) : 0;
-      const maxB = (b.sugestoes || []).length > 0 ? Math.max(...b.sugestoes.map(s => s.similarity)) : 0;
+      const maxA = filtrarSugestoes(a).length > 0 ? Math.max(...filtrarSugestoes(a).map(s => s.similarity)) : 0;
+      const maxB = filtrarSugestoes(b).length > 0 ? Math.max(...filtrarSugestoes(b).map(s => s.similarity)) : 0;
       return maxB - maxA;
     });
   }
@@ -4139,9 +4167,11 @@ async function carregarPendentes() {
     return;
   }
   $('pend-tbody').innerHTML = data.map(p => {
-    const sugs = (p.sugestoes || []).sort((a,b) => b.similarity - a.similarity).slice(0, 3);
+    const sugs = filtrarSugestoes(p);
     const sugHtml = sugs.length === 0
-      ? '<small style="color:var(--color-text-muted)">Nenhuma sugestão automática</small>'
+      ? (p.status === 'pendente'
+          ? '<div style="font-size:12px;background:var(--gov-blue-light);color:var(--gov-blue-dark);padding:6px 8px;border-radius:4px"><i class="ti ti-user-plus"></i> Sem correspondência no sistema — cadastre como <strong>novo servidor</strong></div>'
+          : '<small style="color:var(--color-text-muted)">Nenhuma sugestão automática</small>')
       : sugs.map(s => `<div style="font-size:12px;padding:4px 0; border-bottom: 1px dashed #E5E7EB; margin-bottom: 2px;">
           <div style="display:flex; justify-content:space-between; align-items:center;">
             <span><strong>${(s.similarity*100).toFixed(0)}%</strong> · ${htmlEscape(s.nome)}</span>
@@ -4158,7 +4188,7 @@ async function carregarPendentes() {
       'descartado':      '<span style="background:#E5E7EB;color:#4B5563;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">DESCARTADO</span>',
     }[p.status];
     const acoes = p.status === 'pendente' ? `
-      <button class="btn-secondary" style="font-size:11px;padding:4px 8px" onclick="abrirCadastrarPendente(${p.id})"><i class="ti ti-plus"></i> Novo</button>
+      <button class="${sugs.length === 0 ? 'btn-primary' : 'btn-secondary'}" style="font-size:11px;padding:4px 8px" onclick="abrirCadastrarPendente(${p.id})"><i class="ti ti-plus"></i> Novo</button>
       <button class="btn-icon" title="Descartar" onclick="descartarPendente(${p.id})"><i class="ti ti-x"></i></button>
     ` : `<small style="color:var(--color-text-muted)">Resolvido</small>`;
     return `<tr>
@@ -4289,14 +4319,35 @@ window.abrirCadastrarPendente = async (pendId) => {
   $('cad-pend-id').value = pendId;
   $('cad-pend-info').innerHTML = `
     <strong>${htmlEscape(p.nome)}</strong><br>
-    <small>Matrícula: ${htmlEscape(p.matricula)} · Admissão: ${fmtDt(p.data_admissao)}</small>`;
+    <small>Matrícula: ${htmlEscape(p.matricula)} · Admissão: ${fmtDt(p.data_admissao)}</small><br>
+    <small>Folha: ${htmlEscape(p.lotacao_origem || '—')} · ${htmlEscape(p.cargo_origem || '—')}</small>`;
   // Popula selects
   $('cad-pend-lotacao').innerHTML = '<option value="">Selecione…</option>' +
     state.lotacoes.filter(l => l.funcionarios_direto !== null).sort((a,b) => a.nome.localeCompare(b.nome))
       .map(l => `<option value="${l.id}">${htmlEscape(l.nome)} [${l.tipo}]</option>`).join('');
   $('cad-pend-vinculo').innerHTML = state.vinculos.map(v => `<option value="${v.id}">${htmlEscape(v.categoria)}</option>`).join('');
   $('cad-pend-turno').innerHTML = '<option value="">—</option>' + state.turnos.map(t => `<option value="${t.id}">${htmlEscape(t.nome)}</option>`).join('');
-  $('cad-pend-funcao').value = '';
+
+  // Pré-preenche a partir dos dados da folha
+  const semAc = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
+  const lotFolha = semAc(p.lotacao_origem);
+  if (lotFolha) {
+    const candidata = state.lotacoes.find(l => {
+      const n = semAc(l.nome);
+      return n === lotFolha || n.includes(lotFolha) || lotFolha.includes(n);
+    });
+    if (candidata) $('cad-pend-lotacao').value = candidata.id;
+  }
+  const cargoFolha = semAc(p.cargo_origem);
+  const vincPor = (busca) => state.vinculos.find(v => semAc(v.categoria).includes(busca))?.id;
+  let vincSugerido = null;
+  if (cargoFolha === 'SERVICO PRESTADO') vincSugerido = vincPor('PRESTADO');
+  else if (cargoFolha.startsWith('TEC MUN NIVEL SUPERIOR')) vincSugerido = vincPor('EFETIVO');
+  if (vincSugerido) $('cad-pend-vinculo').value = vincSugerido;
+  // função sugerida: cargo da folha em capitalização de título
+  $('cad-pend-funcao').value = (p.cargo_origem || '').toLowerCase()
+    .replace(/(^|\s)([a-zà-ú])/g, (m, sp, c) => sp + c.toUpperCase())
+    .replace(/\b(De|Da|Do|Das|Dos|E|Em|Para|A|O)\b/g, m => m.toLowerCase());
   openModal('modal-cadastrar-pendente');
 };
 
