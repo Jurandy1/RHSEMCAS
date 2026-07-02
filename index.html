@@ -1408,6 +1408,7 @@
       </a>
       <a href="#pendentes" class="nav-item" data-route="pendentes">
         <i class="ti ti-user-exclamation"></i> Auditoria de Dados
+        <span id="badge-pendentes" style="display:none;margin-left:auto;background:var(--gov-red,#d9363e);color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;line-height:16px"></span>
       </a>
       <a href="#logs" class="nav-item" data-route="logs">
         <i class="ti ti-history"></i> Histórico de Ações
@@ -2098,6 +2099,11 @@
           <strong style="font-size:13px;color:var(--gov-blue-dark)">Vínculo Atual</strong>
           <small style="display:block;color:var(--color-text-muted);font-size:11px;margin-top:2px">Correções aqui não geram histórico. Pra mover de lotação, use o botão <em>Transferir</em>.</small>
         </div>
+        <div class="form-group full-width" id="edit-lotacao-group" style="display:none">
+          <label class="form-label">Lotação *</label>
+          <small style="display:block;color:#b45309;font-size:11px;margin-bottom:4px">Este servidor está sem lotação ativa registrada. Selecione a lotação para regularizar o cadastro.</small>
+          <select class="form-control" id="edit-lotacao"></select>
+        </div>
         <div class="form-group">
           <label class="form-label">Vínculo</label>
           <select class="form-control" id="edit-vinculo"></select>
@@ -2258,6 +2264,82 @@ const state = {
 const $ = (id) => document.getElementById(id);
 const $$ = (sel, root = document) => root.querySelectorAll(sel);
 
+// ── Card de Conselhos Tutelares: não vem em v_locais_resumo, calcula a partir das lotações ──
+function cardConselhoTutelar() {
+  const raiz = state.lotacoes.find(l => (l.nome || '').toLowerCase().includes('conselhos tutelares'));
+  const cts = state.lotacoes.filter(l => raiz ? l.parent_id === raiz.id : /^ct /i.test(l.nome || ''));
+  if (!raiz && cts.length === 0) return null;
+  const servidores = raiz?.funcionarios_total ?? cts.reduce((s, l) => s + (l.funcionarios_direto || 0), 0);
+  return { categoria: 'Conselho Tutelar', qtd_unidades: cts.length, qtd_funcionarios: servidores };
+}
+
+// ── Ajusta categorias de locais: funde "Outros" em "Abrigos" (mesma coordenação
+//    de Alta Complexidade — o drill-down já mostra as 5 unidades juntas) e injeta os CTs ──
+function ajustarLocaisResumo(locais) {
+  const outros  = locais.find(l => (l.categoria || '').trim().toUpperCase() === 'OUTROS');
+  const abrigos = locais.find(l => (l.categoria || '').toUpperCase().includes('ABRIGO'));
+  if (outros && abrigos) {
+    abrigos.qtd_unidades    += outros.qtd_unidades    || 0;
+    abrigos.qtd_funcionarios += outros.qtd_funcionarios || 0;
+    locais.splice(locais.indexOf(outros), 1);
+  }
+  if (!locais.some(l => (l.categoria || '').toUpperCase().includes('TUTELAR'))) {
+    const ct = cardConselhoTutelar();
+    if (ct) locais.push(ct);
+  }
+  return locais;
+}
+
+// ── Classificação oficial: Estrutura Organizacional da SEMCAS (níveis I a V) ──
+function classificarNiveisSemcas(raizes) {
+  const secoes = [
+    { titulo: 'I – Nível de Administração Superior', itens: [], raizId: null },
+    { titulo: 'II – Nível de Assessoramento',        itens: [], raizId: null },
+    { titulo: 'III – Nível de Gerência Superior',    itens: [], raizId: null },
+    { titulo: 'IV – Nível de Atuação Programática',  itens: [], raizId: null },
+    { titulo: 'V – Órgãos Vinculados',               itens: [], raizId: null },
+    { titulo: 'Lotações de Controle Interno',        itens: [], raizId: null },
+  ];
+  const semAcento = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+  const ordemFixa = (nome, chaves) => {
+    const i = chaves.findIndex(c => semAcento(nome).includes(c));
+    return i === -1 ? 99 : i;
+  };
+  for (const r of raizes) {
+    const nm = semAcento(r.nome);
+    // raízes agrupadoras sem servidor direto viram o próprio título do nível
+    const lift = (idx) => {
+      if (r.funcionarios_direto === 0 && r.filhos.length) { secoes[idx].itens.push(...r.filhos); secoes[idx].raizId = r.id; }
+      else secoes[idx].itens.push(r);
+    };
+    if (r.tipo === 'superintendencia')             secoes[3].itens.push(r);
+    else if (nm.includes('SECRETARIA MUNICIPAL'))  secoes[0].itens.push(r);
+    else if (nm.includes('ASSESSORAMENTO'))        lift(1);
+    else if (nm.includes('GERENCIA SUPERIOR'))     lift(2);
+    else if (nm.includes('ORGAOS VINCULADOS'))     lift(4);
+    else                                           secoes[5].itens.push(r);
+  }
+  const romanos = { I:1, II:2, III:3, IV:4, V:5, VI:6, VII:7, VIII:8 };
+  secoes[1].itens.sort((a,b) => ordemFixa(a.nome,['GABINETE','JURID','TECNIC','COMUNICA']) - ordemFixa(b.nome,['GABINETE','JURID','TECNIC','COMUNICA']));
+  secoes[2].itens.sort((a,b) => ordemFixa(a.nome,['GESTAO','PROTECAO']) - ordemFixa(b.nome,['GESTAO','PROTECAO']));
+  secoes[3].itens.sort((a,b) => (romanos[(a.nome.match(/^([IVX]+)\./)||[])[1]]||99) - (romanos[(b.nome.match(/^([IVX]+)\./)||[])[1]]||99));
+  secoes[4].itens.sort((a,b) => ordemFixa(a.nome,['CMAS','CMDCA','CMDI','TUTELAR']) - ordemFixa(b.nome,['CMAS','CMDCA','CMDI','TUTELAR']));
+  return secoes;
+}
+const ORG_NIVEL_HEADER_STYLE = 'margin:16px 0 6px;font-weight:700;color:var(--gov-blue-dark);font-size:13px;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--gov-blue-primary);padding-bottom:4px;display:flex;align-items:center;justify-content:space-between';
+
+// ── Busca todas as linhas de uma tabela/view (o Supabase limita cada resposta a 1000) ──
+async function fetchTudo(tabela, colunas, ordem) {
+  const todos = [];
+  for (let de = 0; ; de += 1000) {
+    const { data, error } = await sb.from(tabela).select(colunas).order(ordem).range(de, de + 999);
+    if (error) return { data: todos.length ? todos : null, error };
+    todos.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
+  return { data: todos, error: null };
+}
+
 // ── Ordenação por coluna ──
 window.sortTable = function(col) {
   if (state.sort.col === col) {
@@ -2410,7 +2492,7 @@ async function carregarDominios() {
   
   state.vinculos = vRes.data  || [];
   state.turnos   = tRes.data  || [];
-  state.lotacoes = lRes.data  || [];
+  state.lotacoes = (lRes.data || []).filter(l => l.ativo !== false);
   state.funcoes  = fRes?.data || [];
 
   $('f-vinculo').innerHTML = '<option value="">Todos os vínculos</option>' +
@@ -2444,24 +2526,23 @@ let _chartVinculos = null;
 let _chartLocais = null;
 
 async function renderPainel() {
-  const [kpiRes, vincsRes, locaisRes, cedKpiRes] = await Promise.all([
+  const [kpiRes, vincsRes, locaisRes, cedKpiRes, totalRes] = await Promise.all([
     sb.from('v_dashboard_kpis').select('*').single(),
     sb.from('v_dashboard_vinculos').select('*'),
     sb.from('v_locais_resumo').select('*'),
-    sb.from('v_cedencias_kpis').select('*').single().then(r=>r).catch(()=>({data:null, error:true}))
+    sb.from('v_cedencias_kpis').select('*').single().then(r=>r).catch(()=>({data:null, error:true})),
+    // total real de ativos: a view de KPIs só conta quem tem lotação ativa
+    sb.from('v_funcionarios_atual').select('funcionario_id', { count: 'exact', head: true })
   ]);
 
   const kpi    = kpiRes.data    || null;
   const vincs  = vincsRes.data  || [];
   const locais = locaisRes.data || [];
   const cedKpi = cedKpiRes.data || null;
+  const totalAtivos = totalRes.count ?? null;
 
-  let conselho = locais.find(l => l.categoria.toUpperCase().includes('TUTELAR'));
-  if (!conselho) {
-    locais.push({ categoria: 'Conselho Tutelar', qtd_unidades: 10, qtd_funcionarios: 0 });
-  } else {
-    conselho.qtd_unidades = 10;
-  }
+  ajustarLocaisResumo(locais);
+  const ctCard = locais.find(l => (l.categoria || '').toUpperCase().includes('TUTELAR'));
 
   const corVinc = {
     'Efetivo':'#1351b4','Comissionado':'#b28900',
@@ -2481,7 +2562,7 @@ async function renderPainel() {
   };
 
   if (kpi || vincs.length > 0) {
-    const totalServ = kpi?.total_servidores ?? vincs.reduce((s,v)=>s+(v.total||0),0);
+    const totalServ = totalAtivos ?? kpi?.total_servidores ?? vincs.reduce((s,v)=>s+(v.total||0),0);
     const cards = [
       {
         lbl:'Total de Servidores', val: totalServ,
@@ -2586,7 +2667,7 @@ async function renderPainel() {
       { lbl:'Superintendências',    val: kpi.total_superintendencias, sub:'Topo da estrutura',    cor:'#1351b4' },
       { lbl:'Coordenações',         val: kpi.total_coordenacoes,      sub:'Nível tático',         cor:'#b28900' },
       { lbl:'Diretorias Técnicas',  val: kpi.total_diretorias,        sub:'Nível técnico',        cor:'#3B6D11' },
-      { lbl:'Unidades Operacionais',val: kpi.total_unidades,          sub:'CRAS/CREAS/Abrigos/CT',cor:'#534AB7' },
+      { lbl:'Unidades Operacionais',val: (kpi.total_unidades || 0) + (ctCard?.qtd_unidades || 0), sub:'CRAS/CREAS/Abrigos/CT',cor:'#534AB7' },
     ].map(c => `
       <div class="estrutura-item" style="border-bottom:3px solid ${c.cor}">
         <div class="estrutura-item-val">${(c.val||0).toLocaleString('pt-BR')}</div>
@@ -2803,7 +2884,7 @@ async function renderLocais(resto) {
   renderCrumbsLocais(categoria, lotacaoId);
 
   if (!categoria) {
-    const locais = await handleErr(await sb.from('v_locais_resumo').select('*'), 'locais') || [];
+    const locais = ajustarLocaisResumo(await handleErr(await sb.from('v_locais_resumo').select('*'), 'locais') || []);
     $('locais-content').innerHTML = `
       <div class="cards-grid">
         ${locais.map(l => `
@@ -2946,7 +3027,8 @@ async function renderOrganograma() {
     else raizes.push(n);
   }
   Object.values(byId).forEach(n => n.filhos.sort((a,b) => a.nome.localeCompare(b.nome)));
-  raizes.sort((a,b) => a.nome.localeCompare(b.nome));
+
+  const secoes = classificarNiveisSemcas(raizes);
 
   function render(n, depth) {
     const temFilhos = n.filhos.length > 0;
@@ -2972,7 +3054,12 @@ async function renderOrganograma() {
     }
     return html;
   }
-  $('org-tree').innerHTML = raizes.map(r => render(r, 0)).join('');
+  $('org-tree').innerHTML = secoes
+    .filter(s => s.itens.length > 0)
+    .map(s => `
+      <div class="org-nivel-header" style="${ORG_NIVEL_HEADER_STYLE}"><span>${htmlEscape(s.titulo)}</span></div>
+      ${s.itens.map(r => render(r, 0)).join('')}`)
+    .join('');
   $('org-tree').dataset.loaded = '1';
 
   $$('#org-tree .btn-eye').forEach(btn => {
@@ -3088,10 +3175,10 @@ $('btn-salvar-add').onclick = async () => {
     ano_concurso: $('add-ano').value ? Number($('add-ano').value) : null,
     data_inicio: new Date().toISOString().split('T')[0],
     ativo: true,
-    motivo: 'Cadastro Inicial'
+    observacao: 'Cadastro Inicial'
   };
 
-  const { error: histError } = await sb.from('historico_lotacao').insert([histPayload]);
+  const { error: histError } = await sb.from('funcionario_lotacao').insert([histPayload]);
 
   btn.disabled = false;
 
@@ -3125,16 +3212,30 @@ window.abrirEdicao = async (id) => {
   $('edit-vinculo').value = v ? v.id : '';
   const t = state.turnos.find(x => x.nome === data.turno);
   $('edit-turno').value = t ? t.id : '';
-  
+
+  // Servidor sem lotação ativa: mostra seletor pra regularizar o cadastro
+  const semLotacao = data.lotacao_atual_id == null;
+  $('edit-lotacao-group').style.display = semLotacao ? '' : 'none';
+  if (semLotacao) {
+    const ords = [...state.lotacoes].sort((a,b) => a.nome.localeCompare(b.nome));
+    $('edit-lotacao').innerHTML = '<option value="">Selecione a lotação...</option>' +
+      ords.map(l => `<option value="${l.id}">${htmlEscape(l.nome)}</option>`).join('');
+  }
+
   openModal('modal-edit');
   setTimeout(() => $('edit-nome').focus(), 100);
 };
 
 $('btn-salvar-edit').onclick = async () => {
   const btn = $('btn-salvar-edit');
-  btn.disabled = true;
   const id = Number($('edit-id').value);
-  
+  const semLotacao = state.funcionarioAtual?.lotacao_atual_id == null;
+  if (semLotacao && !$('edit-lotacao').value) {
+    showToast('Selecione a lotação para regularizar o cadastro.', 'warning');
+    return;
+  }
+  btn.disabled = true;
+
   const r1 = await sb.rpc('fn_editar_funcionario', {
     p_funcionario_id: id,
     p_nome:      $('edit-nome').value.trim() || null,
@@ -3147,13 +3248,29 @@ $('btn-salvar-edit').onclick = async () => {
   const r1b = await sb.from('funcionarios')
     .update({ data_admissao: $('edit-admissao').value || null })
     .eq('id', id);
-  const r2 = await sb.rpc('fn_editar_lotacao_atual', {
-    p_funcionario_id: id,
-    p_funcao:        $('edit-funcao').value.trim() || null,
-    p_vinculo_id:    $('edit-vinculo').value ? Number($('edit-vinculo').value) : null,
-    p_turno_id:      $('edit-turno').value   ? Number($('edit-turno').value)   : null,
-    p_ano_concurso:  $('edit-ano').value     ? Number($('edit-ano').value)     : null,
-  });
+  let r2;
+  if (semLotacao) {
+    // Sem registro ativo em funcionario_lotacao: cria um pra regularizar
+    r2 = await sb.from('funcionario_lotacao').insert([{
+      funcionario_id: id,
+      lotacao_id:   Number($('edit-lotacao').value),
+      vinculo_id:   $('edit-vinculo').value ? Number($('edit-vinculo').value) : null,
+      turno_id:     $('edit-turno').value   ? Number($('edit-turno').value)   : null,
+      funcao:       $('edit-funcao').value.trim() || null,
+      ano_concurso: $('edit-ano').value     ? Number($('edit-ano').value)     : null,
+      data_inicio:  new Date().toISOString().slice(0, 10),
+      ativo: true,
+      observacao: 'Regularização de lotação via edição de cadastro'
+    }]);
+  } else {
+    r2 = await sb.rpc('fn_editar_lotacao_atual', {
+      p_funcionario_id: id,
+      p_funcao:        $('edit-funcao').value.trim() || null,
+      p_vinculo_id:    $('edit-vinculo').value ? Number($('edit-vinculo').value) : null,
+      p_turno_id:      $('edit-turno').value   ? Number($('edit-turno').value)   : null,
+      p_ano_concurso:  $('edit-ano').value     ? Number($('edit-ano').value)     : null,
+    });
+  }
   btn.disabled = false;
   
   if (r1.error || r1b.error || r2.error) {
@@ -3171,6 +3288,10 @@ $('btn-salvar-edit').onclick = async () => {
 window.abrirTransferencia = async (id) => {
   const data = await handleErr(await sb.from('v_funcionarios_atual').select('*').eq('funcionario_id', id).limit(1).single(), 'transfer');
   if (!data) return;
+  if (data.lotacao_atual_id == null) {
+    showToast('Este servidor não possui lotação ativa registrada. Use o botão "Editar" para regularizar a lotação antes de transferir.', 'warning');
+    return;
+  }
   state.funcionarioAtual = data;
   
   $('trf-id').value = id;
@@ -3198,8 +3319,8 @@ function renderArvoreTransfer(lotacaoAtualId) {
     if (l.parent_id && byId[l.parent_id]) byId[l.parent_id].filhos.push(l);
     else raizes.push(l);
   }
-  raizes.sort((a,b) => a.nome.localeCompare(b.nome));
   Object.values(byId).forEach(l => l.filhos.sort((a,b) => a.nome.localeCompare(b.nome)));
+  const secoes = classificarNiveisSemcas(raizes);
 
   function matches(l) {
     if (!q) return true;
@@ -3216,7 +3337,12 @@ function renderArvoreTransfer(lotacaoAtualId) {
               ${isCurrent ? '<small>(atual)</small>' : ''}
             </div>` + l.filhos.map(c => render(c, depth+1)).join('');
   }
-  $('trf-tree').innerHTML = raizes.map(r => render(r, 0)).join('');
+  $('trf-tree').innerHTML = secoes
+    .filter(s => s.itens.some(matches))
+    .map(s => `
+      <div class="org-nivel-header" style="${ORG_NIVEL_HEADER_STYLE};font-size:11px;margin:10px 4px 4px">${htmlEscape(s.titulo)}</div>
+      ${s.itens.map(r => render(r, 0)).join('')}`)
+    .join('');
   $$('#trf-tree .lotacao-tree-item').forEach(el => {
     if (el.dataset.id == lotacaoAtualId) return;
     el.onclick = () => {
@@ -3255,7 +3381,7 @@ $('btn-confirmar-trf').onclick = async () => {
   const { error } = await sb.rpc('fn_transferir_funcionario', params);
   btn.disabled = false;
   if (error) { showToast('Erro: ' + error.message, 'error'); return; }
-  await registrarLog('TRANSFERÊNCIA', id, $('trf-nome').innerHTML || 'Servidor(a)', { nova_lot_id: novaLot, motivo: params.p_motivo });
+  await registrarLog('TRANSFERÊNCIA', id, state.funcionarioAtual?.nome || 'Servidor(a)', { nova_lot_id: novaLot, motivo: params.p_motivo });
   showToast('Transferência registrada com sucesso', 'success');
   closeModal('modal-transfer');
   carregarFuncionarios();
@@ -3284,9 +3410,9 @@ window.verHistorico = async (id) => {
       ${data.map(h => `
         <li class="${h.lotacao_ativa ? '' : 'inactive'}">
           <div class="periodo">
-            ${new Date(h.data_inicio).toLocaleDateString('pt-BR')} —
-            ${h.data_fim ? new Date(h.data_fim).toLocaleDateString('pt-BR') : '<strong>ATUAL</strong>'}
-            · ${h.dias_na_lotacao} dias
+            ${new Date(h.data_inicio + 'T00:00:00').toLocaleDateString('pt-BR')} —
+            ${h.data_fim ? new Date(h.data_fim + 'T00:00:00').toLocaleDateString('pt-BR') : '<strong>ATUAL</strong>'}
+            · ${Math.max(0, h.dias_na_lotacao)} dias
           </div>
           <div class="lot-nome">
             ${htmlEscape(h.lotacao_nome)}
@@ -3368,10 +3494,7 @@ async function renderFolhaPonto() {
   if (_fpServidores.length === 0) {
     const sel = $('fp-servidor-select');
     if (sel) sel.innerHTML = '<option value="">Carregando&#8230;</option>';
-    const { data, error } = await sb
-      .from('v_funcionarios_atual')
-      .select('funcionario_id, nome, funcao, matricula, vinculo, lotacao_nome')
-      .order('nome');
+    const { data, error } = await fetchTudo('v_funcionarios_atual', 'funcionario_id, nome, funcao, matricula, vinculo, lotacao_nome', 'nome');
     if (!error && data && data.length > 0) {
       _fpServidores = data;
     } else {
@@ -3881,19 +4004,22 @@ async function carregarAbaFerias(aba) {
               <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(r.nome)}</td>
               <td>${fmtDt(r.data_inicio)}</td>
               <td>${fmtDt(r.data_fim)}</td>
-              <td>${r.dias}</td>
+              <td>${r.dias_ferias}</td>
               <td>${r.tipo}</td>
-              <td>${r.status}</td>
+              <td>${r.status_ferias}</td>
               <td style="font-size:12px;color:var(--color-text-muted)">${htmlEscape(r.observacao || '—')}</td>
             </tr>`).join('')}</tbody></table>`;
   }
-  const rows = await handleErr(await sb.from(view).select('*').range(0, 9999), `aba ${aba}`) || [];
+  const rows = await handleErr(await fetchTudo(view, '*', 'nome'), `aba ${aba}`) || [];
   $('ferias-aba-conteudo').innerHTML = `<div class="table-container">${render(rows)}</div>`;
 }
 
 window.cancelarFerias = async (id) => {
   const motivo = prompt('Motivo do cancelamento (opcional):');
-  const { error } = await sb.rpc('fn_cancelar_ferias', { p_ferias_id: id, p_motivo: motivo || null });
+  if (motivo === null) return; // usuário desistiu
+  const { data: atual } = await sb.from('funcionario_ferias').select('observacao').eq('id', id).single();
+  const obs = ((atual?.observacao ? atual.observacao + '\n' : '') + '[CANCELADA]' + (motivo ? ' ' + motivo : '')).trim();
+  const { error } = await sb.from('funcionario_ferias').update({ ativo: false, observacao: obs }).eq('id', id);
   if (error) return showToast('Erro: ' + error.message, 'error');
   await registrarLog('FÉRIAS CANCELADA', null, 'Servidor', { ferias_id: id, motivo });
   showToast('Férias canceladas', 'success');
@@ -4173,7 +4299,7 @@ async function renderLotacoes() {
     else raizes.push(n);
   }
   Object.values(byId).forEach(n => n.filhos.sort((a,b)=>a.nome.localeCompare(b.nome)));
-  raizes.sort((a,b)=>a.nome.localeCompare(b.nome));
+  const secoes = classificarNiveisSemcas(raizes);
   function render(n, depth) {
     const tem = n.filhos.length > 0;
     const t = n.funcionarios_total;
@@ -4192,7 +4318,15 @@ async function renderLotacoes() {
       </div>
     </div>` + (tem ? `<div class="org-children" data-parent="${n.id}">${n.filhos.map(c => render(c, depth+1)).join('')}</div>` : '');
   }
-  $('lot-tree').innerHTML = raizes.map(r => render(r, 0)).join('');
+  $('lot-tree').innerHTML = secoes
+    .filter(s => s.itens.length > 0)
+    .map(s => `
+      <div class="org-nivel-header" style="${ORG_NIVEL_HEADER_STYLE}">
+        <span>${htmlEscape(s.titulo)}</span>
+        ${s.raizId ? `<button class="btn-icon" title="Adicionar lotação neste nível" onclick="abrirNovaLotacao(${s.raizId})"><i class="ti ti-plus"></i></button>` : ''}
+      </div>
+      ${s.itens.map(r => render(r, 0)).join('')}`)
+    .join('');
   $$('#lot-tree .org-node').forEach(node => {
     node.onclick = (e) => {
       if (e.target.closest('button')) return;
@@ -4207,6 +4341,42 @@ async function renderLotacoes() {
 }
 window.lotExpandirTudo = () => { $$('#lot-tree .org-children').forEach(el => el.classList.add('open')); };
 window.lotRecolherTudo = () => { $$('#lot-tree .org-children').forEach(el => el.classList.remove('open')); };
+
+// ── Filtro da árvore de lotações (o campo existia sem função) ──
+$('lot-busca').addEventListener('input', debounce(() => {
+  const q = ($('lot-busca').value || '').trim().toLowerCase();
+  const tree = $('lot-tree');
+  const nodes = [...tree.querySelectorAll('.org-node')];
+  const headers = [...tree.querySelectorAll('.org-nivel-header')];
+  if (!q) {
+    nodes.forEach(n => n.style.display = '');
+    headers.forEach(h => h.style.display = '');
+    return;
+  }
+  nodes.forEach(n => n.style.display = 'none');
+  for (const n of nodes) {
+    if (!(n.dataset.nome || '').toLowerCase().includes(q)) continue;
+    n.style.display = '';
+    // mostra e expande a cadeia de ancestrais
+    let cont = n.closest('.org-children');
+    while (cont) {
+      cont.classList.add('open');
+      const pai = tree.querySelector(`.org-node[data-id="${cont.dataset.parent}"]`);
+      if (pai) pai.style.display = '';
+      cont = pai ? pai.closest('.org-children') : null;
+    }
+  }
+  // esconde cabeçalhos de nível sem resultados
+  headers.forEach(h => {
+    let el = h.nextElementSibling, tem = false;
+    while (el && !el.classList.contains('org-nivel-header')) {
+      if (el.classList.contains('org-node') && el.style.display !== 'none') { tem = true; break; }
+      if (el.classList.contains('org-children') && [...el.querySelectorAll('.org-node')].some(x => x.style.display !== 'none')) { tem = true; break; }
+      el = el.nextElementSibling;
+    }
+    h.style.display = tem ? '' : 'none';
+  });
+}, 200));
 
 window.abrirNovaLotacao = (parentId) => {
   $('nl-id').value = '';
@@ -4284,7 +4454,7 @@ window.inativarLotacao = async (id) => {
 
 async function recarregarLotacoes() {
   const { data } = await sb.from('v_lotacoes_com_count').select('*').range(0, 9999).order('nome');
-  if (data) state.lotacoes = data;
+  if (data) state.lotacoes = data.filter(l => l.ativo !== false);
 }
 
 // === Submit modais ===
@@ -4295,21 +4465,26 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('#btn-cadastrar-pendente'))    salvarCadastrarPendente();
 });
 
+const FERIAS_TIPOS = { regular: 'Regulamentar', premio: 'Licença-Prêmio', licenca: 'Licença', abono: 'Abono' };
+
 async function salvarFerias() {
   const funcId = Number($('fer-func-id').value);
   if (!funcId) return showToast('Selecione um servidor', 'warning');
-  if (!$('fer-inicio').value || !$('fer-fim').value) return showToast('Datas obrigatórias', 'warning');
+  const inicio = $('fer-inicio').value, fim = $('fer-fim').value;
+  if (!inicio || !fim) return showToast('Datas obrigatórias', 'warning');
+  if (fim < inicio) return showToast('A data de término deve ser depois do início', 'warning');
   const btn = $('btn-salvar-ferias'); btn.disabled = true;
-  const { error } = await sb.rpc('fn_agendar_ferias', {
-    p_funcionario_id: funcId,
-    p_data_inicio: $('fer-inicio').value,
-    p_data_fim:    $('fer-fim').value,
-    p_tipo:        $('fer-tipo').value,
-    p_observacao:  $('fer-obs').value.trim() || null,
-  });
+  const { error } = await sb.from('funcionario_ferias').insert([{
+    funcionario_id: funcId,
+    data_inicio: inicio,
+    data_fim:    fim,
+    tipo:        FERIAS_TIPOS[$('fer-tipo').value] || 'Regulamentar',
+    observacao:  $('fer-obs').value.trim() || null,
+    ativo: true
+  }]);
   btn.disabled = false;
   if (error) return showToast('Erro: ' + error.message, 'error');
-  await registrarLog('FÉRIAS AGENDADA', funcId, $('fer-func-nome').value, { inicio: $('fer-inicio').value, fim: $('fer-fim').value });
+  await registrarLog('FÉRIAS AGENDADA', funcId, $('fer-search').value || 'Servidor(a)', { inicio, fim });
   showToast('Férias agendadas', 'success');
   closeModal('modal-ferias');
   renderFerias();
@@ -4428,7 +4603,7 @@ window.abrirModalLicenca = async (id = null) => {
   $('lic-sei').value = '';
   $('lic-obs').value = '';
 
-  const divFunc = $('lic-func-nome').parentNode;
+  const divFunc = $('lic-func-container');
 
   if (id) {
     const func = await sb.from('funcionarios').select('nome').eq('id', id).single().then(r => r.data);
@@ -4437,7 +4612,7 @@ window.abrirModalLicenca = async (id = null) => {
     divFunc.innerHTML = `<label class="form-label">Servidor *</label><input type="text" class="form-control" placeholder="Carregando servidores..." disabled>`;
     
     // Fetch data asynchronously
-    sb.from('v_funcionarios_atual').select('funcionario_id, nome, matricula').range(0, 9999).order('nome').then(({ data }) => {
+    fetchTudo('v_funcionarios_atual', 'funcionario_id, nome, matricula', 'nome').then(({ data }) => {
       window._licAutocompleteData = data || [];
       divFunc.innerHTML = `
         <label class="form-label">Servidor *</label>
@@ -4502,11 +4677,17 @@ $('btn-salvar-licenca').onclick = async () => {
   };
   
   const { error } = await sb.from('funcionario_licencas').insert([payload]);
-  
+
+  if (error) {
+    btn.disabled = false;
+    return showToast('Erro ao salvar licença: ' + error.message, 'error');
+  }
+
   // Mover o servidor para a Lotação "LICENÇAS E AFASTAMENTOS" para sair da contagem da lotação atual
+  let avisoTrf = '';
   const { data: lotData } = await sb.from('lotacoes').select('id').ilike('nome', '%LICENÇAS E AFASTAMENTOS%').limit(1).single();
   if (lotData) {
-    await sb.rpc('fn_transferir_funcionario', {
+    const { error: trfError } = await sb.rpc('fn_transferir_funcionario', {
       p_funcionario_id: Number(fId),
       p_nova_lotacao_id: lotData.id,
       p_novo_vinculo_id: null,
@@ -4514,18 +4695,14 @@ $('btn-salvar-licenca').onclick = async () => {
       p_novo_turno_id: null,
       p_motivo: 'Afastamento: ' + $('lic-tipo').value
     });
+    if (trfError) avisoTrf = ' Atenção: não foi possível mover pra lotação de afastados (' + trfError.message + ').';
   }
 
   btn.disabled = false;
-  
-  if (error) {
-    showToast('Erro ao salvar licença: ' + error.message, 'error');
-  } else {
-    showToast('Licença registrada e servidor transferido!', 'success');
-    closeModal('modal-licenca');
-    carregarFuncionarios();
-    if (state.rotaAtual === 'licencas') renderLicencas();
-  }
+  showToast(avisoTrf ? 'Licença registrada.' + avisoTrf : 'Licença registrada e servidor transferido!', avisoTrf ? 'warning' : 'success');
+  closeModal('modal-licenca');
+  carregarFuncionarios();
+  if (state.rotaAtual === 'licencas') renderLicencas();
 };
 
 // ==========================================
@@ -4587,6 +4764,8 @@ window.editarCedencia = async (id) => {
   const { data } = await sb.from('funcionario_cedencias').select('*, funcionarios(nome, matricula)').eq('id', id).single();
   if(!data) return;
   abrirModalCedido();
+  // invalida o carregamento assíncrono do autocomplete pra ele não sobrescrever o modo edição
+  window._cedAbrirToken = (window._cedAbrirToken || 0) + 1;
   $('cedido-func-id').value = data.funcionario_id;
   $('cedido-func-nome-container').innerHTML = `<label class="form-label">Servidor *</label><input type="text" class="form-control" value="${data.funcionarios?.nome || ''}" disabled>`;
   $('cedido-tipo').value = data.tipo;
@@ -4599,7 +4778,8 @@ window.editarCedencia = async (id) => {
 
 window.excluirCedencia = async (id) => {
   if(confirm('Tem certeza que deseja excluir este registro de cedência?')) {
-    await sb.from('funcionario_cedencias').delete().eq('id', id);
+    const { error } = await sb.from('funcionario_cedencias').delete().eq('id', id);
+    if (error) return showToast('Erro ao excluir: ' + error.message, 'error');
     showToast('Registro excluído com sucesso.', 'success');
     renderCedidos();
   }
@@ -4612,9 +4792,11 @@ window.abrirModalCedido = async () => {
   
   const divFunc = $('cedido-func-nome-container');
   divFunc.innerHTML = `<label class="form-label">Servidor *</label><input type="text" class="form-control" placeholder="Carregando servidores..." disabled>`;
-  
+
   // Fetch autocomplete
-  sb.from('v_funcionarios_atual').select('funcionario_id, nome, matricula').range(0, 9999).order('nome').then(({ data }) => {
+  const tk = window._cedAbrirToken = (window._cedAbrirToken || 0) + 1;
+  fetchTudo('v_funcionarios_atual', 'funcionario_id, nome, matricula', 'nome').then(({ data }) => {
+    if (tk !== window._cedAbrirToken) return; // modal passou pro modo edição nesse meio tempo
     window._cedAutocompleteData = data || [];
     divFunc.innerHTML = `
       <label class="form-label">Servidor *</label>
@@ -4687,9 +4869,10 @@ window.salvarCedencia = async () => {
     if (tipo === 'CEDIDO' && !error) {
       const { data: lotData } = await sb.from('lotacoes').select('id').eq('nome', 'SERVIDORES CEDIDOS (OUTROS ÓRGÃOS)').limit(1).single();
       if (lotData) {
-        await sb.rpc('fn_transferir_funcionario', {
+        const { error: trfError } = await sb.rpc('fn_transferir_funcionario', {
           p_funcionario_id: Number(fId), p_nova_lotacao_id: lotData.id, p_novo_vinculo_id: null, p_nova_funcao: null, p_novo_turno_id: null, p_motivo: `Cedido para ${orgao}`
         });
+        if (trfError) showToast('Cedência salva, mas não foi possível mover pra lotação de cedidos: ' + trfError.message, 'warning');
       }
     }
   }
@@ -4877,7 +5060,7 @@ window.salvarCedencia = async () => {
     <div class="modal-body">
       <div class="form-grid">
         <input type="hidden" id="lic-func-id">
-        <div class="form-group full-width">
+        <div class="form-group full-width" id="lic-func-container">
           <label class="form-label">Servidor</label>
           <input type="text" id="lic-func-nome" class="form-control" disabled>
         </div>
