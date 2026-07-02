@@ -2771,7 +2771,7 @@ function renderFilterTags() {
 async function carregarFuncionarios() {
   $('table-body').innerHTML = `<tr><td colspan="8" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>`;
   const params = {
-    p_termo:      state.filtros.busca || null,
+    p_termo:      state.filtros.busca ? state.filtros.busca.trim().split(/\s+/).join('%') : null,
     p_vinculo_id: state.filtros.vinculo_id ? Number(state.filtros.vinculo_id) : null,
     p_lotacao_id: state.filtros.lotacao_id ? Number(state.filtros.lotacao_id) : null,
     p_funcao:     state.filtros.funcao || null,
@@ -4057,8 +4057,9 @@ document.addEventListener('input', debounce(async (e) => {
   if (e.target.id !== 'fer-search') return;
   const q = e.target.value.trim();
   if (q.length < 2) { $('fer-suggest').innerHTML = ''; return; }
+  const termoRPC = q.split(/\s+/).join('%');
   const data = await handleErr(await sb.rpc('fn_buscar_funcionarios', {
-    p_termo: q, p_vinculo_id: null, p_lotacao_id: null, p_funcao: null, p_turno_id: null,
+    p_termo: termoRPC, p_vinculo_id: null, p_lotacao_id: null, p_funcao: null, p_turno_id: null,
     p_limite: 8, p_offset: 0, p_order_by: 'nome', p_order_dir: 'asc'
   }), 'autocomp');
   if (!data || data.length === 0) { $('fer-suggest').innerHTML = '<div style="padding:8px;font-size:12px;color:var(--color-text-muted)">Nenhum resultado</div>'; return; }
@@ -4117,11 +4118,17 @@ async function carregarPendentes() {
   $('pend-tbody').innerHTML = '<tr><td colspan="6" class="empty-state"><span class="spinner"></span></td></tr>';
   let q = sb.from('v_pendentes_com_sugestao').select('*');
   if (statePend.status) q = q.eq('status', statePend.status);
-  if (statePend.busca) q = q.or(`nome.ilike.%${statePend.busca}%,matricula.ilike.%${statePend.busca}%`);
+  if (statePend.busca) {
+    const termoWild = statePend.busca.trim().split(/\s+/).join('%');
+    q = q.or(`nome.ilike.%${termoWild}%,matricula.ilike.%${termoWild}%`);
+  }
   // Quando o filtro de status não é pendente, a view só retorna pendentes — uso a tabela base
   if (statePend.status && statePend.status !== 'pendente') {
     q = sb.from('funcionarios_folha_pendentes').select('*').eq('status', statePend.status);
-    if (statePend.busca) q = q.or(`nome.ilike.%${statePend.busca}%,matricula.ilike.%${statePend.busca}%`);
+    if (statePend.busca) {
+      const termoWild = statePend.busca.trim().split(/\s+/).join('%');
+      q = q.or(`nome.ilike.%${termoWild}%,matricula.ilike.%${termoWild}%`);
+    }
   }
   let data = await handleErr(await q.order('nome').range(0, 9999), 'pendentes') || [];
 
@@ -4697,11 +4704,12 @@ window.filtrarLicAutocomplete = (val) => {
   $('lic-func-id').value = '';
   if(!val || val.length < 2) { box.style.display = 'none'; return; }
   
-  const termo = val.toLowerCase();
-  const filtrados = window._licAutocompleteData.filter(f => 
-    f.nome.toLowerCase().includes(termo) || 
-    (f.matricula && String(f.matricula).toLowerCase().includes(termo))
-  ).slice(0, 30);
+  const palavras = val.toLowerCase().trim().split(/\s+/);
+  const filtrados = window._licAutocompleteData.filter(f => {
+    const nome = f.nome.toLowerCase();
+    const mat = (f.matricula && String(f.matricula).toLowerCase()) || '';
+    return palavras.every(p => nome.includes(p) || mat.includes(p));
+  }).slice(0, 30);
   
   if(filtrados.length === 0) {
     box.innerHTML = '<div style="padding:10px; color:var(--color-text-muted); font-size:12px">Nenhum servidor encontrado</div>';
@@ -4880,8 +4888,12 @@ window.filtrarCedAutocomplete = (val) => {
   const box = $('cedido-func-sugestoes');
   $('cedido-func-id').value = '';
   if(!val || val.length < 2) { box.style.display = 'none'; return; }
-  const termo = val.toLowerCase();
-  const filtrados = window._cedAutocompleteData.filter(f => f.nome.toLowerCase().includes(termo) || (f.matricula && String(f.matricula).toLowerCase().includes(termo))).slice(0, 30);
+  const palavras = val.toLowerCase().trim().split(/\s+/);
+  const filtrados = window._cedAutocompleteData.filter(f => {
+    const nome = f.nome.toLowerCase();
+    const mat = (f.matricula && String(f.matricula).toLowerCase()) || '';
+    return palavras.every(p => nome.includes(p) || mat.includes(p));
+  }).slice(0, 30);
   if(filtrados.length === 0) {
     box.innerHTML = '<div style="padding:10px; color:var(--color-text-muted); font-size:12px">Nenhum servidor encontrado</div>';
   } else {
