@@ -1,0 +1,1398 @@
+
+    :root {
+      /* Paleta oficial Gov.br — DSGov */
+      --gov-blue-primary: #1351b4;
+      --gov-blue-dark: #071d41;
+      --gov-blue-90: #0c326f;
+      --gov-blue-light: #e8eefc;
+      --gov-blue-50: #dbe8fb;
+      --gov-yellow: #ffcd07;
+      --gov-green: #168821;
+      --gov-red: #e52207;
+      --gov-bg-light: #f4f6fa;
+      --gov-surface: #ffffff;
+      --gov-border: #e3e6ec;
+      --gov-border-strong: #ccd2de;
+
+      /* Tipografia oficial Gov.br: Rawline + Raleway (Inter como fallback) */
+      --font-sans: 'Rawline', 'Raleway', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-heading: 'Rawline', 'Raleway', 'Inter', sans-serif;
+      --color-text-main: #1c2331;
+      --color-text-sec: #555d6b;
+      --color-text-muted: #8a909c;
+
+      /* Altura da barra de governo */
+      --govbar-h: 40px;
+
+      /* Sombras e Raios padrão */
+      --br-sm: 4px;
+      --br-md: 8px;
+      --br-lg: 12px;
+      --shadow-sm: 0 1px 2px rgba(7,29,65,0.06);
+      --shadow-md: 0 4px 12px -2px rgba(7,29,65,0.10);
+      --shadow-modal: 0 16px 40px -8px rgba(7,29,65,0.28);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      background-color: var(--gov-bg-light);
+      color: var(--color-text-main);
+      font-family: var(--font-sans);
+      -webkit-font-smoothing: antialiased;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .app {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* --- BARRA DE GOVERNO (Gov.br oficial) --- */
+    .gov-top-bar {
+      height: var(--govbar-h);
+      flex-shrink: 0;
+      background: #fff;
+      border-bottom: 1px solid var(--gov-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      gap: 16px;
+      z-index: 210;
+    }
+    .gov-top-bar-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .brasao-topo {
+      width: 28px; height: 28px; flex-shrink: 0;
+      border-radius: var(--br-sm);
+      background: var(--gov-blue-primary);
+      display: inline-flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 16px;
+    }
+    .govbr-org {
+      font-size: 13px; font-weight: 700; color: var(--gov-blue-dark);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      font-family: var(--font-heading);
+    }
+    .govbr-uf { color: var(--gov-blue-primary); font-weight: 700; }
+    .gov-top-bar-actions { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .govbr-org-full {
+      font-size: 11px; color: var(--color-text-sec); font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    @media (max-width: 768px) {
+      .gov-top-bar { padding: 0 16px; }
+      .govbr-org-full { display: none; }
+    }
+
+    /* --- SIDEBAR --- */
+    .sidebar {
+      width: 264px;
+      flex-shrink: 0;
+      background: var(--gov-blue-dark);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 1px 0 0 rgba(0,0,0,0.08);
+      z-index: 200;
+      transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+    }
+
+    /* Overlay escuro para mobile quando sidebar aberta */
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 199;
+      backdrop-filter: blur(2px);
+    }
+    .sidebar-overlay.active { display: block; }
+
+    /* Botão hambúrger */
+    .btn-hamburger {
+      display: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: var(--br-sm);
+      color: rgba(255,255,255,0.9);
+      font-size: 22px;
+      line-height: 1;
+      flex-shrink: 0;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn-hamburger:hover { background: rgba(255,255,255,0.15); }
+
+    /* Botão fechar sidebar no mobile */
+    .btn-close-sidebar {
+      display: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: rgba(255,255,255,0.8);
+      font-size: 20px;
+      padding: 4px 6px;
+      border-radius: 4px;
+      margin-left: auto;
+    }
+    .btn-close-sidebar:hover { color: #fff; background: rgba(255,255,255,0.15); }
+
+    .sidebar-logo {
+      padding: 18px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.10);
+      background: rgba(0,0,0,0.18);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .sidebar-logo-info { flex: 1; min-width: 0; }
+
+    .brasao {
+      width: 40px;
+      height: 40px;
+      background: var(--gov-yellow);
+      border-radius: var(--br-md);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      color: var(--gov-blue-dark);
+      font-weight: 800;
+      flex-shrink: 0;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    }
+
+    .org-name {
+      font-size: 15px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: 0.01em;
+      display: block;
+      font-family: var(--font-heading);
+    }
+
+    .org-sub {
+      font-size: 11px;
+      color: rgba(255,255,255,0.65);
+      margin-top: 2px;
+      display: block;
+    }
+
+    .nav-group {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.45);
+      padding: 22px 24px 8px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 24px;
+      cursor: pointer;
+      color: rgba(255,255,255,0.78);
+      font-size: 14px;
+      font-weight: 500;
+      border-left: 3px solid transparent;
+      transition: all 0.18s ease;
+      text-decoration: none;
+    }
+
+    .nav-item:hover {
+      background: rgba(255,255,255,0.06);
+      color: #fff;
+    }
+
+    .nav-item.active {
+      background: rgba(19,81,180,0.35);
+      color: #fff;
+      border-left: 3px solid var(--gov-yellow);
+      font-weight: 600;
+    }
+
+    .nav-item i {
+      font-size: 19px;
+      width: 22px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 8px 0;
+      overflow-y: auto;
+    }
+
+    .sidebar-footer {
+      padding: 14px 20px;
+      border-top: 1px solid rgba(255,255,255,0.10);
+      background: rgba(0,0,0,0.18);
+    }
+
+    .user-av {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(255,205,7,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--gov-yellow);
+    }
+
+    .user-name {
+      font-size: 13px;
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .user-role {
+      font-size: 11px;
+      color: rgba(255,255,255,0.6);
+      margin-top: 2px;
+    }
+
+    /* --- LAYOUT PRINCIPAL --- */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--gov-bg-light);
+    }
+
+    .topbar {
+      background: #fff;
+      border-bottom: 1px solid var(--gov-border);
+      padding: 0 32px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+      z-index: 5;
+      gap: 12px;
+    }
+
+    /* Botão hamburger no topbar (mobile) */
+    .topbar-hamburger {
+      display: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: var(--br-sm);
+      color: var(--gov-blue-primary);
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .topbar-hamburger:hover { background: #f0f4f8; }
+
+    .topbar-left { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+    .topbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+    .topbar-title {
+      font-size: 19px;
+      font-weight: 800;
+      color: var(--gov-blue-dark);
+      font-family: var(--font-heading);
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .topbar-bread {
+      font-size: 12px;
+      color: var(--color-text-muted);
+      margin-top: 2px;
+      font-weight: 500;
+    }
+    .topbar-bread strong { color: var(--gov-blue-primary); font-weight: 600; }
+
+    .topbar-bread span { color: var(--color-text-muted); margin: 0 4px; }
+
+    .tbadge {
+      font-size: 12px;
+      background: #f0f4f8;
+      color: var(--color-text-sec);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-weight: 500;
+      border: 1px solid var(--gov-border);
+      white-space: nowrap;
+    }
+
+    .tib {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--color-text-sec);
+      font-size: 18px;
+      background: transparent;
+      transition: all 0.2s;
+      border: none;
+    }
+    
+    .tib:hover {
+      background: #f0f4f8;
+      color: var(--gov-blue-primary);
+    }
+
+    /* --- Busca global (topbar) --- */
+    .global-search { position: relative; width: 300px; max-width: 40vw; }
+    .global-search-icon {
+      position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+      color: var(--color-text-muted); font-size: 16px; pointer-events: none;
+    }
+    .global-search-input {
+      width: 100%; padding: 9px 12px 9px 36px;
+      border: 1px solid var(--gov-border); border-radius: 20px;
+      font-size: 13px; font-family: var(--font-sans); background: #f7f9fc;
+      transition: border-color .15s, box-shadow .15s, background .15s;
+    }
+    .global-search-input:focus {
+      outline: none; background: #fff;
+      border-color: var(--gov-blue-primary); box-shadow: 0 0 0 3px rgba(19,81,180,0.1);
+    }
+    .global-search-results {
+      position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+      max-height: 380px; overflow-y: auto;
+      background: #fff; border: 1px solid var(--gov-border);
+      border-radius: var(--br-md); box-shadow: var(--shadow-modal); z-index: 300;
+    }
+    .gs-item { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid var(--gov-border); }
+    .gs-item:last-child { border-bottom: none; }
+    .gs-item:hover, .gs-item.active { background: var(--gov-blue-light); }
+    .gs-item-nome { font-weight: 600; color: var(--gov-blue-dark); font-size: 13px; }
+    .gs-item-meta { font-size: 11px; color: var(--color-text-sec); margin-top: 2px; }
+    .gs-empty { padding: 14px 12px; font-size: 12px; color: var(--color-text-muted); text-align: center; }
+    @media (max-width: 900px) { .global-search { width: 200px; } }
+    @media (max-width: 768px) { .global-search { display: none; } }
+
+    .content-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 32px;
+    }
+
+    /* Sistema de Views (SPA) */
+    .view-section { display: none; animation: fadeIn 0.3s ease; }
+    .view-section.active { display: block; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* --- COMPONENTES GOV.BR --- */
+    .row-label {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--gov-blue-dark);
+      font-family: var(--font-heading);
+      letter-spacing: -0.01em;
+      margin-bottom: 20px;
+      padding-left: 12px;
+      border-left: 4px solid var(--gov-yellow);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      line-height: 1.2;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .stat {
+      background: #fff;
+      border-radius: var(--br-sm);
+      border: 1px solid var(--gov-border);
+      box-shadow: var(--shadow-sm);
+      padding: 16px;
+      position: relative;
+      border-left: 4px solid var(--gov-blue-primary);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    .stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+    .stat-lbl { font-size: 12px; color: var(--color-text-sec); font-weight: 600; margin-bottom: 8px; }
+    .stat-val { font-size: 28px; font-weight: 700; color: var(--gov-blue-dark); line-height: 1; }
+    .stat-sub { font-size: 11px; color: var(--color-text-muted); margin-top: 8px; }
+
+    .card {
+      background: var(--gov-surface);
+      border-radius: var(--br-md);
+      border: 1px solid var(--gov-border);
+      box-shadow: var(--shadow-sm);
+      padding: 22px;
+      margin-bottom: 20px;
+    }
+
+    /* Tabela de Dados Gov.br */
+    .table-container {
+      background: var(--gov-surface);
+      border-radius: var(--br-md);
+      border: 1px solid var(--gov-border);
+      box-shadow: var(--shadow-sm);
+      overflow-x: auto;
+    }
+
+    .gov-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    .gov-table th {
+      background-color: #eef2f8;
+      color: var(--gov-blue-dark);
+      font-weight: 700;
+      font-size: 12px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      padding: 14px 16px;
+      border-bottom: 2px solid var(--gov-blue-primary);
+      white-space: nowrap;
+    }
+
+    .gov-table td {
+      padding: 14px 16px;
+      font-size: 13px;
+      color: var(--color-text-sec);
+      border-bottom: 1px solid var(--gov-border);
+      vertical-align: middle;
+    }
+
+    .gov-table tbody tr:hover { background-color: rgba(19, 81, 180, 0.03); }
+    .gov-table tbody tr:last-child td { border-bottom: none; }
+
+    .table-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-icon {
+      background: transparent;
+      border: 1px solid var(--gov-border);
+      border-radius: var(--br-sm);
+      width: auto;
+      padding: 0 10px;
+      height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--gov-blue-primary);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-icon:hover { background: var(--gov-blue-primary); color: #fff; border-color: var(--gov-blue-primary); }
+
+    /* Paginação Gov.br */
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px;
+      border-top: 1px solid var(--gov-border);
+      background: #fff;
+    }
+
+    .page-info { font-size: 13px; color: var(--color-text-sec); }
+
+    .page-controls { display: flex; gap: 4px; }
+
+    .page-btn {
+      min-width: 32px;
+      height: 32px;
+      padding: 0 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--gov-border);
+      background: #fff;
+      border-radius: var(--br-sm);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--gov-blue-primary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .page-btn:hover:not(:disabled) { background: #f0f4f8; }
+    .page-btn.active { background: var(--gov-blue-primary); color: #fff; border-color: var(--gov-blue-primary); }
+    .page-btn:disabled { color: var(--color-text-muted); background: #f9f9f9; cursor: not-allowed; }
+
+    /* Tags e Pills */
+    .tag {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .tag-comissionado { background: #fff8e6; color: #b28900; border: 1px solid #ffe69c; }
+    .tag-efetivo { background: #e3f2fd; color: #0d47a1; border: 1px solid #bbdefb; }
+    .tag-temporario { background: #fce4e4; color: #c62828; border: 1px solid #f8bbd0; }
+    .tag-terceirizado { background: #e8f5e9; color: #1b5e20; border: 1px solid #c8e6c9; }
+    .tag-default { background: #f1f3f5; color: #495057; border: 1px solid #e9ecef; }
+
+    /* Barra de Ações (Filtros) */
+    .action-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .search-box {
+      position: relative;
+      width: 300px;
+    }
+
+    .search-box i {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--color-text-muted);
+      font-size: 18px;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 10px 12px 10px 38px;
+      border: 1px solid var(--gov-border);
+      border-radius: var(--br-sm);
+      font-size: 13px;
+      font-family: var(--font-sans);
+      transition: border-color 0.2s;
+    }
+    .search-input:focus { outline: none; border-color: var(--gov-blue-primary); box-shadow: 0 0 0 3px rgba(19,81,180,0.1); }
+
+    .btn-primary {
+      background: var(--gov-blue-primary);
+      color: #fff;
+      border: none;
+      padding: 10px 24px;
+      border-radius: 100em;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: var(--font-sans);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+    .btn-primary:hover { background: var(--gov-blue-90); box-shadow: 0 4px 12px rgba(19,81,180,0.28); }
+
+    /* --- MODAL (Edição de Perfil) --- */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(2px);
+    }
+
+    .modal-content {
+      background: #fff;
+      width: 100%;
+      max-width: 550px;
+      border-radius: var(--br-md);
+      box-shadow: var(--shadow-modal);
+      display: flex;
+      flex-direction: column;
+      animation: modalSlideUp 0.3s ease;
+    }
+
+    @keyframes modalSlideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .modal-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--gov-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-title { font-size: 18px; font-weight: 600; color: var(--gov-blue-dark); }
+    .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--color-text-sec); }
+    .modal-close:hover { color: var(--gov-red); }
+
+    .modal-body { padding: 24px; }
+    
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .form-group.full-width { grid-column: span 2; }
+
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-text-main);
+      margin-bottom: 6px;
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--gov-border);
+      border-radius: var(--br-sm);
+      font-size: 14px;
+      font-family: var(--font-sans);
+      color: var(--color-text-main);
+      background: #fff;
+    }
+    .form-control:focus { outline: none; border-color: var(--gov-blue-primary); box-shadow: 0 0 0 3px rgba(19,81,180,0.1); }
+    .form-control:disabled { background: var(--gov-bg-light); color: var(--color-text-sec); cursor: not-allowed; }
+
+    .modal-footer {
+      padding: 16px 24px;
+      border-top: 1px solid var(--gov-border);
+      background: var(--gov-bg-light);
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      border-bottom-left-radius: var(--br-md);
+      border-bottom-right-radius: var(--br-md);
+    }
+
+    .btn-secondary {
+      background: #fff;
+      color: var(--gov-blue-primary);
+      border: 1px solid var(--gov-blue-primary);
+      padding: 9px 22px;
+      border-radius: 100em;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: var(--font-sans);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-secondary:hover { background: var(--gov-blue-light); color: var(--gov-blue-90); }
+
+    /* Botão genérico / outline (usado em filtros) */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 9px 18px; border-radius: 100em; font-size: 13px; font-weight: 600;
+      font-family: var(--font-sans); cursor: pointer; border: 1px solid transparent;
+      transition: all 0.2s; line-height: 1; min-height: 38px;
+    }
+    .btn-outline {
+      background: #fff; color: var(--gov-blue-primary);
+      border-color: var(--gov-border-strong);
+    }
+    .btn-outline:hover { background: var(--gov-blue-light); border-color: var(--gov-blue-primary); }
+
+    /* Alertas */
+    .alerta-box {
+      background: #fff8e6;
+      border-left: 4px solid var(--gov-yellow);
+      border-radius: var(--br-sm);
+      padding: 12px 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-top: 20px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .alerta-box i { font-size: 20px; color: #b28900; flex-shrink: 0; }
+    .alerta-text { font-size: 13px; color: #594400; line-height: 1.5; }
+
+    /* ============ EXTENSÕES ============ */
+    
+    /* Cards do dashboard clicáveis */
+    .stat.clickable { cursor: pointer; }
+    .stat { position: relative; }
+
+    /* ─── DASHBOARD MELHORADO ─── */
+    .dash-section-header {
+      display: flex; align-items: center; gap: 10px;
+      margin: 28px 0 14px;
+    }
+    .dash-section-header:first-child { margin-top: 0; }
+    .dash-section-header h2 {
+      font-size: 15px; font-weight: 800;
+      color: var(--gov-blue-dark); margin: 0; white-space: nowrap;
+      font-family: var(--font-heading); letter-spacing: -0.01em;
+    }
+    .dash-section-header .dash-icon {
+      width: 30px; height: 30px; border-radius: var(--br-md);
+      background: var(--gov-blue-primary);
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 15px; flex-shrink: 0;
+      box-shadow: 0 2px 6px rgba(19,81,180,0.25);
+    }
+    .dash-section-header .dash-line {
+      flex: 1; height: 1px; background: var(--gov-border);
+    }
+
+    /* KPI Cards (linha principal de servidores) */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+      gap: 12px;
+    }
+    .kpi-card {
+      background: var(--gov-surface); border-radius: var(--br-md);
+      border: 1px solid var(--gov-border);
+      box-shadow: var(--shadow-sm);
+      padding: 18px 16px 14px;
+      position: relative; overflow: hidden;
+      border-top: 3px solid var(--gov-blue-primary);
+      transition: transform 0.15s, box-shadow 0.15s;
+      cursor: pointer;
+    }
+    .kpi-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+    .kpi-card-label { font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--color-text-sec); margin-bottom: 8px; }
+    .kpi-card-value { font-size: 30px; font-weight: 800; color: var(--gov-blue-dark);
+      line-height: 1; letter-spacing: -0.02em; font-family: var(--font-heading); }
+    .kpi-card-sub { font-size: 11px; color: var(--color-text-muted); margin-top: 5px; }
+    .kpi-card-bg-icon {
+      position: absolute; bottom: 6px; right: 10px;
+      font-size: 36px; opacity: 0.06; color: var(--gov-blue-dark);
+      pointer-events: none;
+    }
+
+    /* Gráficos */
+    .chart-row {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .chart-card {
+      background: #fff; border-radius: 6px;
+      border: 1px solid var(--gov-border);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      padding: 18px;
+    }
+    .chart-card-title {
+      font-size: 12px; font-weight: 700; letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--gov-blue-dark); margin-bottom: 14px;
+      display: flex; align-items: center; gap: 6px;
+      padding-bottom: 10px; border-bottom: 1px solid var(--gov-border);
+    }
+    .chart-card-title i { font-size: 15px; color: var(--gov-blue-primary); }
+
+    /* Cards de Superintendências */
+    .super-grid {
+      display: grid; gap: 12px;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    }
+    .super-card {
+      background: #fff; border: 1px solid var(--gov-border);
+      border-radius: 6px; padding: 16px;
+      cursor: pointer; transition: all 0.15s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      border-left: 4px solid var(--gov-blue-primary);
+    }
+    .super-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+      border-left-color: var(--gov-yellow);
+    }
+    .super-card-name { font-size: 13px; font-weight: 600; color: var(--gov-blue-dark); line-height: 1.35; margin-bottom: 8px; }
+    .super-card-count { font-size: 22px; font-weight: 800; color: var(--gov-blue-primary); }
+    .super-card-label { font-size: 11px; color: var(--color-text-muted); }
+
+    /* Cards de Locais Operacionais */
+    .locais-op-grid {
+      display: grid; gap: 12px;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    }
+    .loc-card {
+      background: #fff; border: 1px solid var(--gov-border);
+      border-radius: 6px; padding: 16px;
+      cursor: pointer; transition: all 0.15s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      text-align: center;
+    }
+    .loc-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+      border-color: var(--gov-blue-primary);
+    }
+    .loc-card i { font-size: 28px; color: var(--gov-blue-primary); margin-bottom: 8px; display: block; }
+    .loc-card-name { font-size: 14px; font-weight: 700; color: var(--gov-blue-dark); margin-bottom: 6px; }
+    .loc-card-units { font-size: 12px; color: var(--color-text-sec); }
+    .loc-card-units strong { color: var(--gov-blue-dark); }
+
+    /* Estrutura organizacional em grid compacto */
+    .estrutura-grid {
+      display: grid; gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    }
+    .estrutura-item {
+      background: #fff; border: 1px solid var(--gov-border);
+      border-radius: 6px; padding: 14px 12px;
+      text-align: center;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .estrutura-item-val {
+      font-size: 26px; font-weight: 800; color: var(--gov-blue-dark); line-height: 1;
+    }
+    .estrutura-item-lbl { font-size: 11px; color: var(--color-text-sec); margin-top: 5px; font-weight: 600; }
+    .estrutura-item-sub { font-size: 10px; color: var(--color-text-muted); margin-top: 2px; }
+
+    @media (max-width: 768px) {
+      .chart-row { grid-template-columns: 1fr; }
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .super-grid { grid-template-columns: repeat(2, 1fr); }
+      .locais-op-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* Filtros */
+    .toolbar-filters {
+      display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;
+      padding: 12px; background: #fff; border: 1px solid var(--gov-border);
+      border-radius: var(--br-md); box-shadow: var(--shadow-sm);
+      align-items: center;
+    }
+    .toolbar-filters input, .toolbar-filters select {
+      padding: 8px 12px; border: 1px solid var(--gov-border);
+      border-radius: var(--br-sm); font-family: inherit; font-size: 13px;
+      background: #fff;
+    }
+    .toolbar-filters input:focus, .toolbar-filters select:focus {
+      outline: none; border-color: var(--gov-blue-primary);
+      box-shadow: 0 0 0 3px rgba(19,81,180,0.1);
+    }
+    .filter-tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; background: var(--gov-blue-light);
+      color: var(--gov-blue-dark); border-radius: 12px;
+      font-size: 12px; font-weight: 500;
+    }
+    .filter-tag button {
+      background: none; border: none; cursor: pointer; color: var(--gov-blue-dark);
+      padding: 0; display: flex; align-items: center;
+    }
+
+    /* --- Badges (usadas em Licenças, Cedidos, etc.) --- */
+    .badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 12px; font-weight: 600; line-height: 1.4;
+      white-space: nowrap;
+    }
+    .badge i { font-size: 13px; }
+    .badge-neutro { background: var(--gov-bg-light); color: var(--color-text-sec); }
+
+    /* --- Rótulo interno de filtro + contador de resultados --- */
+    .filter-field { display: flex; flex-direction: column; gap: 4px; }
+    .filter-field > label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .04em; color: var(--color-text-muted); padding-left: 2px;
+    }
+    .filter-result-count {
+      font-size: 12px; color: var(--color-text-sec); font-weight: 500;
+      margin-left: auto; white-space: nowrap;
+    }
+    .filter-result-count strong { color: var(--gov-blue-dark); }
+    .btn-link {
+      background: none; border: none; color: var(--gov-blue-primary);
+      text-decoration: underline; cursor: pointer; font-size: 13px; padding: 0;
+    }
+    .btn-warning {
+      background: var(--gov-yellow); color: var(--gov-blue-dark);
+      border: none; padding: 8px 14px; border-radius: var(--br-sm);
+      font-weight: 600; cursor: pointer; font-size: 13px;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn-warning:hover { background: #f0c000; }
+
+    /* Breadcrumb funcional */
+    .crumbs { display: flex; align-items: center; gap: 6px; margin-bottom: 16px; }
+    .crumbs button {
+      background: none; border: none; color: var(--gov-blue-primary);
+      cursor: pointer; font-size: 13px; padding: 4px 8px; border-radius: 4px;
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+    .crumbs button:hover { background: var(--gov-blue-light); }
+    .crumbs .sep { color: var(--color-text-muted); font-size: 12px; }
+    .crumbs .current {
+      font-weight: 600; color: var(--gov-blue-dark);
+      padding: 4px 8px;
+    }
+
+    /* Cards grandes de categoria/unidade */
+    .cards-grid {
+      display: grid; gap: 16px;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    }
+    .big-card {
+      background: #fff; border: 1px solid var(--gov-border);
+      border-radius: var(--br-md); padding: 20px;
+      cursor: pointer; transition: all 0.15s;
+      box-shadow: var(--shadow-sm);
+      display: flex; flex-direction: column; gap: 8px;
+      border-left: 4px solid var(--gov-blue-primary);
+    }
+    .big-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.08);
+      border-left-color: var(--gov-yellow);
+    }
+    .big-card-icon {
+      font-size: 32px; color: var(--gov-blue-primary);
+      margin-bottom: 4px;
+    }
+    .big-card-title {
+      font-size: 16px; font-weight: 700; color: var(--gov-blue-dark);
+    }
+    .big-card-meta {
+      font-size: 12px; color: var(--color-text-sec);
+      display: flex; gap: 16px; margin-top: 4px;
+    }
+    .big-card-meta strong { color: var(--gov-blue-dark); }
+
+    /* Árvore organograma */
+    .org-tree { padding: 12px; }
+    .org-node {
+      padding: 10px 14px; margin: 3px 0;
+      background: #fff; border: 1px solid var(--gov-border);
+      border-radius: var(--br-md); cursor: pointer;
+      display: flex; align-items: center; gap: 10px;
+      font-size: 13px; transition: all 0.15s;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .org-node:hover { background: var(--gov-blue-light); border-color: var(--gov-blue-primary); transform: translateX(2px); }
+    .org-node .toggle { color: var(--gov-blue-primary); width: 18px; text-align: center; font-size: 14px; transition: transform 0.2s; }
+    .org-node .toggle.open i { transform: rotate(90deg); }
+    .org-node .toggle.empty { visibility: hidden; }
+    .org-node .nome { flex: 1; font-weight: 500; color: var(--gov-blue-dark); font-size: 13px; }
+    .org-node .badge-count {
+      background: var(--gov-blue-primary); color: #fff;
+      padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;
+      min-width: 28px; text-align: center;
+    }
+    .org-node .badge-count.zero { background: #e8e8e8; color: #999; }
+    .org-children { display: none; padding-left: 24px; margin-left: 8px; border-left: 2px solid var(--gov-blue-light); }
+    .org-children.open { display: block; }
+    .org-node .tipo-tag {
+      font-size: 9px; padding: 3px 8px; border-radius: 4px; text-transform: uppercase;
+      font-weight: 700; letter-spacing: 0.05em; white-space: nowrap;
+    }
+    .org-node .tipo-tag[data-tipo='superintendencia'] { background: #e8f0fe; color: #1351b4; }
+    .org-node .tipo-tag[data-tipo='coordenacao'] { background: #fef7e0; color: #8a6d00; }
+    .org-node .tipo-tag[data-tipo='diretoria'] { background: #e6f4ea; color: #137333; }
+    .org-node .tipo-tag[data-tipo='unidade'] { background: #f3e8fd; color: #7b2cbf; }
+    .org-node .btn-eye { border: none; background: none; cursor: pointer; color: var(--gov-blue-primary); font-size: 16px; padding: 4px; border-radius: 4px; transition: all 0.15s; }
+    .org-node .btn-eye:hover { background: var(--gov-blue-primary); color: #fff; }
+
+    /* Lotação tree (modal de transferência) */
+    .lotacao-tree {
+      max-height: 320px; overflow-y: auto;
+      border: 1px solid var(--gov-border); border-radius: var(--br-sm);
+      padding: 8px; background: var(--gov-bg-light);
+    }
+    .lotacao-tree-item {
+      padding: 7px 10px; cursor: pointer; border-radius: var(--br-sm);
+      font-size: 13px; display: flex; align-items: center; gap: 8px;
+    }
+    .lotacao-tree-item:hover { background: var(--gov-blue-light); }
+    .lotacao-tree-item.selected { background: var(--gov-blue-primary); color: #fff; }
+    .lotacao-tree-item.selected .tag { background: rgba(255,255,255,0.2); color: #fff; }
+
+    /* Timeline histórico */
+    .timeline { list-style: none; padding: 0; }
+    .timeline li {
+      padding: 14px 18px; margin-bottom: 10px;
+      background: #fff; border-left: 4px solid var(--gov-blue-primary);
+      border-radius: var(--br-sm); box-shadow: var(--shadow-sm);
+    }
+    .timeline li.inactive { border-left-color: var(--color-text-muted); opacity: 0.75; }
+    .timeline .periodo {
+      font-size: 11px; color: var(--color-text-muted);
+      text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;
+    }
+    .timeline .lot-nome { font-weight: 600; color: var(--gov-blue-dark); font-size: 14px; }
+    .timeline .meta { font-size: 12px; color: var(--color-text-sec); margin-top: 6px; }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--gov-blue-dark); color: #fff;
+      padding: 14px 22px; border-radius: var(--br-md);
+      box-shadow: var(--shadow-modal); z-index: 9999;
+      font-size: 14px; opacity: 0; transform: translateY(20px);
+      transition: all 0.25s ease; max-width: 420px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.success { background: var(--gov-green); }
+    .toast.error { background: var(--gov-red); }
+    .toast.warning { background: var(--gov-yellow); color: var(--gov-blue-dark); }
+
+    .empty-state {
+      padding: 60px 20px; text-align: center; color: var(--color-text-muted);
+    }
+    .empty-state i { font-size: 48px; margin-bottom: 12px; opacity: 0.5; display: block; }
+
+    /* Modal large pra transferência */
+    .modal-content.large { max-width: 720px; }
+    .modal-body { max-height: 70vh; overflow-y: auto; }
+
+    /* Loading spinner */
+    .spinner { 
+      display: inline-block; width: 16px; height: 16px;
+      border: 2px solid var(--gov-bg-light);
+      border-top-color: var(--gov-blue-primary);
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Conexão status banner */
+    .conn-banner {
+      padding: 12px 20px; background: var(--gov-yellow); color: var(--gov-blue-dark);
+      font-size: 13px; text-align: center; font-weight: 500;
+    }
+    .conn-banner.hidden { display: none; }
+    .conn-banner code { background: rgba(0,0,0,0.1); padding: 2px 6px; border-radius: 3px; font-size: 12px; }
+
+    /* sidebar item ativo (override pra ser mais visível) */
+    .sidebar-nav .nav-item.active {
+      background: rgba(19,81,180,0.35);
+      border-left: 3px solid var(--gov-yellow);
+    }
+
+    /* Cards do dashboard responsivos */
+    .stats-grid {
+      display: grid; gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+
+    /* ============================================================
+       RESPONSIVIDADE — TABLET (≤ 1024px)
+    ============================================================ */
+    @media (max-width: 1024px) {
+      .content-area { padding: 20px; }
+      .topbar { padding: 0 20px; }
+      .stats-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+      .tbadge { display: none; } /* oculta badge São Luís no tablet pequeno */
+      #graficos-row { grid-template-columns: 1fr !important; }
+    }
+
+    /* ============================================================
+       RESPONSIVIDADE — MOBILE (≤ 768px)
+    ============================================================ */
+    @media (max-width: 768px) {
+
+      /* App: sidebar empilha em overlay */
+      .app { flex-direction: row; position: relative; }
+
+      .sidebar {
+        position: fixed;
+        top: 0; left: 0;
+        height: 100vh;
+        transform: translateX(-100%);
+        width: 280px;
+        z-index: 200;
+      }
+      .sidebar.open { transform: translateX(0); }
+
+      .btn-hamburger { display: inline-flex; }
+      .btn-close-sidebar { display: inline-flex; }
+      .topbar-hamburger { display: inline-flex; }
+
+      /* Topbar mobile */
+      .topbar {
+        padding: 0 16px;
+        height: 56px;
+      }
+      .topbar-title { font-size: 15px; }
+      .topbar-bread { display: none; }
+      .tbadge { display: none; }
+      .tib { display: none; }
+
+      /* Conteúdo mobile */
+      .content-area {
+        padding: 16px;
+        padding-bottom: 80px; /* espaço para bottom nav */
+      }
+
+      /* Stats cards: 2 colunas no mobile */
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+      .stat-val { font-size: 22px; }
+      .stat-lbl { font-size: 11px; }
+
+      /* Cards grid: 1 ou 2 colunas */
+      .cards-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+      }
+      .big-card { padding: 14px; }
+      .big-card-title { font-size: 13px; }
+
+      /* Tabela: scroll horizontal */
+      .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .gov-table th, .gov-table td { padding: 10px 12px; font-size: 12px; }
+
+      /* Filtros: coluna única */
+      .toolbar-filters {
+        flex-direction: column;
+        gap: 8px;
+        padding: 10px;
+      }
+      .toolbar-filters input,
+      .toolbar-filters select { width: 100%; }
+      #btn-limpar { width: 100%; justify-content: center; }
+
+      /* Gráficos: empilhados */
+      #graficos-row { grid-template-columns: 1fr !important; }
+
+      /* Modais: bottom-sheet */
+      .modal-overlay {
+        align-items: flex-end;
+      }
+      .modal-content {
+        max-width: 100% !important;
+        width: 100%;
+        border-radius: 16px 16px 0 0;
+        max-height: 92vh;
+        display: flex;
+        flex-direction: column;
+        animation: sheetUp 0.3s ease;
+      }
+      @keyframes sheetUp {
+        from { transform: translateY(100%); }
+        to   { transform: translateY(0); }
+      }
+      .modal-body {
+        flex: 1;
+        overflow-y: auto;
+        max-height: none !important;
+      }
+
+      /* Form grid: coluna única no mobile */
+      .form-grid { grid-template-columns: 1fr; }
+      .form-group.full-width { grid-column: span 1; }
+
+      /* Paginação mobile: compacta */
+      .pagination {
+        flex-direction: column;
+        gap: 10px;
+        align-items: center;
+        padding: 12px;
+      }
+      .page-info { font-size: 12px; }
+
+      /* Organograma */
+      .org-node { padding: 8px 10px; font-size: 12px; }
+      .org-children { padding-left: 12px; }
+
+      /* Row label */
+      .row-label { font-size: 15px; margin-bottom: 14px; }
+
+      /* Toast: bottom-center no mobile */
+      .toast {
+        bottom: 80px;
+        right: 16px;
+        left: 16px;
+        max-width: none;
+        text-align: center;
+        justify-content: center;
+      }
+
+      /* Ações de tabela: ícones menores */
+      .table-actions { gap: 4px; }
+      .btn-icon { height: 26px; font-size: 11px; padding: 0 8px; }
+
+      /* Crumbs: texto menor */
+      .crumbs button { font-size: 12px; padding: 3px 6px; }
+      .crumbs .current { font-size: 12px; }
+
+      /* Card seção */
+      .card { padding: 14px; }
+    }
+
+    /* ============================================================
+       RESPONSIVIDADE — MOBILE PEQUENO (≤ 400px)
+    ============================================================ */
+    @media (max-width: 400px) {
+      .stats-grid { grid-template-columns: 1fr; }
+      .cards-grid { grid-template-columns: 1fr; }
+      .stat-val { font-size: 20px; }
+    }
+
+    /* ============================================================
+       BOTTOM NAVIGATION BAR (apenas mobile)
+    ============================================================ */
+    .bottom-nav {
+      display: none;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 64px;
+      background: #fff;
+      border-top: 1px solid var(--gov-border);
+      z-index: 190;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.08);
+    }
+    .bottom-nav-inner {
+      display: flex;
+      height: 100%;
+    }
+    .bottom-nav-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      cursor: pointer;
+      background: none;
+      border: none;
+      color: var(--color-text-muted);
+      font-size: 10px;
+      font-family: var(--font-sans);
+      font-weight: 500;
+      padding: 8px 4px;
+      transition: color 0.2s;
+      text-decoration: none;
+    }
+    .bottom-nav-item i { font-size: 20px; }
+    .bottom-nav-item.active {
+      color: var(--gov-blue-primary);
+    }
+    .bottom-nav-item.active i {
+      background: var(--gov-blue-light);
+      border-radius: 10px;
+      padding: 2px 14px;
+    }
+    @media (max-width: 768px) {
+      .bottom-nav { display: block; }
+    }
+
+    /* Cabeçalhos ordenáveis */
+    .sortable { cursor: pointer; user-select: none; white-space: nowrap; transition: background .15s; }
+    .sortable:hover { background: var(--gov-blue-light); }
+    .sort-icon { margin-left: 4px; font-size: 11px; opacity: 0.35; vertical-align: middle; }
+    .sort-icon.active { opacity: 1; color: var(--gov-blue-primary); font-weight: 700; }
+
+    /* ============================================================
+       FOLHA DE PONTO
+    ============================================================ */
+    .page-wrapper-fp {
+      width: 100%; display: flex; justify-content: center;
+      padding: 20px 0; overflow-x: auto;
+    }
+    .page-fp {
+      width: 210mm; min-width: 210mm; min-height: 297mm;
+      background: #fff; color: #000;
+      padding: 12mm 15mm;
+      box-sizing: border-box;
+      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.12);
+      margin: 0 auto;
+      font-family: Arial, Helvetica, sans-serif;
+      position: relative;
+    }
+    .folha-table {
+      width: 100%; border-collapse: collapse;
+      table-layout: fixed; border: 2px solid #000;
+    }
+    .folha-table td, .folha-table th {
+      border: 1px solid #000; padding: 2px 4px;
+      font-size: 11px; vertical-align: middle;
+      color: #000; overflow: hidden; white-space: nowrap;
+    }
+    .fp-bg-gray  { background-color: #e5e7eb !important; font-weight: bold; text-align: center; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .fp-bg-head  { background-color: #fff    !important; font-weight: bold; text-align: center; }
+    .fp-inp {
+      border: none; border-bottom: 1px solid #aaa;
+      background: transparent; font-family: inherit;
+      font-size: 11px; font-weight: bold; width: 100%; outline: none;
+    }
+    .fp-inp:focus { border-bottom-color: #1351b4; background: rgba(19,81,180,0.05); }
+    .fp-tab-btn {
+      padding: 8px 18px; font-size: 13px; font-weight: 600;
+      border: none; background: none; cursor: pointer;
+      color: var(--color-text-muted); border-bottom: 3px solid transparent;
+      font-family: var(--font-sans); transition: all 0.2s;
+    }
+    .fp-tab-btn.active { color: var(--gov-blue-primary); border-bottom-color: var(--gov-blue-primary); }
+    .fp-tab-pane { display: none; }
+    .fp-tab-pane.active { display: block; }
+
+    @media print {
+      /* ── Impressão individual (padrão) ── */
+      .sidebar, .topbar, .bottom-nav, .sidebar-overlay, .gov-top-bar,
+      #fp-controls, .fp-no-print { display: none !important; }
+      body, html { margin: 0; padding: 0; background: #fff !important; height: auto !important; overflow: visible !important; display: block !important; }
+      .content-area { padding: 0 !important; overflow: visible !important; }
+      .main { overflow: visible !important; }
+      .app { display: block !important; height: auto !important; overflow: visible !important; }
+      .page-wrapper-fp { padding: 0; }
+      .page-fp { box-shadow: none; margin: 0; width: 100%; min-width: 0; page-break-after: always; }
+      .fp-inp { border-bottom: none; }
+      #view-folha-ponto { display: block !important; }
+      #fp-print-lote  { display: none !important; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+      /* ── Impressão em lote (Por Unidade) ── */
+      /* body recebe a classe .fp-lote-print antes do window.print() */
+      body.fp-lote-print .app            { display: none !important; }
+      body.fp-lote-print #fp-print-lote  { display: block !important; }
+      body.fp-lote-print #view-folha-ponto { display: none !important; }
+      #fp-print-lote .page-fp { page-break-after: always; }
+    }
+
+    @media (max-width: 768px) {
+      .page-wrapper-fp { padding: 10px 0; overflow-x: scroll; }
+    }
+
+/* ===== Abas de Férias / badges (bloco antes movido do fim do body) ===== */
+
+  .fer-tab {
+    padding: 10px 16px; background: none; border: none; cursor: pointer;
+    font-size: 13px; color: var(--color-text-sec); border-bottom: 2px solid transparent;
+    margin-bottom: -2px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px;
+    font-family: inherit;
+  }
+  .fer-tab:hover { color: var(--gov-blue-primary); }
+  .fer-tab.active { color: var(--gov-blue-primary); border-bottom-color: var(--gov-blue-primary); font-weight: 600; }
+  .badge-cnt { background: var(--gov-blue-light); color: var(--gov-blue-dark); padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .fer-tab.active .badge-cnt { background: var(--gov-blue-primary); color: #fff; }
