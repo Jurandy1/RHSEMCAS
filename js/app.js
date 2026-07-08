@@ -2764,10 +2764,12 @@ async function renderLicencas() {
   const kpis = await handleErr(await sb.from('v_licencas_kpis').select('*').single(), 'KPIs licencas');
   if (kpis) {
     $('licencas-kpis').innerHTML = [
-      ['Total Afastados',  kpis.total_afastados,    'No momento', 'var(--gov-orange)'],
-      ['Licença Prêmio',   kpis.premio,             'Concedidas', 'var(--gov-blue-primary)'],
-      ['Licença Médica',   kpis.medica,             'Tratamento de Saúde', 'var(--gov-red)'],
-      ['Maternidade',      kpis.maternidade,        'Mães / Gestantes', 'var(--gov-green)'],
+      ['Total Afastados',     kpis.total_afastados,     'No momento',                 'var(--gov-orange)'],
+      ['Licença Prêmio',      kpis.premio,              'Concedidas',                 'var(--gov-blue-primary)'],
+      ['Tratamento de Saúde', kpis.tratamento_saude,    'Licença médica',             'var(--gov-red)'],
+      ['Capacitação',         kpis.capacitacao,         'Estudo / qualificação',      'var(--gov-blue-dark)'],
+      ['Interesse Particular',kpis.interesse_particular,'Sem vencimentos',            '#534AB7'],
+      ['Amamentação',         kpis.amamentacao,         'Mães lactantes',             'var(--gov-green)'],
     ].map(([lbl, val, sub, cor]) => `
       <div class="stat" style="border-left-color:${cor}">
         <div class="stat-lbl">${lbl}</div>
