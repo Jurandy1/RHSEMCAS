@@ -554,7 +554,8 @@ async function renderPainel() {
   ]);
 
   const kpi    = kpiRes.data    || null;
-  const vincs  = vincsRes.data  || [];
+  // Vínculo "Contrato" não deve aparecer nos cards nem no gráfico do dashboard
+  const vincs  = (vincsRes.data || []).filter(v => (v.vinculo || '').trim() !== 'Contrato');
   const locais = locaisRes.data || [];
   const cedKpi = cedKpiRes.data || null;
   const totalAtivos = totalRes.count ?? null;
