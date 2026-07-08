@@ -8,17 +8,26 @@
 --
 -- Como aplicar:
 --   1. Abrir o Supabase → SQL Editor
---   2. Colar o bloco abaixo e clicar em "Run"
+--   2. Colar o bloco abaixo (o script inteiro) e clicar em "Run"
+--
+-- Obs.: usamos DROP + CREATE porque CREATE OR REPLACE VIEW no PostgreSQL
+-- não permite remover colunas nem alterar seus tipos — e a view antiga
+-- tinha colunas diferentes (medica, maternidade) que estão saindo.
 -- =====================================================================
 
-CREATE OR REPLACE VIEW public.v_licencas_kpis AS
+-- Extensão para comparar strings sem acento (idempotente).
+CREATE EXTENSION IF NOT EXISTS unaccent;
+
+DROP VIEW IF EXISTS public.v_licencas_kpis;
+
+CREATE VIEW public.v_licencas_kpis AS
 SELECT
-  COUNT(*) FILTER (WHERE ativo)::int AS total_afastados,
+  COUNT(*) FILTER (WHERE ativo) AS total_afastados,
 
   COUNT(*) FILTER (
     WHERE ativo
       AND unaccent(lower(tipo_afastamento)) ILIKE '%premio%'
-  )::int AS premio,
+  ) AS premio,
 
   COUNT(*) FILTER (
     WHERE ativo
@@ -26,12 +35,12 @@ SELECT
         unaccent(lower(tipo_afastamento)) ILIKE '%tratamento de saude%'
         OR unaccent(lower(tipo_afastamento)) ILIKE '%medica%'
       )
-  )::int AS tratamento_saude,
+  ) AS tratamento_saude,
 
   COUNT(*) FILTER (
     WHERE ativo
       AND unaccent(lower(tipo_afastamento)) ILIKE '%capacitacao%'
-  )::int AS capacitacao,
+  ) AS capacitacao,
 
   COUNT(*) FILTER (
     WHERE ativo
@@ -39,14 +48,15 @@ SELECT
         unaccent(lower(tipo_afastamento)) ILIKE '%interesse particular%'
         OR unaccent(lower(tipo_afastamento)) ILIKE '%interesses particulares%'
       )
-  )::int AS interesse_particular,
+  ) AS interesse_particular,
 
   COUNT(*) FILTER (
     WHERE ativo
       AND unaccent(lower(tipo_afastamento)) ILIKE '%amamenta%'
-  )::int AS amamentacao
+  ) AS amamentacao
 
 FROM public.funcionario_licencas;
 
--- Se a extensão unaccent não estiver instalada, rodar antes:
---   CREATE EXTENSION IF NOT EXISTS unaccent;
+-- Se algum dia o DROP falhar dizendo que outra view depende desta,
+-- rode com CASCADE (isso remove os dependentes — verifique antes):
+--   DROP VIEW IF EXISTS public.v_licencas_kpis CASCADE;
