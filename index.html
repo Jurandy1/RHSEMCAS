@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painel RH SEMCAS - Gov.br</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdngovbr-ds.estaleiro.serpro.gov.br" crossorigin>
+  <!-- Fontes oficiais Gov.br: Rawline (títulos) + Raleway (texto), com Inter como fallback -->
+  <link rel="stylesheet" href="https://cdngovbr-ds.estaleiro.serpro.gov.br/design-system/fonts/rawline/css/rawline.css">
+  <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- Barra institucional (Prefeitura de São Luís - MA) -->
+<div class="gov-top-bar">
+  <div class="gov-top-bar-brand">
+    <span class="govbr-org">Prefeitura de São Luís&nbsp;<span class="govbr-uf">/ MA</span></span>
+  </div>
+  <div class="gov-top-bar-actions">
+    <span class="govbr-org-full">Secretaria Municipal da Criança e Assistência Social — SEMCAS</span>
+  </div>
+</div>
+
+<div id="conn-banner" class="conn-banner hidden">
+  <div class="conn-text">
+    <strong>Não foi possível conectar ao banco de dados.</strong>
+    Configure suas credenciais Supabase no script: <code>SUPABASE_URL</code> e <code>SUPABASE_ANON</code>
+  </div>
+</div>
+
+<div class="app">
+  <nav class="sidebar" id="sidebar" aria-label="Menu Principal">
+    <div class="sidebar-logo">
+      <img src="MARCA-PREFS-VERTICAL-convertido-de-png.png" alt="Logo" style="height:48px; margin-right:8px;">
+      <div class="sidebar-logo-info">
+        <span class="org-name">SEMCAS</span>
+        <span class="org-sub">Gestão de Pessoas</span>
+      </div>
+      <button class="btn-close-sidebar" id="btn-close-sidebar" title="Fechar menu" aria-label="Fechar menu">
+        <i class="ti ti-x"></i>
+      </button>
+    </div>
+
+    <div class="sidebar-nav">
+      <div class="nav-group">Principal</div>
+      <a href="#painel" class="nav-item" data-route="painel">
+        <i class="ti ti-layout-dashboard"></i> Painel
+      </a>
+      <a href="#funcionarios" class="nav-item" data-route="funcionarios">
+        <i class="ti ti-users"></i> Funcionários
+      </a>
+      <a href="#locais" class="nav-item" data-route="locais">
+        <i class="ti ti-map-pin"></i> Locais
+      </a>
+      <a href="#organograma" class="nav-item" data-route="organograma">
+        <i class="ti ti-sitemap"></i> Organograma
+      </a>
+
+      <div class="nav-group">Gestão</div>
+      <a href="#licencas" class="nav-item" data-route="licencas">
+        <i class="ti ti-activity"></i> Licenças
+        <span id="badge-licencas" style="display:none;margin-left:auto;background:var(--gov-orange,#ed7b2f);color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;line-height:16px" title="Licenças próximas do vencimento"></span>
+      </a>
+      <a href="#ferias" class="nav-item" data-route="ferias">
+        <i class="ti ti-beach"></i> Férias
+      </a>
+      <a href="#cedidos" class="nav-item" data-route="cedidos">
+        <i class="ti ti-arrows-left-right"></i> Cedidos/Recebidos
+      </a>
+      <a href="#folha-ponto" class="nav-item" data-route="folha-ponto">
+        <i class="ti ti-clock"></i> Folha de Ponto
+      </a>
+      <a href="#pendentes" class="nav-item" data-route="pendentes">
+        <i class="ti ti-user-exclamation"></i> Auditoria de Dados
+        <span id="badge-pendentes" style="display:none;margin-left:auto;background:var(--gov-red,#d9363e);color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;line-height:16px"></span>
+      </a>
+      <a href="#logs" class="nav-item" data-route="logs">
+        <i class="ti ti-history"></i> Histórico de Ações
+      </a>
+      <div style="border-top:1px solid var(--gov-border); margin:10px 16px"></div>
+      <a href="#lotacoes" class="nav-item" data-route="lotacoes">
+        <i class="ti ti-building"></i> Gestão de Lotações
+      </a>
+    </div>
+
+    <div class="sidebar-footer" style="display:flex;align-items:center;gap:10px">
+      <div class="user-av">AD</div>
+      <div>
+        <div class="user-name">Administrador</div>
+        <div class="user-role">RH · SEMCAS</div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="topbar-hamburger" id="btn-topbar-hamburger" title="Abrir menu" aria-label="Abrir menu">
+          <i class="ti ti-menu-2"></i>
+        </button>
+        <div>
+          <div class="topbar-title" id="header-title">Painel de Gestão</div>
+          <div class="topbar-bread" id="header-bread">Início <span>›</span> <strong>Painel</strong></div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="global-search" id="global-search">
+          <i class="ti ti-search global-search-icon"></i>
+          <input type="text" id="gs-input" class="global-search-input" placeholder="Buscar servidor (nome, matrícula ou CPF)…"
+                 autocomplete="off" aria-label="Busca global de servidores" role="combobox" aria-expanded="false" aria-controls="gs-results">
+          <div id="gs-results" class="global-search-results" role="listbox" style="display:none"></div>
+        </div>
+        <span class="tbadge">São Luís — MA</span>
+        <button class="tib" title="Notificações" aria-label="Notificações"><i class="ti ti-bell"></i></button>
+      </div>
+    </header>
+
+    <div class="content-area">
+
+      <!-- ===== PAINEL ===== -->
+      <section id="view-painel" class="view-section">
+
+        <div id="alerta-licencas-painel" class="alerta-licenca-wrap" hidden></div>
+
+        <!-- Cabeçalho do Painel -->
+        <div class="dash-section-header" style="margin-top:0">
+          <div class="dash-icon"><i class="ti ti-users"></i></div>
+          <h2>Quadro de Servidores</h2>
+          <div class="dash-line"></div>
+        </div>
+        <div class="kpi-grid" id="stats-grid">
+          <div class="kpi-card" style="border-top-color:var(--gov-blue-dark)">
+            <div class="kpi-card-label">Carregando</div>
+            <div class="kpi-card-value"><span class="spinner"></span></div>
+          </div>
+        </div>
+
+        <!-- Gráficos -->
+        <div id="graficos-row" class="chart-row" style="display:none;margin-top:16px">
+          <div class="chart-card">
+            <div class="chart-card-title"><i class="ti ti-chart-donut"></i> Distribuição por Vínculo</div>
+            <div style="position:relative;height:210px"><canvas id="chart-vinculos"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-card-title"><i class="ti ti-chart-bar"></i> Servidores por Tipo de Local</div>
+            <div style="position:relative;height:210px"><canvas id="chart-locais"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Estrutura Organizacional -->
+        <div class="dash-section-header">
+          <div class="dash-icon"><i class="ti ti-hierarchy"></i></div>
+          <h2>Estrutura Organizacional</h2>
+          <div class="dash-line"></div>
+        </div>
+        <div class="estrutura-grid" id="stats-estrutura"></div>
+
+        <!-- Superintendências -->
+        <div class="dash-section-header">
+          <div class="dash-icon"><i class="ti ti-building-skyscraper"></i></div>
+          <h2>Superintendências</h2>
+          <div class="dash-line"></div>
+        </div>
+        <div class="super-grid" id="cards-superintendencias"></div>
+
+        <!-- Locais Operacionais -->
+        <div class="dash-section-header">
+          <div class="dash-icon"><i class="ti ti-map-pin"></i></div>
+          <h2>Locais Operacionais</h2>
+          <div class="dash-line"></div>
+        </div>
+        <div class="locais-op-grid" id="cards-locais-resumo"></div>
+
+      </section>
+
+      <!-- ===== FUNCIONÁRIOS ===== -->
+      <section id="view-funcionarios" class="view-section">
+        <div class="toolbar-filters">
+          <input type="text" id="f-busca" placeholder="Buscar por nome..." style="flex:1;min-width:240px">
+          <select id="f-vinculo"><option value="">Todos os vínculos</option></select>
+          <div class="ms-wrap" id="f-funcao-wrap">
+            <button type="button" class="ms-btn" id="f-funcao-btn" aria-haspopup="listbox" aria-expanded="false">Funções</button>
+            <div class="ms-panel" id="f-funcao-panel" hidden>
+              <input type="search" class="ms-busca" id="f-funcao-busca" placeholder="Buscar função…" autocomplete="off">
+              <div class="ms-lista" id="f-funcao-lista"></div>
+              <div class="ms-acoes">
+                <button type="button" class="ms-link" id="f-funcao-limpar">Limpar</button>
+                <button type="button" class="ms-link" id="f-funcao-aplicar">Aplicar</button>
+              </div>
+            </div>
+          </div>
+          <select id="f-lotacao"><option value="">Todas as lotações</option></select>
+          <select id="f-turno"><option value="">Todos os turnos</option></select>
+          <button id="btn-limpar" class="btn btn-outline" style="padding:0 12px" title="Limpar Filtros">Limpar</button>
+          <button id="btn-exportar-func" class="btn btn-outline" style="padding:0 12px" title="Baixar planilha do resultado filtrado">Baixar planilha</button>
+          <button class="btn-primary" style="padding:0 16px" onclick="abrirModalAddFuncionario()"><i class="ti ti-plus"></i> Adicionar Servidor</button>
+        </div>
+        <div id="filter-tags" style="margin-bottom:12px"></div>
+
+        <div class="table-container">
+          <table class="gov-table">
+            <thead>
+              <tr>
+                <th style="width:90px">Matrícula</th>
+                <th class="sortable" data-sort="nome" onclick="sortTable('nome')">Nome do Servidor</th>
+                <th class="sortable" data-sort="vinculo" onclick="sortTable('vinculo')">Vínculo</th>
+                <th class="sortable" data-sort="funcao" onclick="sortTable('funcao')">Função</th>
+                <th class="sortable" data-sort="lotacao_nome" onclick="sortTable('lotacao_nome')">Lotação Atual</th>
+                <th style="width:100px">Admissão</th>
+                <th class="sortable" data-sort="turno" onclick="sortTable('turno')">Turno</th>
+                <th style="width:140px;text-align:center">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="table-body"><tr><td colspan="8" class="empty-state"><span class="spinner"></span> Carregando…</td></tr></tbody>
+          </table>
+          <div class="pagination">
+            <div class="page-info" id="page-info">—</div>
+            <div class="page-controls" id="page-controls"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== LOCAIS (3 níveis drill-down) ===== -->
+      <section id="view-locais" class="view-section">
+        <div class="crumbs" id="locais-crumbs"></div>
+        <div id="locais-content"><span class="spinner"></span> Carregando…</div>
+      </section>
+
+      <!-- ===== ORGANOGRAMA ===== -->
+      <section id="view-organograma" class="view-section">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h3 style="color:var(--gov-blue-dark)">Estrutura Organizacional</h3>
+            <div style="display:flex;gap:8px">
+              <button class="btn-secondary" onclick="orgExpandirTudo()">Expandir tudo</button>
+              <button class="btn-secondary" onclick="orgRecolherTudo()">Recolher tudo</button>
+            </div>
+          </div>
+          <div id="org-tree" class="org-tree"><span class="spinner"></span> Carregando…</div>
+        </div>
+      </section>
+
+      <!-- ===== CEDIDOS E RECEBIDOS ===== -->
+      <section id="view-cedidos" class="view-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+          <div>
+            <div class="row-label" style="margin:0"><i class="ti ti-arrows-left-right"></i> Cedidos e Recebidos</div>
+            <small style="color:var(--color-text-muted)">Movimentação de servidores entre a SEMCAS e outros órgãos</small>
+          </div>
+          <button class="btn-primary" onclick="abrirModalCedido()"><i class="ti ti-plus"></i> Registrar Cessão/Recebimento</button>
+        </div>
+        <div class="stats-grid" id="cedidos-kpis" style="margin-bottom:20px;"></div>
+
+        <div class="toolbar-filters">
+          <div class="filter-field" style="flex:1;min-width:220px">
+            <label for="ced-busca">Buscar</label>
+            <input type="text" id="ced-busca" placeholder="Nome, matrícula ou órgão…">
+          </div>
+          <div class="filter-field">
+            <label for="ced-tipo">Movimentação</label>
+            <select id="ced-tipo">
+              <option value="">Todas</option>
+              <option value="CEDIDO">Cedidos (saíram)</option>
+              <option value="RECEBIDO">Recebidos (entraram)</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label for="ced-orgao">Órgão envolvido</label>
+            <select id="ced-orgao"><option value="">Todos os órgãos</option></select>
+          </div>
+          <div class="filter-field">
+            <label>&nbsp;</label>
+            <button id="ced-limpar" class="btn btn-outline" style="padding:8px 14px" title="Limpar filtros"><i class="ti ti-filter-off"></i> Limpar</button>
+          </div>
+          <span class="filter-result-count" id="ced-count"></span>
+        </div>
+
+        <div class="table-container">
+          <table class="gov-table">
+            <thead>
+              <tr>
+                <th>Servidor</th>
+                <th>Tipo</th>
+                <th>Órgão Envolvido</th>
+                <th>Lotação SEMCAS / Vínculo</th>
+                <th>Data Registro</th>
+                <th style="width:100px;text-align:center">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-cedidos">
+              <tr><td colspan="6" class="empty-state"><span class="spinner"></span> Carregando cedências…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ===== FOLHA DE PONTO ===== -->
+      <section id="view-folha-ponto" class="view-section">
+
+        <!-- Painel de Controles -->
+        <div class="card fp-no-print" id="fp-controls" style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+            <div>
+              <div style="font-size:16px;font-weight:700;color:var(--gov-blue-dark)">
+                <i class="ti ti-clock"></i> Gerador de Folha de Ponto
+              </div>
+              <div style="font-size:12px;color:var(--color-text-muted);margin-top:2px">Dados carregados do Supabase &mdash; Papel A4</div>
+            </div>
+            <button onclick="fpImprimir()" class="btn-primary">
+              <i class="ti ti-printer"></i> Imprimir
+            </button>
+          </div>
+
+          <!-- Abas -->
+          <div style="display:flex;border-bottom:2px solid var(--gov-border);margin-bottom:16px">
+            <button class="fp-tab-btn active" id="fp-btn-individual" onclick="fpSwitchTab('individual',this)">Individual</button>
+            <button class="fp-tab-btn" id="fp-btn-unidade"    onclick="fpSwitchTab('unidade',this)">Por Unidade</button>
+            <button class="fp-tab-btn" id="fp-btn-feriados"   onclick="fpSwitchTab('feriados',this)">Feriados</button>
+          </div>
+
+          <!-- Tab: Individual -->
+          <div class="fp-tab-pane active" id="fp-tab-individual">
+            <div style="display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:flex-end">
+              <div>
+                <label class="form-label" style="font-size:12px">Servidor</label>
+                <select id="fp-servidor-select" class="form-control" style="font-size:13px"
+                  onchange="fpPreencherServidor()">
+                  <option value="">Carregando servidores&#8230;</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label" style="font-size:12px">M&ecirc;s</label>
+                <select id="fp-mes" class="form-control" style="font-size:13px;width:130px"
+                  onchange="fpPopularDias()"></select>
+              </div>
+              <div>
+                <label class="form-label" style="font-size:12px">Ano</label>
+                <select id="fp-ano" class="form-control" style="font-size:13px;width:90px"
+                  onchange="fpPopularDias()"></select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: Feriados -->
+          <div class="fp-tab-pane" id="fp-tab-feriados">
+            <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-bottom:12px">
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+                <input type="checkbox" id="fp-chk-nac" checked> Nacionais
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+                <input type="checkbox" id="fp-chk-est" checked> Estaduais (MA)
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+                <input type="checkbox" id="fp-chk-mun" checked> Municipais (S&atilde;o Lu&iacute;s)
+              </label>
+              <div style="display:flex;align-items:center;gap:6px">
+                <label style="font-size:12px;font-weight:600">Ano:</label>
+                <select id="fp-fer-ano" class="form-control" style="width:90px;font-size:13px"
+                  onchange="fpRenderFeriados()"></select>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;margin-bottom:10px">
+              <input type="date" id="fp-fer-data" class="form-control" style="width:160px">
+              <input type="text" id="fp-fer-nome" class="form-control" placeholder="Nome do feriado personalizado" style="flex:1">
+              <button onclick="fpAddFeriado()" class="btn-primary"><i class="ti ti-plus"></i> Adicionar</button>
+            </div>
+            <div id="fp-feriados-lista" style="max-height:200px;overflow-y:auto;border:1px solid var(--gov-border);border-radius:4px;padding:8px;background:var(--gov-bg-light)"></div>
+          </div>
+
+          <!-- Tab: Por Unidade -->
+          <div class="fp-tab-pane" id="fp-tab-unidade">
+            <div style="background:#e8f4fd;border:1px solid #b3d9f7;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#1351b4">
+              <i class="ti ti-info-circle"></i>
+              Gera e imprime a folha de ponto de <strong>todos os servidores</strong> da unidade selecionada em sequência (uma página por servidor).
+              Apenas v&iacute;nculos: <strong>Efetivo, Comissionado e Servi&ccedil;o Prestado</strong>.
+            </div>
+            <div style="display:grid;grid-template-columns:1fr auto auto auto;gap:12px;align-items:flex-end">
+              <div>
+                <label class="form-label" style="font-size:12px">Unidade Administrativa</label>
+                <select id="fp-unidade-select" class="form-control" style="font-size:13px">
+                  <option value="">— Selecione a unidade —</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label" style="font-size:12px">M&ecirc;s</label>
+                <select id="fp-und-mes" class="form-control" style="font-size:13px;width:130px"></select>
+              </div>
+              <div>
+                <label class="form-label" style="font-size:12px">Ano</label>
+                <select id="fp-und-ano" class="form-control" style="font-size:13px;width:90px"></select>
+              </div>
+              <div style="padding-bottom:2px">
+                <button onclick="fpImprimirUnidade()" class="btn-primary" style="height:38px">
+                  <i class="ti ti-printer"></i> Imprimir Todas
+                </button>
+              </div>
+            </div>
+            <div id="fp-und-preview" style="margin-top:14px;font-size:13px;color:var(--color-text-muted)"></div>
+          </div>
+        </div>
+
+        <!-- Papel A4 -->
+        <div class="page-wrapper-fp">
+          <div class="page-fp" id="fp-paper">
+            <!-- Cabeçalho -->
+            <table class="folha-table">
+              <tr>
+                <td class="fp-bg-gray" style="width:70%;font-size:12px">REGISTRO INDIVIDUAL DE FREQU&Ecirc;NCIA</td>
+                <td class="fp-bg-head"><span id="fp-label-mesano">MES/ANO</span></td>
+              </tr>
+              <tr>
+                <td colspan="2" class="fp-bg-head" style="font-size:11px">
+                  Secretaria Municipal da Crian&ccedil;a e Assist&ecirc;ncia Social / SEMCAS
+                </td>
+              </tr>
+              <tr>
+                <td style="background:#fff">Nome: <input id="fp-inp-nome" class="fp-inp"></td>
+                <td style="background:#fff">Matr&iacute;cula: <input id="fp-inp-mat" class="fp-inp" style="width:80px"></td>
+              </tr>
+              <tr>
+                <td style="background:#fff">Cargo/Fun&ccedil;&atilde;o: <input id="fp-inp-cargo" class="fp-inp"></td>
+                <td style="background:#fff">V&iacute;nculo: <input id="fp-inp-vinculo" class="fp-inp"></td>
+              </tr>
+              <tr>
+                <td colspan="2" style="background:#fff">
+                  Unidade Administrativa: <input id="fp-inp-unidade" class="fp-inp">
+                </td>
+              </tr>
+            </table>
+
+            <!-- Grade de dias -->
+            <table class="folha-table" style="margin-top:-1px">
+              <colgroup>
+                <col style="width:6%">
+                <col style="width:10%"><col style="width:10%">
+                <col style="width:10%"><col style="width:10%">
+                <col style="width:10%"><col style="width:10%">
+                <col style="width:10%"><col style="width:10%">
+                <col style="width:14%">
+              </colgroup>
+              <thead>
+                <tr class="fp-bg-head">
+                  <th rowspan="3">Dia</th>
+                  <th colspan="8">Hor&aacute;rio de Trabalho</th>
+                  <th rowspan="3">Ocorr&ecirc;ncia</th>
+                </tr>
+                <tr class="fp-bg-head">
+                  <th colspan="4">Manh&atilde;</th>
+                  <th colspan="4">Tarde</th>
+                </tr>
+                <tr class="fp-bg-head">
+                  <th colspan="2" style="font-size:9px">Entrada:<br>08:00</th>
+                  <th colspan="2" style="font-size:9px">Sa&iacute;da:<br>12:00</th>
+                  <th colspan="2" style="font-size:9px">Entrada:<br>14:00</th>
+                  <th colspan="2" style="font-size:9px">Sa&iacute;da:<br>18:00</th>
+                </tr>
+                <tr class="fp-bg-gray">
+                  <th></th>
+                  <th style="font-size:9px">Hora</th><th style="font-size:9px">Rubrica</th>
+                  <th style="font-size:9px">Hora</th><th style="font-size:9px">Rubrica</th>
+                  <th style="font-size:9px">Hora</th><th style="font-size:9px">Rubrica</th>
+                  <th style="font-size:9px">Hora</th><th style="font-size:9px">Rubrica</th>
+                  <th style="font-size:9px">Obs</th>
+                </tr>
+              </thead>
+              <tbody id="fp-days-body"></tbody>
+            </table>
+
+            <!-- Assinaturas -->
+            <table style="width:100%;border-collapse:collapse;margin-top:-1px">
+              <tr>
+                <td style="border:1px solid #000;height:90px;vertical-align:top;padding:5px;width:50%">
+                  <div style="font-weight:bold;font-size:11px">Chefia Imediata:</div>
+                  <div style="margin-top:40px;border-top:1px solid #000;width:80%"></div>
+                  <div style="font-size:10px;margin-top:4px">S&atilde;o Lu&iacute;s, <span contenteditable="true" style="display:inline-block;min-width:100px;border-bottom:1px dotted #000">__/__/____</span></div>
+                </td>
+                <td style="border:1px solid #000;height:90px;vertical-align:top;padding:5px;width:50%">
+                  <div style="font-weight:bold;font-size:11px">Visto (Recursos Humanos):</div>
+                  <div style="margin-top:40px;border-top:1px solid #000;width:80%"></div>
+                  <div style="font-size:10px;margin-top:4px">S&atilde;o Lu&iacute;s, <span contenteditable="true" style="display:inline-block;min-width:100px;border-bottom:1px dotted #000">__/__/____</span></div>
+                </td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== FÉRIAS ===== -->
+      <section id="view-ferias" class="view-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+          <div class="row-label" style="margin:0">Controle de Férias</div>
+          <button class="btn-primary" onclick="abrirAgendarFerias()"><i class="ti ti-plus"></i> Agendar Férias</button>
+        </div>
+        <div class="stats-grid" id="ferias-kpis"></div>
+        <div style="display:flex;gap:4px;border-bottom:2px solid var(--gov-border);margin:20px 0 16px" id="ferias-tabs">
+          <button class="fer-tab active" data-aba="atuais">Em férias agora <span class="badge-cnt" id="cnt-atuais">0</span></button>
+          <button class="fer-tab" data-aba="proximas">Próximas (60d) <span class="badge-cnt" id="cnt-proximas">0</span></button>
+          <button class="fer-tab" data-aba="pendentes">Pendentes <span class="badge-cnt" id="cnt-pendentes">0</span></button>
+          <button class="fer-tab" data-aba="historico">Histórico</button>
+        </div>
+        <div class="toolbar-filters">
+          <div class="filter-field" style="flex:1;min-width:220px">
+            <label for="fer-filtro-busca">Buscar</label>
+            <input type="text" id="fer-filtro-busca" placeholder="Nome, função ou lotação…">
+          </div>
+          <div class="filter-field">
+            <label for="fer-filtro-lotacao">Lotação</label>
+            <select id="fer-filtro-lotacao"><option value="">Todas as lotações</option></select>
+          </div>
+          <div class="filter-field">
+            <label for="fer-filtro-tipo">Tipo</label>
+            <select id="fer-filtro-tipo"><option value="">Todos os tipos</option></select>
+          </div>
+          <div class="filter-field">
+            <label>&nbsp;</label>
+            <button id="fer-filtro-limpar" class="btn btn-outline" style="padding:8px 14px" title="Limpar filtros"><i class="ti ti-filter-off"></i> Limpar</button>
+          </div>
+          <span class="filter-result-count" id="fer-count"></span>
+        </div>
+        <div id="ferias-aba-conteudo"><span class="spinner"></span> Carregando…</div>
+      </section>
+
+      <!-- ===== PENDENTES (servidores da folha não casados) ===== -->
+      <section id="view-pendentes" class="view-section">
+        <div class="row-label">Servidores Pendentes de Cadastro</div>
+        <div style="background:#FEF3C7;border-left:4px solid #F59E0B;padding:12px 16px;border-radius:4px;font-size:13px;margin-bottom:16px;color:#92400E">
+          <i class="ti ti-alert-triangle"></i>
+          <strong>Como funciona:</strong> Esses servidores aparecem na folha de pagamento mas não foram encontrados na planilha de lotações. Pra cada um, você pode <strong>casar com um servidor existente</strong> (atualiza matrícula+admissão) ou <strong>criar novo cadastro</strong> escolhendo a lotação. Servidores não relevantes podem ser <strong>descartados</strong>.
+        </div>
+        <div class="stats-grid" id="pendentes-kpis"></div>
+        <div class="toolbar-filters" style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
+          <input type="text" id="pend-busca" placeholder="🔍 Buscar por nome ou matrícula…" style="flex:1;min-width:240px">
+          <select id="pend-status-filtro">
+            <option value="pendente">Pendentes</option>
+            <option value="casado">Casados</option>
+            <option value="novo_cadastrado">Novos cadastrados</option>
+            <option value="descartado">Descartados</option>
+            <option value="">Todos</option>
+          </select>
+          <select id="pend-ordem">
+            <option value="alfabetica">Ordem Alfabética</option>
+            <option value="match_desc">Maior Match (Recomendado)</option>
+          </select>
+        </div>
+        <div class="table-container" style="margin-top:12px">
+          <table class="gov-table">
+            <thead>
+              <tr>
+                <th>Matrícula</th>
+                <th>Nome na Folha</th>
+                <th>Admissão</th>
+                <th>Lotação / Cargo (Folha)</th>
+                <th>Sugestões de Cadastro (Banco Atual)</th>
+                <th>Status</th>
+                <th style="text-align:center">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="pend-tbody"><tr><td colspan="7" class="empty-state"><span class="spinner"></span> Carregando…</td></tr></tbody>
+          </table>
+        </div>
+
+        <!-- Nova Seção: Auditoria de Dados -->
+        <div style="margin-top: 40px;">
+          <div class="dash-section-header">
+            <div class="dash-icon" style="background:var(--gov-red)"><i class="ti ti-shield-search" style="color:#fff"></i></div>
+            <h2>Auditoria e Qualidade de Dados</h2>
+            <div class="dash-line"></div>
+          </div>
+          
+          <div class="form-grid" style="grid-template-columns: 1fr 1fr; align-items: start;">
+            <!-- Servidores sem Matrícula -->
+            <div style="background:var(--gov-surface); border:1px solid var(--gov-border); border-radius:var(--br-md); padding:16px;">
+              <h3 style="font-size:15px; font-weight:700; color:var(--gov-blue-dark); margin-bottom:12px; display:flex; justify-content:space-between;">
+                <span>⚠️ Servidores Sem Matrícula</span>
+                <span id="badge-sem-matricula" style="background:var(--gov-bg-light); color:var(--color-text-sec); font-size:12px; padding:2px 8px; border-radius:12px;">0</span>
+              </h3>
+              <div class="table-container" style="max-height: 400px; overflow-y: auto;">
+                <table class="gov-table" style="font-size:12px;">
+                  <thead>
+                    <tr>
+                      <th>Nome</th>
+                      <th>Lotação</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbody-sem-matricula">
+                    <tr><td colspan="2" class="empty-state">Carregando…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Possíveis Duplicidades -->
+            <div style="background:var(--gov-surface); border:1px solid var(--gov-border); border-radius:var(--br-md); padding:16px;">
+              <h3 style="font-size:15px; font-weight:700; color:var(--gov-blue-dark); margin-bottom:12px; display:flex; justify-content:space-between;">
+                <span>👥 Nomes Duplicados</span>
+                <span id="badge-duplicados" style="background:var(--gov-bg-light); color:var(--color-text-sec); font-size:12px; padding:2px 8px; border-radius:12px;">0</span>
+              </h3>
+              <div class="table-container" style="max-height: 400px; overflow-y: auto;">
+                <table class="gov-table" style="font-size:12px;">
+                  <thead>
+                    <tr>
+                      <th>Nome Duplicado</th>
+                      <th>Lotações Cadastradas</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbody-duplicados">
+                    <tr><td colspan="2" class="empty-state">Carregando…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== LICENÇAS E AFASTAMENTOS ===== -->
+      <section id="view-licencas" class="view-section">
+        <div id="alerta-licencas-page" class="alerta-licenca-wrap" hidden></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+          <div class="row-label" style="margin:0"><i class="ti ti-activity"></i> Controle de Licenças e Afastamentos</div>
+          <button class="btn-primary" onclick="abrirModalLicenca()"><i class="ti ti-plus"></i> Registrar Afastamento</button>
+        </div>
+        <div class="stats-grid" id="licencas-kpis" style="margin-bottom:20px;"></div>
+        <div class="toolbar-filters">
+          <div class="filter-field" style="flex:1;min-width:220px">
+            <label for="lic-search">Buscar</label>
+            <input type="text" id="lic-search" placeholder="Nome ou matrícula…">
+          </div>
+          <div class="filter-field">
+            <label for="lic-tipo-filtro">Tipo de afastamento</label>
+            <select id="lic-tipo-filtro"><option value="">Todos os tipos</option></select>
+          </div>
+          <div class="filter-field">
+            <label for="lic-periodo-filtro">Período</label>
+            <select id="lic-periodo-filtro">
+              <option value="">Todos</option>
+              <option value="determinado">Com data final</option>
+              <option value="indeterminado">Indeterminado</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label>&nbsp;</label>
+            <button id="lic-limpar" class="btn btn-outline" style="padding:8px 14px" title="Limpar filtros"><i class="ti ti-filter-off"></i> Limpar</button>
+          </div>
+          <span class="filter-result-count" id="lic-count"></span>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <div class="table-container">
+            <table class="gov-table">
+              <thead>
+                <tr>
+                  <th>Servidor</th>
+                  <th>Tipo / Categoria</th>
+                  <th>Lotação</th>
+                  <th>Período</th>
+                  <th>Portaria / SEI</th>
+                  <th>Status / Ações</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-licencas">
+                <tr><td colspan="6" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== LOGS DO SISTEMA ===== -->
+      <section id="view-logs" class="view-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+          <div>
+            <div class="row-label" style="margin:0">Histórico de Ações</div>
+            <small style="color:var(--color-text-muted)">Registro automático de auditoria das atividades do sistema</small>
+          </div>
+          <button class="btn-secondary" onclick="renderLogs()"><i class="ti ti-reload"></i> Atualizar</button>
+        </div>
+        <div class="card">
+          <div class="table-container">
+            <table class="gov-table">
+              <thead>
+                <tr>
+                  <th>Data/Hora</th>
+                  <th>Ação</th>
+                  <th>Servidor</th>
+                  <th>Detalhes</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-logs">
+                <tr><td colspan="4" class="empty-state"><span class="spinner"></span> Carregando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== GESTÃO DE LOTAÇÕES ===== -->
+      <section id="view-lotacoes" class="view-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+          <div>
+            <div class="row-label" style="margin:0">Gestão de Lotações</div>
+            <small style="color:var(--color-text-muted)">Adicionar, renomear, mover ou inativar coordenações, diretorias e unidades</small>
+          </div>
+          <button class="btn-primary" onclick="abrirNovaLotacao(null)"><i class="ti ti-plus"></i> Nova Lotação</button>
+        </div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px">
+            <input type="text" id="lot-busca" placeholder="🔍 Filtrar…" class="form-control" style="max-width:280px">
+            <div style="display:flex;gap:6px">
+              <button class="btn-secondary" onclick="lotExpandirTudo()">Expandir</button>
+              <button class="btn-secondary" onclick="lotRecolherTudo()">Recolher</button>
+            </div>
+          </div>
+          <div id="lot-tree" class="org-tree" style="max-height:70vh;overflow-y:auto"><span class="spinner"></span> Carregando…</div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<!-- Overlay escuro da sidebar mobile -->
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+<!-- BOTTOM NAVIGATION BAR (mobile) -->
+<nav class="bottom-nav" aria-label="Navegação principal">
+  <div class="bottom-nav-inner">
+    <a href="#painel" class="bottom-nav-item" data-route="painel">
+      <i class="ti ti-layout-dashboard"></i>
+      <span>Painel</span>
+    </a>
+    <a href="#funcionarios" class="bottom-nav-item" data-route="funcionarios">
+      <i class="ti ti-users"></i>
+      <span>Servidores</span>
+    </a>
+    <a href="#locais" class="bottom-nav-item" data-route="locais">
+      <i class="ti ti-map-pin"></i>
+      <span>Locais</span>
+    </a>
+    <a href="#logs" class="bottom-nav-item" data-route="logs">
+      <i class="ti ti-history"></i>
+      <span>Histórico</span>
+    </a>
+  </div>
+</nav>
+
+<!-- MODAL · ADICIONAR SERVIDOR -->
+<div class="modal-overlay" id="modal-add-funcionario">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title">Adicionar Servidor</div>
+      <button class="modal-close" onclick="closeModal('modal-add-funcionario')"></button>
+    </div>
+    <div class="modal-body">
+      <form id="add-form" class="form-grid" autocomplete="off">
+        <div class="form-group full-width">
+          <label class="form-label">Nome Completo *</label>
+          <input type="text" class="form-control" id="add-nome">
+        </div>
+        <div class="form-group">
+          <label class="form-label">CPF</label>
+          <input type="text" class="form-control" id="add-cpf" placeholder="000.000.000-00">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Matrícula</label>
+          <input type="text" class="form-control" id="add-matricula">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data de Admissão</label>
+          <input type="date" class="form-control" id="add-admissao">
+        </div>
+        <div class="form-group">
+          <label class="form-label">E-mail</label>
+          <input type="email" class="form-control" id="add-email">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Telefone</label>
+          <input type="text" class="form-control" id="add-telefone">
+        </div>
+        <div style="grid-column:1/-1;padding-top:12px;margin-top:4px;border-top:1px solid var(--gov-border)">
+          <strong style="font-size:13px;color:var(--gov-blue-dark)">Lotação Inicial</strong>
+        </div>
+        <div class="form-group full-width">
+          <label class="form-label">Lotação *</label>
+          <select class="form-control" id="add-lotacao"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Vínculo *</label>
+          <select class="form-control" id="add-vinculo"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Turno</label>
+          <select class="form-control" id="add-turno"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Função / Cargo</label>
+          <input type="text" class="form-control" id="add-funcao">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Ano do Concurso</label>
+          <input type="number" class="form-control" id="add-ano" min="2000" max="2099" step="1">
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-add-funcionario')">Cancelar</button>
+      <button class="btn-primary" id="btn-salvar-add">Cadastrar Servidor</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · EDITAR -->
+<div class="modal-overlay" id="modal-edit">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title">Editar Servidor</div>
+      <button class="modal-close" onclick="closeModal('modal-edit')"></button>
+    </div>
+    <div class="modal-body">
+      <form id="edit-form" class="form-grid" autocomplete="off">
+        <input type="hidden" id="edit-id">
+        <div class="form-group full-width">
+          <label class="form-label">Nome Completo *</label>
+          <input type="text" class="form-control" id="edit-nome">
+        </div>
+        <div class="form-group">
+          <label class="form-label">CPF</label>
+          <input type="text" class="form-control" id="edit-cpf" placeholder="000.000.000-00">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Matrícula</label>
+          <input type="text" class="form-control" id="edit-matricula">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data de Admissão</label>
+          <input type="date" class="form-control" id="edit-admissao">
+        </div>
+        <div class="form-group">
+          <label class="form-label">E-mail</label>
+          <input type="email" class="form-control" id="edit-email">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Telefone</label>
+          <input type="text" class="form-control" id="edit-telefone">
+        </div>
+
+        <div style="grid-column:1/-1;padding-top:12px;margin-top:4px;border-top:1px solid var(--gov-border)">
+          <strong style="font-size:13px;color:var(--gov-blue-dark)">Vínculo Atual</strong>
+          <small style="display:block;color:var(--color-text-muted);font-size:11px;margin-top:2px">Correções aqui não geram histórico. Pra mover de lotação, use o botão <em>Transferir</em>.</small>
+        </div>
+        <div class="form-group full-width" id="edit-lotacao-group" style="display:none">
+          <label class="form-label">Lotação *</label>
+          <small style="display:block;color:#b45309;font-size:11px;margin-bottom:4px">Este servidor está sem lotação ativa registrada. Selecione a lotação para regularizar o cadastro.</small>
+          <select class="form-control" id="edit-lotacao"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Vínculo</label>
+          <select class="form-control" id="edit-vinculo"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Turno</label>
+          <select class="form-control" id="edit-turno"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Função / Cargo</label>
+          <input type="text" class="form-control" id="edit-funcao">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Ano do Concurso</label>
+          <input type="number" class="form-control" id="edit-ano" min="2000" max="2099" step="1">
+        </div>
+
+        <div class="form-group full-width">
+          <label class="form-label">Observação</label>
+          <textarea class="form-control" id="edit-obs" rows="3" placeholder="Anotações internas sobre o servidor…"></textarea>
+        </div>
+
+        <details class="form-group full-width" id="edit-afast-details" style="border:1px solid var(--gov-border);border-radius:var(--br-md);padding:0;margin-top:4px">
+          <summary style="cursor:pointer;padding:12px;font-weight:700;color:var(--gov-blue-dark);font-size:13px;display:flex;align-items:center;gap:8px">
+            <i class="ti ti-activity"></i> Registrar Afastamento / Licença
+          </summary>
+          <div class="form-grid" style="padding:0 12px 14px">
+            <div class="form-group full-width">
+              <small style="display:block;color:var(--color-text-muted);font-size:11px;margin-bottom:8px">Ao registrar, o servidor <strong>permanece na lotação original</strong> e passa a aparecer também no menu <strong>Licenças</strong> (status de afastamento).</small>
+            </div>
+            <div class="form-group full-width">
+              <label class="form-label">Tipo de Afastamento *</label>
+              <select id="edit-afast-tipo" class="form-control">
+                <option value="">Selecione…</option>
+                <option value="Licença Prêmio">Licença Prêmio</option>
+                <option value="Licença para tratamento de saúde">Licença para tratamento de saúde</option>
+                <option value="Licença capacitação">Licença capacitação</option>
+                <option value="Licença para tratar de interesse particular">Licença para tratar de interesse particular</option>
+                <option value="Licença amamentação">Licença amamentação</option>
+                <option value="Outros">Outros</option>
+              </select>
+            </div>
+            <div class="form-group full-width" id="edit-afast-outro-group" style="display:none">
+              <label class="form-label">Especificar (Outros) *</label>
+              <input type="text" id="edit-afast-outro" class="form-control" placeholder="Descreva o tipo de afastamento">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Data Inicial *</label>
+              <input type="date" id="edit-afast-inicio" class="form-control">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Data Final (Opcional)</label>
+              <input type="date" id="edit-afast-fim" class="form-control">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Portaria</label>
+              <input type="text" id="edit-afast-portaria" class="form-control" placeholder="Ex: 001/2026">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Nº SEI</label>
+              <input type="text" id="edit-afast-sei" class="form-control">
+            </div>
+            <div class="form-group full-width">
+              <button type="button" class="btn-primary" id="btn-edit-afastar" style="width:100%">
+                <i class="ti ti-activity"></i> Registrar Afastamento / Licença
+              </button>
+            </div>
+          </div>
+        </details>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-edit')">Cancelar</button>
+      <button class="btn-primary" id="btn-salvar-edit">Salvar Alterações</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · TRANSFERIR -->
+<div class="modal-overlay" id="modal-transfer">
+  <div class="modal-content large">
+    <div class="modal-header">
+      <div class="modal-title">Transferir Servidor</div>
+      <button class="modal-close" onclick="closeModal('modal-transfer')"></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="trf-id">
+      <div class="form-grid">
+        <div class="form-group full-width">
+          <label class="form-label">Servidor</label>
+          <div id="trf-servidor-info" style="padding:12px;background:var(--gov-blue-light);border-radius:4px;font-size:13px;line-height:1.6"></div>
+        </div>
+        <div class="form-group full-width">
+          <label class="form-label">Nova Lotação *</label>
+          <input type="text" id="trf-search" class="form-control" placeholder="Filtrar lotações…" style="margin-bottom:8px">
+          <div id="trf-tree" class="lotacao-tree"></div>
+          <input type="hidden" id="trf-lotacao-id">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data da Transferência *</label>
+          <input type="date" id="trf-data" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Motivo</label>
+          <input type="text" id="trf-motivo" class="form-control" placeholder="Ex: Realocação setorial">
+        </div>
+        <div class="form-group full-width">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="trf-alterar"> Alterar função, turno ou vínculo na transferência
+          </label>
+        </div>
+        <div id="trf-extras" style="display:none;grid-column:1/-1" class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Nova Função</label>
+            <input type="text" id="trf-funcao" class="form-control" placeholder="Manter atual">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Novo Turno</label>
+            <select id="trf-turno" class="form-control"></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Novo Vínculo</label>
+            <select id="trf-vinculo" class="form-control"></select>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="abrirHistoricoDoTransfer()">Ver Histórico</button>
+      <button class="btn-secondary" onclick="closeModal('modal-transfer')">Cancelar</button>
+      <button class="btn-primary" id="btn-confirmar-trf">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · HISTÓRICO -->
+<div class="modal-overlay" id="modal-historico">
+  <div class="modal-content large">
+    <div class="modal-header">
+      <div class="modal-title">Histórico de Lotações</div>
+      <button class="modal-close" onclick="closeModal('modal-historico')"></button>
+    </div>
+    <div class="modal-body">
+      <div id="hist-content"><span class="spinner"></span> Carregando…</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-historico')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script type="module" src="js/app.js"></script>
+
+
+
+<!-- MODAL · AGENDAR FÉRIAS -->
+<div class="modal-overlay" id="modal-ferias">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title"><i class="ti ti-beach"></i> Agendar Férias</div>
+      <button class="modal-close" onclick="closeModal('modal-ferias')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group full-width">
+          <label class="form-label">Servidor *</label>
+          <input type="text" id="fer-search" class="form-control" placeholder="Digite o nome…">
+          <input type="hidden" id="fer-func-id">
+          <div id="fer-suggest" style="position:relative"></div>
+        </div>
+        <div class="form-group"><label class="form-label">Início *</label><input type="date" id="fer-inicio" class="form-control"></div>
+        <div class="form-group"><label class="form-label">Término *</label><input type="date" id="fer-fim" class="form-control"></div>
+        <div class="form-group">
+          <label class="form-label">Tipo</label>
+          <select id="fer-tipo" class="form-control">
+            <option value="regular">Férias Regulares</option>
+            <option value="premio">Licença-Prêmio</option>
+            <option value="licenca">Licença</option>
+            <option value="abono">Abono</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Dias</label><input type="text" id="fer-dias" class="form-control" readonly></div>
+        <div class="form-group full-width"><label class="form-label">Observação</label><textarea id="fer-obs" class="form-control" rows="2"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-ferias')">Cancelar</button>
+      <button class="btn-primary" id="btn-salvar-ferias">Agendar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · CRIAR/EDITAR LOTAÇÃO -->
+<div class="modal-overlay" id="modal-lotacao">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title"><i class="ti ti-building"></i> Lotação</div>
+      <button class="modal-close" onclick="closeModal('modal-lotacao')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="nl-id">
+      <input type="hidden" id="nl-parent">
+      <div class="form-grid">
+        <div class="form-group full-width">
+          <label class="form-label">Pai (parent)</label>
+          <div id="nl-parent-info" style="padding:8px 12px;background:var(--gov-bg-light);border-radius:4px;font-size:13px"></div>
+        </div>
+        <div class="form-group full-width">
+          <label class="form-label">Nome *</label>
+          <input type="text" id="nl-nome" class="form-control" placeholder="Ex: Coordenação de Apoio Administrativo">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tipo *</label>
+          <select id="nl-tipo" class="form-control">
+            <option value="superintendencia">Superintendência</option>
+            <option value="coordenacao">Coordenação</option>
+            <option value="diretoria">Diretoria</option>
+            <option value="unidade">Unidade</option>
+            <option value="conselho">Conselho</option>
+            <option value="setor">Setor</option>
+            <option value="nivel">Nível</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Marcador (opcional)</label>
+          <input type="text" id="nl-marcador" class="form-control" placeholder="Ex: a, b, I, II">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-lotacao')">Cancelar</button>
+      <button class="btn-primary" id="btn-salvar-lotacao">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · MOVER LOTAÇÃO -->
+<div class="modal-overlay" id="modal-mover-lotacao">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title"><i class="ti ti-arrow-move-right"></i> Mover Lotação</div>
+      <button class="modal-close" onclick="closeModal('modal-mover-lotacao')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="mov-id">
+      <div class="form-grid">
+        <div class="form-group full-width">
+          <div id="mov-info" style="padding:12px;background:var(--gov-blue-light);border-radius:4px;font-size:13px"></div>
+        </div>
+        <div class="form-group full-width">
+          <label class="form-label">Novo Pai</label>
+          <select id="mov-novo-parent" class="form-control"></select>
+          <small style="color:var(--color-text-muted);font-size:11px">A lotação leva todos os filhos e servidores junto.</small>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-mover-lotacao')">Cancelar</button>
+      <button class="btn-primary" id="btn-confirmar-mover">Mover</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · CADASTRAR PENDENTE COMO NOVO -->
+<div class="modal-overlay" id="modal-cadastrar-pendente">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title"><i class="ti ti-user-plus"></i> Cadastrar Novo Servidor</div>
+      <button class="modal-close" onclick="closeModal('modal-cadastrar-pendente')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="cad-pend-id">
+      <div class="form-grid">
+        <div class="form-group full-width">
+          <div id="cad-pend-info" style="padding:12px;background:var(--gov-blue-light);border-radius:4px;font-size:13px"></div>
+        </div>
+        <div class="form-group full-width">
+          <label class="form-label">Lotação *</label>
+          <select id="cad-pend-lotacao" class="form-control"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Vínculo *</label>
+          <select id="cad-pend-vinculo" class="form-control"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Turno</label>
+          <select id="cad-pend-turno" class="form-control"></select>
+        </div>
+        <div class="form-group full-width">
+          <label class="form-label">Função / Cargo</label>
+          <input type="text" id="cad-pend-funcao" class="form-control">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-cadastrar-pendente')">Cancelar</button>
+      <button class="btn-primary" id="btn-cadastrar-pendente">Cadastrar</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL · LICENÇA / AFASTAMENTO -->
+<div class="modal-overlay" id="modal-licenca">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title"><i class="ti ti-activity"></i> Registrar Afastamento / Licença</div>
+      <button class="modal-close" onclick="closeModal('modal-licenca')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <input type="hidden" id="lic-func-id">
+        <div class="form-group full-width" id="lic-func-container">
+          <label class="form-label">Servidor</label>
+          <input type="text" id="lic-func-nome" class="form-control" disabled>
+        </div>
+        <div class="form-group full-width">
+          <label class="form-label">Tipo de Afastamento *</label>
+          <select id="lic-tipo" class="form-control">
+            <option value="Licença Prêmio">Licença Prêmio</option>
+            <option value="Licença para tratamento de saúde">Licença para tratamento de saúde</option>
+            <option value="Licença capacitação">Licença capacitação</option>
+            <option value="Licença para tratar de interesse particular">Licença para tratar de interesse particular</option>
+            <option value="Licença amamentação">Licença amamentação</option>
+            <option value="Outros">Outros</option>
+          </select>
+        </div>
+        <div class="form-group full-width" id="lic-tipo-outro-group" style="display:none">
+          <label class="form-label">Especificar (Outros) *</label>
+          <input type="text" id="lic-tipo-outro" class="form-control" placeholder="Descreva o tipo de afastamento">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data Inicial *</label>
+          <input type="date" id="lic-inicio" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data Final (Opcional)</label>
+          <input type="date" id="lic-fim" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Portaria</label>
+          <input type="text" id="lic-portaria" class="form-control" placeholder="Ex: 001/2026">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nº SEI</label>
+          <input type="text" id="lic-sei" class="form-control">
+        </div>
+        <div class="form-group full-width">
+          <label class="form-label">Observação</label>
+          <textarea id="lic-obs" class="form-control" rows="3"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-licenca')">Cancelar</button>
+      <button class="btn-primary" id="btn-salvar-licenca">Salvar Afastamento</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · CEDIDOS E RECEBIDOS -->
+<div class="modal-overlay" id="modal-cedido">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title"><i class="ti ti-arrows-left-right"></i> Registrar Cessão / Recebimento</div>
+      <button class="modal-close" onclick="closeModal('modal-cedido')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <input type="hidden" id="cedido-func-id">
+        <div class="form-group full-width" id="cedido-func-nome-container">
+          <label class="form-label">Servidor *</label>
+          <input type="text" class="form-control" disabled>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tipo de Movimentação *</label>
+          <select id="cedido-tipo" class="form-control">
+            <option value="CEDIDO">CEDIDO (Saiu da SEMCAS)</option>
+            <option value="RECEBIDO">RECEBIDO (Veio para a SEMCAS)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Órgão Origem/Destino *</label>
+          <input type="text" id="cedido-orgao" class="form-control" placeholder="Ex: SEMUS, SEMGOV, MINISTÉRIO PÚBLICO">
+        </div>
+        <div class="form-group full-width">
+          <label class="form-label">Observações / Detalhes (Opcional)</label>
+          <textarea id="cedido-obs" class="form-control" rows="3" placeholder="Insira número da portaria, termo de cessão, etc."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-cedido')">Cancelar</button>
+      <button class="btn-primary" onclick="salvarCedencia()" id="btn-salvar-cedencia">Salvar Registro</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
+
