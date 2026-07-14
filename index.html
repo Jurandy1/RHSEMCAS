@@ -64,6 +64,7 @@
       <div class="nav-group">Gestão</div>
       <a href="#licencas" class="nav-item" data-route="licencas">
         <i class="ti ti-activity"></i> Licenças
+        <span id="badge-licencas" style="display:none;margin-left:auto;background:var(--gov-orange,#ed7b2f);color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;line-height:16px" title="Licenças próximas do vencimento"></span>
       </a>
       <a href="#ferias" class="nav-item" data-route="ferias">
         <i class="ti ti-beach"></i> Férias
@@ -123,6 +124,8 @@
 
       <!-- ===== PAINEL ===== -->
       <section id="view-painel" class="view-section">
+
+        <div id="alerta-licencas-painel" class="alerta-licenca-wrap" hidden></div>
 
         <!-- Cabeçalho do Painel -->
         <div class="dash-section-header" style="margin-top:0">
@@ -606,6 +609,7 @@
 
       <!-- ===== LICENÇAS E AFASTAMENTOS ===== -->
       <section id="view-licencas" class="view-section">
+        <div id="alerta-licencas-page" class="alerta-licenca-wrap" hidden></div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
           <div class="row-label" style="margin:0"><i class="ti ti-activity"></i> Controle de Licenças e Afastamentos</div>
           <button class="btn-primary" onclick="abrirModalLicenca()"><i class="ti ti-plus"></i> Registrar Afastamento</button>
@@ -641,10 +645,10 @@
                 <tr>
                   <th>Servidor</th>
                   <th>Tipo / Categoria</th>
+                  <th>Lotação</th>
                   <th>Período</th>
                   <th>Portaria / SEI</th>
-                  <th>Status</th>
-                  <th style="width:80px;text-align:center">Ações</th>
+                  <th>Status / Ações</th>
                 </tr>
               </thead>
               <tbody id="tbody-licencas">

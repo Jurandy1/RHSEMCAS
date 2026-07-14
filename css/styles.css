@@ -737,6 +737,61 @@
     .alerta-box i { font-size: 20px; color: #b28900; flex-shrink: 0; }
     .alerta-text { font-size: 13px; color: #594400; line-height: 1.5; }
 
+    /* Alerta de licenças próximas do vencimento */
+    .alerta-licenca-wrap { margin-bottom: 14px; }
+    .alerta-licenca {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 11px 14px;
+      border-radius: var(--br-sm);
+      border-left: 4px solid var(--gov-orange);
+      background: #fff7f0;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .alerta-licenca.urgente {
+      border-left-color: var(--gov-red, #d9363e);
+      background: #fff5f5;
+    }
+    .alerta-licenca > i {
+      font-size: 20px;
+      color: var(--gov-orange);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .alerta-licenca.urgente > i { color: var(--gov-red, #d9363e); }
+    .alerta-licenca-body { flex: 1; min-width: 0; }
+    .alerta-licenca-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--gov-blue-dark);
+      margin: 0 0 2px;
+    }
+    .alerta-licenca-msg {
+      font-size: 12.5px;
+      color: var(--color-text-sec, #555);
+      line-height: 1.45;
+      margin: 0;
+    }
+    .alerta-licenca-msg strong { color: var(--gov-blue-dark); }
+    .alerta-licenca-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .alerta-licenca-actions .btn-link-lic {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--gov-blue-primary);
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .alerta-licenca-actions .btn-link-lic:hover { color: var(--gov-blue-dark); }
+
     /* ============ EXTENSÕES ============ */
     
     /* Cards do dashboard clicáveis */

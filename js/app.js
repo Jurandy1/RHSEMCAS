@@ -544,6 +544,7 @@ let _chartVinculos = null;
 let _chartLocais = null;
 
 async function renderPainel() {
+  atualizarAlertasLicenca(); // fire-and-forget no topo do painel
   const [kpiRes, vincsRes, locaisRes, cedKpiRes, totalRes] = await Promise.all([
     sb.from('v_dashboard_kpis').select('*').single(),
     sb.from('v_dashboard_vinculos').select('*'),
@@ -1411,7 +1412,9 @@ window.abrirTransferencia = async (id) => {
   $('trf-alterar').checked = false;
   $('trf-extras').style.display = 'none';
   $('trf-search').value = '';
-  renderArvoreTransfer(data.lotacao_id);
+  const title = document.querySelector('#modal-transfer .modal-title');
+  if (title && !state._trfFromLicencas) title.textContent = 'Transferir Servidor';
+  renderArvoreTransfer(data.lotacao_atual_id ?? data.lotacao_id);
   
   openModal('modal-transfer');
 };
@@ -1435,11 +1438,14 @@ function renderArvoreTransfer(lotacaoAtualId) {
   function render(l, depth) {
     if (!matches(l)) return '';
     const isCurrent = l.id == lotacaoAtualId;
-    const dis = isCurrent ? 'opacity:0.4;cursor:not-allowed' : '';
+    const isLicEsp = state._trfFromLicencas && isLotacaoLicencasEsp(l.nome);
+    const blocked = isCurrent || isLicEsp;
+    const dis = blocked ? 'opacity:0.4;cursor:not-allowed' : '';
     return `<div class="lotacao-tree-item" data-id="${l.id}" style="padding-left:${8 + depth*16}px;${dis}">
               <span style="font-size:9px">${l.tipo}</span>
               ${htmlEscape(l.nome)}
               ${isCurrent ? '<small>(atual)</small>' : ''}
+              ${isLicEsp && !isCurrent ? '<small>(inválida para definição)</small>' : ''}
             </div>` + l.filhos.map(c => render(c, depth+1)).join('');
   }
   $('trf-tree').innerHTML = secoes
@@ -1449,7 +1455,9 @@ function renderArvoreTransfer(lotacaoAtualId) {
       ${s.itens.map(r => render(r, 0)).join('')}`)
     .join('');
   $$('#trf-tree .lotacao-tree-item').forEach(el => {
+    const lot = state.lotacoes.find(x => String(x.id) === String(el.dataset.id));
     if (el.dataset.id == lotacaoAtualId) return;
+    if (state._trfFromLicencas && isLotacaoLicencasEsp(lot?.nome)) return;
     el.onclick = () => {
       $('trf-lotacao-id').value = el.dataset.id;
       $$('#trf-tree .lotacao-tree-item').forEach(e => e.classList.remove('selected'));
@@ -1487,9 +1495,14 @@ $('btn-confirmar-trf').onclick = async () => {
   btn.disabled = false;
   if (error) { showToast('Erro: ' + error.message, 'error'); return; }
   await registrarLog('TRANSFERÊNCIA', id, state.funcionarioAtual?.nome || 'Servidor(a)', { nova_lot_id: novaLot, motivo: params.p_motivo });
-  showToast('Transferência registrada com sucesso', 'success');
+  const veioDeLicencas = !!state._trfFromLicencas;
+  state._trfFromLicencas = false;
+  showToast(veioDeLicencas
+    ? 'Lotação definida! O servidor permanece em Licenças (status).'
+    : 'Transferência registrada com sucesso', 'success');
   closeModal('modal-transfer');
   carregarFuncionarios();
+  if (veioDeLicencas || state.rotaAtual === 'licencas') carregarTabelaLicencas();
 };
 
 window.abrirHistoricoDoTransfer = () => {
@@ -2731,13 +2744,14 @@ async function salvarCadastrarPendente() {
   renderPendentes();
 }
 
-// === Badge de pendentes na boot ===
+// === Badge de pendentes + alertas de licença na boot ===
 (async () => {
   const { data } = await sb.from('v_pendentes_kpis').select('pendentes').single();
   if (data && $('badge-pendentes')) {
     $('badge-pendentes').textContent = data.pendentes;
     $('badge-pendentes').style.display = data.pendentes > 0 ? '' : 'none';
   }
+  atualizarAlertasLicenca();
 })();
 
 // ╔══════════════════════════════════════════════════════════════╗
@@ -2745,8 +2759,130 @@ async function salvarCadastrarPendente() {
 // ╚══════════════════════════════════════════════════════════════╝
 rotas.licencas = { titulo: 'Licenças e Afastamentos', bread: 'Licenças', render: renderLicencas };
 
+// Janela de aviso: licenças que vencem em até N dias (ou já vencidas e ainda ativas)
+const LIC_AVISO_DIAS = 30;
+const LIC_URGENTE_DIAS = 7;
+
 // Filtro ativo pelo clique nos cards de KPI (soft-match, alinhado à view v_licencas_kpis)
 window._licKpiFiltro = '';
+window._licVencFiltro = ''; // '' | 'proximas' | 'vencidas'
+
+function diasAteData(dataStr) {
+  if (!dataStr) return null;
+  const fim = new Date(dataStr + 'T00:00:00');
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  return Math.round((fim - hoje) / 86400000);
+}
+
+function classificarLicencasVencimento(lista) {
+  const vencidas = [];
+  const urgentes = [];
+  const proximas = [];
+  for (const l of (lista || [])) {
+    if (!l.data_final) continue;
+    const d = diasAteData(l.data_final);
+    if (d == null) continue;
+    if (d < 0) vencidas.push({ ...l, dias_restantes: d });
+    else if (d <= LIC_URGENTE_DIAS) urgentes.push({ ...l, dias_restantes: d });
+    else if (d <= LIC_AVISO_DIAS) proximas.push({ ...l, dias_restantes: d });
+  }
+  const sortAsc = (a, b) => a.dias_restantes - b.dias_restantes;
+  vencidas.sort(sortAsc);
+  urgentes.sort(sortAsc);
+  proximas.sort(sortAsc);
+  return { vencidas, urgentes, proximas, total: vencidas.length + urgentes.length + proximas.length };
+}
+
+function montarHtmlAlertaLicenca(info, { compacto = false } = {}) {
+  if (!info || info.total === 0) return '';
+  const urgente = info.vencidas.length > 0 || info.urgentes.length > 0;
+  const partes = [];
+  if (info.vencidas.length) {
+    partes.push(`<strong>${info.vencidas.length}</strong> vencida(s) e ainda ativa(s)`);
+  }
+  if (info.urgentes.length) {
+    partes.push(`<strong>${info.urgentes.length}</strong> vencendo em até ${LIC_URGENTE_DIAS} dias`);
+  }
+  if (info.proximas.length) {
+    partes.push(`<strong>${info.proximas.length}</strong> vencendo em até ${LIC_AVISO_DIAS} dias`);
+  }
+
+  const exemplos = [...info.vencidas, ...info.urgentes, ...info.proximas]
+    .slice(0, compacto ? 2 : 4)
+    .map(l => {
+      const d = l.dias_restantes;
+      const rotulo = d < 0
+        ? `vencida há ${Math.abs(d)} dia(s)`
+        : d === 0 ? 'vence hoje' : `vence em ${d} dia(s)`;
+      return `${htmlEscape(l.nome)} (${rotulo})`;
+    })
+    .join(' · ');
+
+  const filtroAlvo = info.vencidas.length && !info.urgentes.length && !info.proximas.length
+    ? 'vencidas'
+    : 'proximas';
+
+  return `
+    <div class="alerta-licenca${urgente ? ' urgente' : ''}" role="status">
+      <i class="ti ti-alert-triangle"></i>
+      <div class="alerta-licenca-body">
+        <p class="alerta-licenca-title">${urgente ? 'Atenção: licenças com vencimento crítico' : 'Licenças próximas do vencimento'}</p>
+        <p class="alerta-licenca-msg">${partes.join(' · ')}.${exemplos ? ` Ex.: ${exemplos}.` : ''}</p>
+        <div class="alerta-licenca-actions">
+          <button type="button" class="btn-link-lic" onclick="abrirLicencasComAlerta('${filtroAlvo}')">Ver em Licenças</button>
+          ${!compacto ? `<button type="button" class="btn-link-lic" onclick="abrirLicencasComAlerta('vencidas')" style="${info.vencidas.length ? '' : 'display:none'}">Só vencidas</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+}
+
+async function atualizarAlertasLicenca() {
+  try {
+    const { data } = await sb.from('v_licencas_atuais')
+      .select('funcionario_id, nome, matricula, tipo_afastamento, data_final')
+      .not('data_final', 'is', null);
+    const info = classificarLicencasVencimento(data || []);
+    window._licAlertasCache = info;
+
+    const badge = $('badge-licencas');
+    if (badge) {
+      if (info.total > 0) {
+        badge.textContent = info.total;
+        badge.style.display = '';
+        badge.title = `${info.total} licença(s) próxima(s) do vencimento ou vencida(s)`;
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+
+    const htmlPainel = montarHtmlAlertaLicenca(info, { compacto: true });
+    const elPainel = $('alerta-licencas-painel');
+    if (elPainel) {
+      elPainel.innerHTML = htmlPainel;
+      elPainel.hidden = !htmlPainel;
+    }
+
+    const htmlPage = montarHtmlAlertaLicenca(info, { compacto: false });
+    const elPage = $('alerta-licencas-page');
+    if (elPage) {
+      elPage.innerHTML = htmlPage;
+      elPage.hidden = !htmlPage;
+    }
+  } catch (e) {
+    console.warn('Alertas de licença:', e);
+  }
+}
+
+window.abrirLicencasComAlerta = (filtro) => {
+  window._licVencFiltro = filtro || 'proximas';
+  window._licKpiFiltro = '';
+  if (location.hash === '#licencas') {
+    renderLicencas();
+  } else {
+    location.hash = '#licencas';
+  }
+};
 
 function normalizarTextoLicenca(txt) {
   return (txt || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -2772,12 +2908,14 @@ function atualizarDestaqueCardsLicenca() {
 window.filtrarLicencasPorKpi = (kpiKey) => {
   // Clique no mesmo card ativo limpa o filtro
   window._licKpiFiltro = (window._licKpiFiltro === kpiKey) ? '' : (kpiKey || '');
+  window._licVencFiltro = '';
   if ($('lic-tipo-filtro')) $('lic-tipo-filtro').value = '';
   atualizarDestaqueCardsLicenca();
   if (window._licencasCache) renderTabelaLicencas(window._licencasCache);
 };
 
 async function renderLicencas() {
+  atualizarAlertasLicenca();
   const kpis = await handleErr(await sb.from('v_licencas_kpis').select('*').single(), 'KPIs licencas');
   if (kpis) {
     const cards = [
@@ -2799,22 +2937,47 @@ async function renderLicencas() {
   carregarTabelaLicencas();
 }
 
+function isLotacaoLicencasEsp(nome) {
+  return /licen[cç]as\s+e\s+afastamentos/i.test(nome || '');
+}
+
 async function carregarTabelaLicencas() {
   const { data } = await sb.from('v_licencas_atuais').select('*').order('nome');
-  if(data) {
-    window._licencasCache = data;
-    // Popula o filtro de tipo com os tipos realmente presentes (filtragem inteligente)
-    const tipos = [...new Set(data.map(l => (l.tipo_afastamento || '').trim()).filter(Boolean))]
-      .sort((a, b) => a.localeCompare(b));
-    const sel = $('lic-tipo-filtro');
-    if (sel) {
-      const atual = sel.value;
-      sel.innerHTML = '<option value="">Todos os tipos</option>' +
-        tipos.map(t => `<option value="${htmlEscape(t)}">${htmlEscape(t)}</option>`).join('');
-      if (tipos.includes(atual)) sel.value = atual;
-    }
-    renderTabelaLicencas(data);
+  if (!data) return;
+
+  // Complementa com lotação atual (para RH definir lotação original quando ainda estiver em Licenças)
+  const ids = [...new Set(data.map(l => l.funcionario_id).filter(Boolean))];
+  let lotMap = {};
+  if (ids.length) {
+    const { data: atuais } = await sb.from('v_funcionarios_atual')
+      .select('funcionario_id, lotacao_atual_id, lotacao_id, lotacao_nome, caminho_lotacao')
+      .in('funcionario_id', ids);
+    lotMap = Object.fromEntries((atuais || []).map(a => [a.funcionario_id, a]));
   }
+
+  const enriquecida = data.map(l => {
+    const a = lotMap[l.funcionario_id] || {};
+    const lotNome = a.caminho_lotacao || a.lotacao_nome || l.lotacao_nome || '';
+    return {
+      ...l,
+      lotacao_id: a.lotacao_atual_id ?? a.lotacao_id ?? null,
+      lotacao_nome: lotNome,
+      precisa_definir_lotacao: !lotNome || isLotacaoLicencasEsp(lotNome)
+    };
+  });
+
+  window._licencasCache = enriquecida;
+  // Popula o filtro de tipo com os tipos realmente presentes (filtragem inteligente)
+  const tipos = [...new Set(enriquecida.map(l => (l.tipo_afastamento || '').trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+  const sel = $('lic-tipo-filtro');
+  if (sel) {
+    const atual = sel.value;
+    sel.innerHTML = '<option value="">Todos os tipos</option>' +
+      tipos.map(t => `<option value="${htmlEscape(t)}">${htmlEscape(t)}</option>`).join('');
+    if (tipos.includes(atual)) sel.value = atual;
+  }
+  renderTabelaLicencas(enriquecida);
 }
 
 function renderTabelaLicencas(lista) {
@@ -2822,25 +2985,64 @@ function renderTabelaLicencas(lista) {
     const tipoFiltro = $('lic-tipo-filtro')?.value || '';
     const periodoFiltro = $('lic-periodo-filtro')?.value || '';
     const kpiFiltro = window._licKpiFiltro || '';
+    const vencFiltro = window._licVencFiltro || '';
     const data = lista.filter(l => {
       if (kpiFiltro && !tipoLicencaCorrespondeKpi(l.tipo_afastamento, kpiFiltro)) return false;
       if (tipoFiltro && (l.tipo_afastamento || '').trim() !== tipoFiltro) return false;
       if (periodoFiltro === 'determinado' && !l.data_final) return false;
       if (periodoFiltro === 'indeterminado' && l.data_final) return false;
+      if (vencFiltro) {
+        const d = diasAteData(l.data_final);
+        if (d == null) return false;
+        if (vencFiltro === 'vencidas' && d >= 0) return false;
+        if (vencFiltro === 'proximas' && !(d < 0 || d <= LIC_AVISO_DIAS)) return false;
+      }
       if (termo) {
-        const alvo = `${l.nome || ''} ${l.matricula || ''}`.toLowerCase();
+        const alvo = `${l.nome || ''} ${l.matricula || ''} ${l.lotacao_nome || ''}`.toLowerCase();
         if (!termo.split(/\s+/).every(p => alvo.includes(p))) return false;
       }
       return true;
     });
+    // Pendentes de lotação / vencimento primeiro
+    data.sort((a, b) => {
+      const da = diasAteData(a.data_final);
+      const db = diasAteData(b.data_final);
+      const prioA = (a.precisa_definir_lotacao ? 2 : 0) + (da != null && da <= LIC_AVISO_DIAS ? 1 : 0);
+      const prioB = (b.precisa_definir_lotacao ? 2 : 0) + (db != null && db <= LIC_AVISO_DIAS ? 1 : 0);
+      if (prioB !== prioA) return prioB - prioA;
+      if (da != null && db != null && da !== db) return da - db;
+      return (a.nome || '').localeCompare(b.nome || '');
+    });
+    const pendentes = lista.filter(l => l.precisa_definir_lotacao).length;
     const cnt = $('lic-count');
-    if (cnt) cnt.innerHTML = `<strong>${data.length}</strong> de ${lista.length} afastado(s)`;
+    if (cnt) {
+      let extra = '';
+      if (vencFiltro) {
+        extra += ` · <span style="color:var(--gov-orange);font-weight:700">filtro: ${vencFiltro === 'vencidas' ? 'vencidas' : 'próximas do vencimento'}</span>`;
+      }
+      if (pendentes) extra += ` · <span style="color:var(--gov-orange);font-weight:700">${pendentes} pendente(s) de lotação</span>`;
+      cnt.innerHTML = `<strong>${data.length}</strong> de ${lista.length} afastado(s)` + extra;
+    }
     if (data.length === 0) {
       $('tbody-licencas').innerHTML = `<tr><td colspan="6"><div class="empty-state">${lista.length === 0 ? 'Nenhum afastamento encontrado' : 'Nenhum afastamento corresponde aos filtros'}</div></td></tr>`;
       return;
     }
-    $('tbody-licencas').innerHTML = data.map(l => `
-      <tr>
+    $('tbody-licencas').innerHTML = data.map(l => {
+      const dias = diasAteData(l.data_final);
+      let vencHtml = '';
+      let rowBg = l.precisa_definir_lotacao ? 'background:#fff8f0' : '';
+      if (dias != null && dias < 0) {
+        vencHtml = `<div style="font-size:11px;color:var(--gov-red);font-weight:700"><i class="ti ti-alert-triangle"></i> Vencida há ${Math.abs(dias)} dia(s)</div>`;
+        rowBg = rowBg || 'background:#fff5f5';
+      } else if (dias != null && dias <= LIC_URGENTE_DIAS) {
+        vencHtml = `<div style="font-size:11px;color:var(--gov-red);font-weight:700"><i class="ti ti-clock"></i> ${dias === 0 ? 'Vence hoje' : `Vence em ${dias} dia(s)`}</div>`;
+        rowBg = rowBg || 'background:#fff5f5';
+      } else if (dias != null && dias <= LIC_AVISO_DIAS) {
+        vencHtml = `<div style="font-size:11px;color:var(--gov-orange);font-weight:600"><i class="ti ti-clock"></i> Vence em ${dias} dia(s)</div>`;
+        rowBg = rowBg || 'background:#fffaf3';
+      }
+      return `
+      <tr${rowBg ? ` style="${rowBg}"` : ''}>
         <td>
           <div style="font-weight:600;color:var(--gov-blue-dark)">${htmlEscape(l.nome)}</div>
           <div style="font-size:12px;color:var(--color-text-sec)">Mat: ${htmlEscape(l.matricula||'S/M')}</div>
@@ -2849,24 +3051,51 @@ function renderTabelaLicencas(lista) {
           <span class="badge" style="background:#fff9e6;color:var(--gov-orange)"><i class="ti ti-activity"></i> ${htmlEscape(l.tipo_afastamento)}</span>
         </td>
         <td>
+          ${l.precisa_definir_lotacao
+            ? `<div style="font-size:12px;color:var(--gov-orange);font-weight:700"><i class="ti ti-alert-circle"></i> Pendente de lotação</div>
+               <div style="font-size:11px;color:var(--color-text-muted)">${htmlEscape(l.lotacao_nome || 'Sem lotação original')}</div>`
+            : `<div style="font-size:12px">${htmlEscape(l.lotacao_nome || '—')}</div>`}
+        </td>
+        <td>
           <div style="font-size:12px">${l.data_inicial ? l.data_inicial.split('-').reverse().join('/') : 'Indeterminado'}</div>
           <div style="font-size:12px">${l.data_final ? l.data_final.split('-').reverse().join('/') : 'Indeterminado'}</div>
+          ${vencHtml}
         </td>
         <td>
           <div style="font-size:12px">Portaria: ${htmlEscape(l.portaria||'-')}</div>
           <div style="font-size:12px">SEI: ${htmlEscape(l.num_sei||'-')}</div>
         </td>
         <td>
-          <div style="display:flex;gap:8px;align-items:center">
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">
             <span style="color:var(--gov-orange);font-weight:600;font-size:12px"><i class="ti ti-clock"></i> Afastado</span>
+            ${l.precisa_definir_lotacao
+              ? `<button class="btn-primary" style="padding:6px 10px;font-size:12px" onclick="definirLotacaoLicenca(${l.funcionario_id})" title="RH: informar a lotação original do servidor">
+                   <i class="ti ti-building"></i> Definir lotação
+                 </button>`
+              : ''}
             <button class="btn-icon" onclick="retornarAtiva(${l.funcionario_id})" title="Encerrar e Retornar à Ativa">
               <i class="ti ti-arrow-back-up"></i> Retornar à Ativa
             </button>
           </div>
         </td>
-      </tr>
-    `).join('');
+      </tr>`;
+    }).join('');
 }
+
+window.definirLotacaoLicenca = async (funcionario_id) => {
+  state._trfFromLicencas = true;
+  if (!state.lotacoes?.length) {
+    const lRes = await sb.from('v_lotacoes_com_count').select('*').order('nome');
+    state.lotacoes = (lRes.data || []).filter(l => l.ativo !== false);
+  }
+  await abrirTransferencia(funcionario_id);
+  // Ajusta o modal para o contexto de RH em Licenças
+  const title = document.querySelector('#modal-transfer .modal-title');
+  if (title) title.textContent = 'Definir Lotação Original';
+  if ($('trf-motivo') && !$('trf-motivo').value) {
+    $('trf-motivo').value = 'Definição de lotação original (servidor em licença)';
+  }
+};
 
 $('lic-search')?.addEventListener('input', debounce(() => {
   if (window._licencasCache) renderTabelaLicencas(window._licencasCache);
@@ -2874,6 +3103,7 @@ $('lic-search')?.addEventListener('input', debounce(() => {
 $('lic-tipo-filtro')?.addEventListener('change', () => {
   // Select de tipo exato prevalece sobre o filtro do card
   window._licKpiFiltro = '';
+  window._licVencFiltro = '';
   atualizarDestaqueCardsLicenca();
   if (window._licencasCache) renderTabelaLicencas(window._licencasCache);
 });
@@ -2885,6 +3115,7 @@ $('lic-limpar')?.addEventListener('click', () => {
   if ($('lic-tipo-filtro')) $('lic-tipo-filtro').value = '';
   if ($('lic-periodo-filtro')) $('lic-periodo-filtro').value = '';
   window._licKpiFiltro = '';
+  window._licVencFiltro = '';
   atualizarDestaqueCardsLicenca();
   if (window._licencasCache) renderTabelaLicencas(window._licencasCache);
 });
