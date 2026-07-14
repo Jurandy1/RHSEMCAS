@@ -1329,7 +1329,7 @@ $('btn-salvar-edit').onclick = async () => {
   carregarFuncionarios();
 };
 
-// ── Helper compartilhado: registra afastamento e move o servidor pra lotação de Licenças ──
+// ── Helper compartilhado: registra afastamento (status) mantendo a lotação original ──
 async function salvarAfastamento({ funcId, nome, tipo, inicio, fim, portaria, sei, obs }) {
   const payload = {
     funcionario_id: Number(funcId),
@@ -1344,24 +1344,9 @@ async function salvarAfastamento({ funcId, nome, tipo, inicio, fim, portaria, se
   const { error } = await sb.from('funcionario_licencas').insert([payload]);
   if (error) return { ok: false, msg: 'Erro ao salvar licença: ' + error.message };
 
-  // Move o servidor pra lotação "LICENÇAS E AFASTAMENTOS" pra sair da contagem da lotação atual
-  let aviso = '';
-  const { data: lotData } = await sb.from('lotacoes').select('id').ilike('nome', '%LICENÇAS E AFASTAMENTOS%').limit(1).single();
-  if (lotData) {
-    const { error: trfError } = await sb.rpc('fn_transferir_funcionario', {
-      p_funcionario_id: Number(funcId),
-      p_nova_lotacao_id: lotData.id,
-      p_novo_vinculo_id: null,
-      p_nova_funcao: null,
-      p_novo_turno_id: null,
-      p_motivo: 'Afastamento: ' + tipo
-    });
-    if (trfError) aviso = ' Atenção: não foi possível mover pra lotação de afastados (' + trfError.message + ').';
-  } else {
-    aviso = ' Atenção: lotação "Licenças e Afastamentos" não encontrada — o servidor não foi movido.';
-  }
+  // Licença é apenas status: o servidor permanece na lotação original e passa a aparecer em Licenças
   await registrarLog('AFASTAMENTO / LICENÇA', Number(funcId), nome || 'Servidor(a)', { tipo });
-  return { ok: true, aviso };
+  return { ok: true, aviso: '' };
 }
 
 // Toggle do campo "Especificar (Outros)"
@@ -1380,7 +1365,7 @@ $('btn-edit-afastar').onclick = async () => {
     tipo = esp;
   }
   if (!$('edit-afast-inicio').value) return showToast('Informe a data inicial do afastamento.', 'warning');
-  if (!confirm(`Registrar afastamento de ${state.funcionarioAtual?.nome || 'servidor'} e movê-lo para Licenças e Afastamentos?`)) return;
+  if (!confirm(`Registrar afastamento de ${state.funcionarioAtual?.nome || 'servidor'}? Ele permanece na lotação atual e passa a constar em Licenças.`)) return;
 
   const btn = $('btn-edit-afastar');
   btn.disabled = true;
@@ -1396,7 +1381,7 @@ $('btn-edit-afastar').onclick = async () => {
   });
   btn.disabled = false;
   if (!res.ok) return showToast(res.msg, 'error');
-  showToast(res.aviso ? 'Afastamento registrado.' + res.aviso : 'Afastamento registrado! Servidor enviado para Licenças.', res.aviso ? 'warning' : 'success');
+  showToast('Afastamento registrado! O servidor permanece na lotação original e consta em Licenças.', 'success');
   closeModal('modal-edit');
   carregarFuncionarios();
   location.hash = '#licencas';
@@ -2760,18 +2745,51 @@ async function salvarCadastrarPendente() {
 // ╚══════════════════════════════════════════════════════════════╝
 rotas.licencas = { titulo: 'Licenças e Afastamentos', bread: 'Licenças', render: renderLicencas };
 
+// Filtro ativo pelo clique nos cards de KPI (soft-match, alinhado à view v_licencas_kpis)
+window._licKpiFiltro = '';
+
+function normalizarTextoLicenca(txt) {
+  return (txt || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function tipoLicencaCorrespondeKpi(tipo, kpiKey) {
+  if (!kpiKey) return true;
+  const t = normalizarTextoLicenca(tipo);
+  if (kpiKey === 'premio') return t.includes('premio');
+  if (kpiKey === 'tratamento_saude') return t.includes('tratamento de saude') || t.includes('medica');
+  if (kpiKey === 'capacitacao') return t.includes('capacitacao');
+  if (kpiKey === 'interesse_particular') return t.includes('interesse particular') || t.includes('interesses particulares');
+  if (kpiKey === 'amamentacao') return t.includes('amamenta');
+  return true;
+}
+
+function atualizarDestaqueCardsLicenca() {
+  $$('#licencas-kpis .stat.clickable').forEach(el => {
+    el.classList.toggle('active', (el.dataset.kpi || '') === (window._licKpiFiltro || ''));
+  });
+}
+
+window.filtrarLicencasPorKpi = (kpiKey) => {
+  // Clique no mesmo card ativo limpa o filtro
+  window._licKpiFiltro = (window._licKpiFiltro === kpiKey) ? '' : (kpiKey || '');
+  if ($('lic-tipo-filtro')) $('lic-tipo-filtro').value = '';
+  atualizarDestaqueCardsLicenca();
+  if (window._licencasCache) renderTabelaLicencas(window._licencasCache);
+};
+
 async function renderLicencas() {
   const kpis = await handleErr(await sb.from('v_licencas_kpis').select('*').single(), 'KPIs licencas');
   if (kpis) {
-    $('licencas-kpis').innerHTML = [
-      ['Total Afastados',     kpis.total_afastados,     'No momento',                 'var(--gov-orange)'],
-      ['Licença Prêmio',      kpis.premio,              'Concedidas',                 'var(--gov-blue-primary)'],
-      ['Tratamento de Saúde', kpis.tratamento_saude,    'Licença médica',             'var(--gov-red)'],
-      ['Capacitação',         kpis.capacitacao,         'Estudo / qualificação',      'var(--gov-blue-dark)'],
-      ['Interesse Particular',kpis.interesse_particular,'Sem vencimentos',            '#534AB7'],
-      ['Amamentação',         kpis.amamentacao,         'Mães lactantes',             'var(--gov-green)'],
-    ].map(([lbl, val, sub, cor]) => `
-      <div class="stat" style="border-left-color:${cor}">
+    const cards = [
+      ['Total Afastados',     kpis.total_afastados,     'No momento',                 'var(--gov-orange)',      ''],
+      ['Licença Prêmio',      kpis.premio,              'Concedidas',                 'var(--gov-blue-primary)', 'premio'],
+      ['Tratamento de Saúde', kpis.tratamento_saude,    'Licença médica',             'var(--gov-red)',          'tratamento_saude'],
+      ['Capacitação',         kpis.capacitacao,         'Estudo / qualificação',      'var(--gov-blue-dark)',    'capacitacao'],
+      ['Interesse Particular',kpis.interesse_particular,'Sem vencimentos',            '#534AB7',                 'interesse_particular'],
+      ['Amamentação',         kpis.amamentacao,         'Mães lactantes',             'var(--gov-green)',        'amamentacao'],
+    ];
+    $('licencas-kpis').innerHTML = cards.map(([lbl, val, sub, cor, kpi]) => `
+      <div class="stat clickable${(window._licKpiFiltro || '') === kpi ? ' active' : ''}" style="border-left-color:${cor}" data-kpi="${kpi}" onclick="filtrarLicencasPorKpi('${kpi}')" title="Clique para filtrar">
         <div class="stat-lbl">${lbl}</div>
         <div class="stat-val">${(val||0).toLocaleString('pt-BR')}</div>
         <div class="stat-sub">${sub}</div>
@@ -2803,7 +2821,9 @@ function renderTabelaLicencas(lista) {
     const termo = ($('lic-search')?.value || '').toLowerCase().trim();
     const tipoFiltro = $('lic-tipo-filtro')?.value || '';
     const periodoFiltro = $('lic-periodo-filtro')?.value || '';
+    const kpiFiltro = window._licKpiFiltro || '';
     const data = lista.filter(l => {
+      if (kpiFiltro && !tipoLicencaCorrespondeKpi(l.tipo_afastamento, kpiFiltro)) return false;
       if (tipoFiltro && (l.tipo_afastamento || '').trim() !== tipoFiltro) return false;
       if (periodoFiltro === 'determinado' && !l.data_final) return false;
       if (periodoFiltro === 'indeterminado' && l.data_final) return false;
@@ -2852,6 +2872,9 @@ $('lic-search')?.addEventListener('input', debounce(() => {
   if (window._licencasCache) renderTabelaLicencas(window._licencasCache);
 }, 200));
 $('lic-tipo-filtro')?.addEventListener('change', () => {
+  // Select de tipo exato prevalece sobre o filtro do card
+  window._licKpiFiltro = '';
+  atualizarDestaqueCardsLicenca();
   if (window._licencasCache) renderTabelaLicencas(window._licencasCache);
 });
 $('lic-periodo-filtro')?.addEventListener('change', () => {
@@ -2861,6 +2884,8 @@ $('lic-limpar')?.addEventListener('click', () => {
   if ($('lic-search')) $('lic-search').value = '';
   if ($('lic-tipo-filtro')) $('lic-tipo-filtro').value = '';
   if ($('lic-periodo-filtro')) $('lic-periodo-filtro').value = '';
+  window._licKpiFiltro = '';
+  atualizarDestaqueCardsLicenca();
   if (window._licencasCache) renderTabelaLicencas(window._licencasCache);
 });
 
@@ -2877,12 +2902,9 @@ window.retornarAtiva = async (funcionario_id) => {
     return showToast('Erro ao encerrar afastamento: ' + error.message, 'error');
   }
   
-  showToast('Afastamento encerrado! Selecione a nova lotação do servidor.', 'success');
+  showToast('Afastamento encerrado! O servidor permanece na lotação original.', 'success');
   carregarTabelaLicencas();
   carregarFuncionarios();
-  
-  // Abre o modal de transferência para definir para onde ele volta
-  abrirTransferencia(funcionario_id);
 };
 
 window.abrirModalLicenca = async (id = null) => {
@@ -2985,7 +3007,7 @@ $('btn-salvar-licenca').onclick = async () => {
   });
   btn.disabled = false;
   if (!res.ok) return showToast(res.msg, 'error');
-  showToast(res.aviso ? 'Licença registrada.' + res.aviso : 'Licença registrada e servidor transferido!', res.aviso ? 'warning' : 'success');
+  showToast('Licença registrada! O servidor permanece na lotação original e consta em Licenças.', 'success');
   closeModal('modal-licenca');
   carregarFuncionarios();
   if (state.rotaAtual === 'licencas') renderLicencas();

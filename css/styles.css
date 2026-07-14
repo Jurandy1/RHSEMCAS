@@ -740,7 +740,9 @@
     /* ============ EXTENSÕES ============ */
     
     /* Cards do dashboard clicáveis */
-    .stat.clickable { cursor: pointer; }
+    .stat.clickable { cursor: pointer; transition: box-shadow .15s, transform .15s; }
+    .stat.clickable:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+    .stat.clickable.active { outline: 2px solid var(--gov-blue-primary); outline-offset: 1px; background: var(--gov-blue-light, #e8f0fe); }
     .stat { position: relative; }
 
     /* ─── DASHBOARD MELHORADO ─── */
