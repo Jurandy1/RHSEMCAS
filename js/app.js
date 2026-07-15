@@ -433,6 +433,7 @@ window.closeModal = (id) => {
   const el = $(id);
   el.style.display = 'none';
   el.removeAttribute('aria-modal');
+  if (id === 'modal-transfer') state._trfFromLicencas = false;
   // Restaura scroll só se nenhum outro modal continuar aberto
   if (!document.querySelector('.modal-overlay[style*="flex"]')) {
     document.body.style.overflow = '';
@@ -1776,31 +1777,65 @@ $('btn-edit-afastar').onclick = async () => {
 // ╔══════════════════════════════════════════════════════════════╗
 // ║                    MODAL TRANSFERÊNCIA                        ║
 // ╚══════════════════════════════════════════════════════════════╝
-window.abrirTransferencia = async (id) => {
+
+/** Carrega a mesma árvore usada em Gestão de Lotações (fn_organograma_completo). */
+async function carregarLotacoesParaArvore() {
+  const org = await handleErr(await sb.rpc('fn_organograma_completo'), 'organograma lotacoes');
+  if (org?.length) {
+    state.lotacoes = org.map(l => ({
+      id: l.id,
+      nome: l.nome,
+      parent_id: l.parent_id,
+      tipo: l.tipo,
+      ativo: true,
+      marcador: l.marcador || null,
+      funcionarios_direto: l.funcionarios_direto ?? 0,
+      funcionarios_total: l.funcionarios_total ?? 0,
+    }));
+    return state.lotacoes;
+  }
+  const { data } = await sb.from('v_lotacoes_com_count').select('*').range(0, 9999).order('nome');
+  state.lotacoes = (data || []).filter(l => l.ativo !== false);
+  return state.lotacoes;
+}
+
+window.abrirTransferencia = async (id, { fromLicencas = false } = {}) => {
+  state._trfFromLicencas = !!fromLicencas;
   const data = await handleErr(await sb.from('v_funcionarios_atual').select('*').eq('funcionario_id', id).limit(1).single(), 'transfer');
-  if (!data) return;
-  if (data.lotacao_atual_id == null) {
+  if (!data) {
+    state._trfFromLicencas = false;
+    return;
+  }
+  // Em transferência normal exige lotação ativa; em "Definir lotação" (Licenças) permite sem lotação
+  if (data.lotacao_atual_id == null && !fromLicencas) {
     showToast('Este servidor não possui lotação ativa registrada. Use o botão "Editar" para regularizar a lotação antes de transferir.', 'warning');
     return;
   }
   state.funcionarioAtual = data;
-  
+
+  // Garante a mesma lista completa da Gestão de Lotações
+  if (!state.lotacoes?.length || fromLicencas) {
+    await carregarLotacoesParaArvore();
+  }
+
   $('trf-id').value = id;
+  const lotAtualLbl = data.caminho_lotacao || data.lotacao_nome || (fromLicencas ? 'Pendente de definição' : '—');
   $('trf-servidor-info').innerHTML = `
     <strong>${htmlEscape(data.nome)}</strong><br>
     <small>Vínculo: <strong>${htmlEscape(data.vinculo || '—')}</strong> · Função: <strong>${htmlEscape(data.funcao || '—')}</strong></small><br>
-    <small>Lotação atual: ${htmlEscape(data.caminho_lotacao || data.lotacao_nome || '—')}</small>`;
+    <small>Lotação atual: ${htmlEscape(lotAtualLbl)}</small>`;
   $('trf-data').value = new Date().toISOString().slice(0,10);
-  $('trf-motivo').value = '';
+  $('trf-motivo').value = fromLicencas ? 'Definição de lotação original (servidor em licença)' : '';
   $('trf-lotacao-id').value = '';
   $('trf-funcao').value = '';
   $('trf-alterar').checked = false;
   $('trf-extras').style.display = 'none';
   $('trf-search').value = '';
   const title = document.querySelector('#modal-transfer .modal-title');
-  if (title && !state._trfFromLicencas) title.textContent = 'Transferir Servidor';
-  renderArvoreTransfer(data.lotacao_atual_id ?? data.lotacao_id);
-  
+  if (title) title.textContent = fromLicencas ? 'Definir Lotação Original' : 'Transferir Servidor';
+  const lotAtualId = data.lotacao_atual_id ?? data.lotacao_id ?? null;
+  renderArvoreTransfer(lotAtualId);
+
   openModal('modal-transfer');
 };
 
@@ -1854,7 +1889,7 @@ $('trf-alterar').addEventListener('change', e => {
   $('trf-extras').style.display = e.target.checked ? 'grid' : 'none';
 });
 $('trf-search').addEventListener('input', debounce(() => {
-  const fid = state.funcionarioAtual?.lotacao_id;
+  const fid = state.funcionarioAtual?.lotacao_atual_id ?? state.funcionarioAtual?.lotacao_id ?? null;
   renderArvoreTransfer(fid);
 }, 200));
 
@@ -1863,24 +1898,51 @@ $('btn-confirmar-trf').onclick = async () => {
   const id = Number($('trf-id').value);
   const novaLot = Number($('trf-lotacao-id').value);
   if (!novaLot) { showToast('Selecione a nova lotação', 'warning'); return; }
-  
-  const params = {
-    p_funcionario_id:  id,
-    p_nova_lotacao_id: novaLot,
-    p_data:    $('trf-data').value || null,
-    p_motivo:  $('trf-motivo').value.trim() || null,
-  };
-  if ($('trf-alterar').checked) {
-    params.p_nova_funcao       = $('trf-funcao').value.trim() || null;
-    params.p_novo_turno_id     = $('trf-turno').value   ? Number($('trf-turno').value)   : null;
-    params.p_novo_vinculo_id   = $('trf-vinculo').value ? Number($('trf-vinculo').value) : null;
-  }
+
+  const veioDeLicencas = !!state._trfFromLicencas;
+  const semLotacao = state.funcionarioAtual?.lotacao_atual_id == null;
+  const motivo = $('trf-motivo').value.trim() || null;
+
   btn.disabled = true;
-  const { error } = await sb.rpc('fn_transferir_funcionario', params);
+  let error = null;
+
+  if (veioDeLicencas && semLotacao) {
+    // Sem registro ativo: cria lotação (mesma regularização do Editar cadastro)
+    const vinc = state.vinculos.find(x => x.categoria === state.funcionarioAtual?.vinculo);
+    const turn = state.turnos.find(x => x.nome === state.funcionarioAtual?.turno);
+    const r = await sb.from('funcionario_lotacao').insert([{
+      funcionario_id: id,
+      lotacao_id: novaLot,
+      vinculo_id: vinc?.id ?? null,
+      turno_id: turn?.id ?? null,
+      funcao: state.funcionarioAtual?.funcao || null,
+      data_inicio: $('trf-data').value || new Date().toISOString().slice(0, 10),
+      ativo: true,
+      observacao: motivo || 'Definição de lotação original (servidor em licença)'
+    }]);
+    error = r.error;
+  } else {
+    const params = {
+      p_funcionario_id:  id,
+      p_nova_lotacao_id: novaLot,
+      p_data:    $('trf-data').value || null,
+      p_motivo:  motivo,
+    };
+    if ($('trf-alterar').checked) {
+      params.p_nova_funcao       = $('trf-funcao').value.trim() || null;
+      params.p_novo_turno_id     = $('trf-turno').value   ? Number($('trf-turno').value)   : null;
+      params.p_novo_vinculo_id   = $('trf-vinculo').value ? Number($('trf-vinculo').value) : null;
+    }
+    const r = await sb.rpc('fn_transferir_funcionario', params);
+    error = r.error;
+  }
   btn.disabled = false;
   if (error) { showToast('Erro: ' + error.message, 'error'); return; }
-  await registrarLog('TRANSFERÊNCIA', id, state.funcionarioAtual?.nome || 'Servidor(a)', { nova_lot_id: novaLot, motivo: params.p_motivo });
-  const veioDeLicencas = !!state._trfFromLicencas;
+
+  await registrarLog(veioDeLicencas ? 'DEFINIÇÃO DE LOTAÇÃO (LICENÇA)' : 'TRANSFERÊNCIA', id, state.funcionarioAtual?.nome || 'Servidor(a)', {
+    nova_lot_id: novaLot,
+    motivo
+  });
   state._trfFromLicencas = false;
   showToast(veioDeLicencas
     ? 'Lotação definida! O servidor permanece em Licenças (status).'
@@ -3473,18 +3535,8 @@ function renderTabelaLicencas(lista) {
 }
 
 window.definirLotacaoLicenca = async (funcionario_id) => {
-  state._trfFromLicencas = true;
-  if (!state.lotacoes?.length) {
-    const lRes = await sb.from('v_lotacoes_com_count').select('*').order('nome');
-    state.lotacoes = (lRes.data || []).filter(l => l.ativo !== false);
-  }
-  await abrirTransferencia(funcionario_id);
-  // Ajusta o modal para o contexto de RH em Licenças
-  const title = document.querySelector('#modal-transfer .modal-title');
-  if (title) title.textContent = 'Definir Lotação Original';
-  if ($('trf-motivo') && !$('trf-motivo').value) {
-    $('trf-motivo').value = 'Definição de lotação original (servidor em licença)';
-  }
+  // Usa a mesma árvore da Gestão de Lotações e permite servidor sem lotação ativa
+  await abrirTransferencia(funcionario_id, { fromLicencas: true });
 };
 
 $('lic-search')?.addEventListener('input', debounce(() => {
