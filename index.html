@@ -131,6 +131,9 @@
           <div class="user-role" id="user-email" style="font-size:11px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
         </div>
       </div>
+      <button type="button" class="btn-logout hidden" id="btn-editar-meu-nome" title="Editar meu nome">
+        <i class="ti ti-pencil"></i>
+      </button>
       <button type="button" class="btn-logout" id="btn-logout" title="Sair do sistema">
         <i class="ti ti-logout"></i>
       </button>
@@ -761,10 +764,11 @@
                   <th>Perfil</th>
                   <th>Status</th>
                   <th>Cadastrado em</th>
+                  <th style="text-align:center">Ações</th>
                 </tr>
               </thead>
               <tbody id="tbody-usuarios">
-                <tr><td colspan="5" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>
+                <tr><td colspan="6" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>
               </tbody>
             </table>
           </div>
@@ -1384,6 +1388,37 @@
       <button class="btn-secondary" onclick="closeModal('modal-cedido')">Cancelar</button>
       <button class="btn-primary" onclick="salvarCedencia()" id="btn-salvar-cedencia">Salvar Registro</button>
     </div>
+  </div>
+</div>
+
+<!-- MODAL · EDITAR NOME DO USUÁRIO -->
+<div class="modal-overlay" id="modal-editar-usuario">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title"><i class="ti ti-pencil"></i> Editar Nome</div>
+      <button class="modal-close" onclick="closeModal('modal-editar-usuario')" aria-label="Fechar"></button>
+    </div>
+    <form id="form-editar-usuario">
+      <input type="hidden" id="usr-edit-id">
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-group full-width">
+            <label class="form-label" for="usr-edit-nome">Nome *</label>
+            <input type="text" id="usr-edit-nome" class="form-control" required autocomplete="off">
+          </div>
+          <div class="form-group full-width">
+            <label class="form-label" for="usr-edit-email">E-mail</label>
+            <input type="email" id="usr-edit-email" class="form-control" readonly tabindex="-1">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" onclick="closeModal('modal-editar-usuario')">Cancelar</button>
+        <button type="submit" class="btn-primary" id="btn-salvar-editar-usuario">
+          <i class="ti ti-check"></i> Salvar nome
+        </button>
+      </div>
+    </form>
   </div>
 </div>
 

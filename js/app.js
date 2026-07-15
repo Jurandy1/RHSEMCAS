@@ -108,11 +108,18 @@ async function carregarPerfilUsuario() {
 
   const coordenadora = state.perfilUsuario?.perfil === 'coordenador' && state.perfilUsuario?.ativo !== false;
   $('nav-usuarios')?.classList.toggle('hidden', !coordenadora);
+  $('btn-editar-meu-nome')?.classList.toggle('hidden', !coordenadora);
 
   if (state.perfilUsuario?.nome) {
-    if ($('user-name')) $('user-name').textContent = state.perfilUsuario.nome;
-    if ($('user-av')) $('user-av').textContent = state.perfilUsuario.nome.trim().slice(0, 2).toUpperCase();
+    atualizarDisplayUsuario(state.perfilUsuario.nome);
   }
+}
+
+function atualizarDisplayUsuario(nome) {
+  const nomeLimpo = String(nome || '').trim();
+  if (!nomeLimpo) return;
+  if ($('user-name')) $('user-name').textContent = nomeLimpo;
+  if ($('user-av')) $('user-av').textContent = nomeLimpo.slice(0, 2).toUpperCase();
 }
 
 $('login-form')?.addEventListener('submit', async (e) => {
@@ -1139,22 +1146,23 @@ function usuarioEhCoordenador() {
 async function renderUsuarios() {
   if (!usuarioEhCoordenador()) return;
   const tbody = $('tbody-usuarios');
-  if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
+  if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
 
   const { data, error } = await sb.from('usuarios_sistema')
     .select('user_id, nome, email, perfil, ativo, created_at')
     .order('nome');
 
   if (error) {
-    if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="empty-state">Erro ao carregar usuários: ${htmlEscape(error.message)}</td></tr>`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Erro ao carregar usuários: ${htmlEscape(error.message)}</td></tr>`;
     return;
   }
 
   if (!data?.length) {
-    if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Nenhum usuário cadastrado.</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Nenhum usuário cadastrado.</td></tr>';
     return;
   }
 
+  window._usuariosCache = data;
   tbody.innerHTML = data.map(u => `
     <tr>
       <td><strong>${htmlEscape(u.nome || '—')}</strong></td>
@@ -1162,9 +1170,82 @@ async function renderUsuarios() {
       <td><span class="badge">${u.perfil === 'coordenador' ? 'Coordenadora' : 'Usuário'}</span></td>
       <td><span style="color:${u.ativo === false ? 'var(--gov-red)' : 'var(--gov-green)'};font-weight:700;font-size:12px">${u.ativo === false ? 'Inativo' : 'Ativo'}</span></td>
       <td style="font-size:12px">${u.created_at ? new Date(u.created_at).toLocaleString('pt-BR') : '—'}</td>
+      <td style="text-align:center">
+        <button class="btn-icon" title="Editar nome" onclick="abrirEditarUsuario('${u.user_id}')">
+          <i class="ti ti-pencil"></i>
+        </button>
+      </td>
     </tr>
   `).join('');
 }
+
+window.abrirEditarUsuario = (userId) => {
+  if (!usuarioEhCoordenador()) {
+    showToast('Apenas a coordenadora pode editar usuários.', 'warning');
+    return;
+  }
+  const usuario = (window._usuariosCache || []).find(u => u.user_id === userId)
+    || (state.perfilUsuario?.user_id === userId ? state.perfilUsuario : null);
+  if (!usuario) return showToast('Usuário não encontrado.', 'error');
+
+  $('usr-edit-id').value = userId;
+  $('usr-edit-nome').value = usuario.nome || '';
+  $('usr-edit-email').value = usuario.email || state.usuario?.email || '';
+  openModal('modal-editar-usuario');
+  setTimeout(() => $('usr-edit-nome')?.focus(), 50);
+};
+
+window.abrirEditarMeuNome = () => {
+  if (!usuarioEhCoordenador() || !state.perfilUsuario?.user_id) return;
+  abrirEditarUsuario(state.perfilUsuario.user_id);
+};
+
+$('btn-editar-meu-nome')?.addEventListener('click', () => abrirEditarMeuNome());
+
+$('form-editar-usuario')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!usuarioEhCoordenador()) return;
+
+  const userId = $('usr-edit-id').value;
+  const nome = $('usr-edit-nome').value.trim();
+  const usuarioAlvo = (window._usuariosCache || []).find(u => u.user_id === userId)
+    || (state.perfilUsuario?.user_id === userId ? state.perfilUsuario : null);
+  const nomeAnterior = usuarioAlvo?.nome || null;
+
+  if (!userId || !nome) return showToast('Informe o nome do usuário.', 'warning');
+  if (nome.length < 2) return showToast('O nome deve ter pelo menos 2 caracteres.', 'warning');
+
+  const btn = $('btn-salvar-editar-usuario');
+  btn.disabled = true;
+  const { error } = await sb.rpc('fn_atualizar_nome_usuario', {
+    p_user_id: userId,
+    p_nome: nome
+  });
+  btn.disabled = false;
+
+  if (error) return showToast(error.message || 'Erro ao salvar nome.', 'error');
+
+  const email = $('usr-edit-email').value || '';
+  await registrarLog('EDIÇÃO DE NOME DE USUÁRIO', null, nome, {
+    user_id: userId,
+    email,
+    nome_anterior: nomeAnterior
+  });
+
+  if (state.perfilUsuario?.user_id === userId) {
+    state.perfilUsuario = { ...state.perfilUsuario, nome };
+    atualizarDisplayUsuario(nome);
+  }
+  if (window._usuariosCache) {
+    window._usuariosCache = window._usuariosCache.map(u =>
+      u.user_id === userId ? { ...u, nome } : u
+    );
+  }
+
+  closeModal('modal-editar-usuario');
+  showToast('Nome atualizado com sucesso!', 'success');
+  renderUsuarios();
+});
 
 window.abrirCadastroUsuario = () => {
   if (!usuarioEhCoordenador()) {

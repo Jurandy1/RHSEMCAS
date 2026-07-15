@@ -47,6 +47,37 @@ $$;
 REVOKE ALL ON FUNCTION public.usuario_eh_coordenador() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.usuario_eh_coordenador() TO authenticated;
 
+-- Coordenadora edita qualquer nome; cada usuário pode editar o próprio.
+CREATE OR REPLACE FUNCTION public.fn_atualizar_nome_usuario(p_user_id uuid, p_nome text)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_nome text := trim(p_nome);
+BEGIN
+  IF v_nome IS NULL OR length(v_nome) < 2 THEN
+    RAISE EXCEPTION 'Informe um nome válido (mínimo 2 caracteres).';
+  END IF;
+
+  IF p_user_id IS DISTINCT FROM auth.uid() AND NOT public.usuario_eh_coordenador() THEN
+    RAISE EXCEPTION 'Sem permissão para alterar este usuário.';
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM public.usuarios_sistema WHERE user_id = p_user_id) THEN
+    RAISE EXCEPTION 'Usuário não encontrado.';
+  END IF;
+
+  UPDATE public.usuarios_sistema
+  SET nome = v_nome
+  WHERE user_id = p_user_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.fn_atualizar_nome_usuario(uuid, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.fn_atualizar_nome_usuario(uuid, text) TO authenticated;
+
 DROP POLICY IF EXISTS usuarios_ver_proprio_ou_coordenador ON public.usuarios_sistema;
 CREATE POLICY usuarios_ver_proprio_ou_coordenador
 ON public.usuarios_sistema
