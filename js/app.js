@@ -17,6 +17,127 @@ if (!configurado) {
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 window.sb = sb;
 
+const $ = (id) => document.getElementById(id);
+const $$ = (sel, root = document) => root.querySelectorAll(sel);
+
+const state = {
+  vinculos: [], turnos: [], lotacoes: [], funcoes: [],
+  filtros: { busca: '', vinculo_id: null, lotacao_id: null, funcoes: [], turno_id: null },
+  sort: { col: 'nome', dir: 'asc' },
+  page: 1, pageSize: 15, total: 0,
+  funcionarioAtual: null,
+  locais: { categoria: null, lotacao: null },
+  usuario: null,
+  authenticated: false,
+};
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                         AUTENTICAÇÃO                          ║
+// ╚══════════════════════════════════════════════════════════════╝
+let _appBooted = false;
+
+function obterUsuarioLogado() {
+  return state.usuario?.email || 'desconhecido';
+}
+
+function atualizarUsuarioUI() {
+  const u = state.usuario;
+  if (!u) return;
+  const email = u.email || '';
+  const nome = u.user_metadata?.nome || u.user_metadata?.full_name || email.split('@')[0] || 'Usuário';
+  const iniciais = nome.trim().slice(0, 2).toUpperCase() || 'RH';
+  if ($('user-av')) $('user-av').textContent = iniciais;
+  if ($('user-name')) $('user-name').textContent = nome;
+  if ($('user-email')) $('user-email').textContent = email;
+}
+
+function showLogin() {
+  state.usuario = null;
+  state.authenticated = false;
+  $('auth-gate')?.classList.remove('hidden');
+  $('app-shell')?.classList.add('hidden');
+  $('login-error')?.setAttribute('hidden', '');
+  if ($('login-password')) $('login-password').value = '';
+}
+
+function showApp(session) {
+  state.usuario = session?.user ?? null;
+  state.authenticated = !!session?.user;
+  $('auth-gate')?.classList.add('hidden');
+  $('app-shell')?.classList.remove('hidden');
+  atualizarUsuarioUI();
+  bootApp();
+}
+
+async function bootApp() {
+  if (_appBooted) return;
+  _appBooted = true;
+  try {
+    window.removeEventListener('hashchange', navigate);
+    await carregarDominios();
+    window.addEventListener('hashchange', navigate);
+    if (!location.hash || location.hash === '#') location.hash = '#painel';
+    navigate();
+    const { data } = await sb.from('v_pendentes_kpis').select('pendentes').single();
+    if (data && $('badge-pendentes')) {
+      $('badge-pendentes').textContent = data.pendentes;
+      $('badge-pendentes').style.display = data.pendentes > 0 ? '' : 'none';
+    }
+    atualizarAlertasLicenca();
+  } catch (e) {
+    _appBooted = false;
+    console.error('Boot failed:', e);
+    showToast('Erro ao inicializar: ' + e.message, 'error');
+  }
+}
+
+$('login-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = $('btn-login');
+  const errEl = $('login-error');
+  const email = $('login-email')?.value?.trim();
+  const password = $('login-password')?.value;
+  if (!email || !password) return;
+
+  btn.disabled = true;
+  errEl?.setAttribute('hidden', '');
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  btn.disabled = false;
+
+  if (error) {
+    if (errEl) {
+      errEl.textContent = error.message === 'Invalid login credentials'
+        ? 'E-mail ou senha incorretos.'
+        : ('Não foi possível entrar: ' + error.message);
+      errEl.removeAttribute('hidden');
+    }
+    return;
+  }
+  // onAuthStateChange chama showApp
+});
+
+$('btn-logout')?.addEventListener('click', async () => {
+  if (!confirm('Deseja sair do sistema?')) return;
+  _appBooted = false;
+  await sb.auth.signOut();
+  location.hash = '';
+  showLogin();
+});
+
+sb.auth.onAuthStateChange((_event, session) => {
+  if (session) showApp(session);
+  else if (_appBooted) {
+    _appBooted = false;
+    showLogin();
+  }
+});
+
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) showApp(session);
+  else showLogin();
+})();
+
 // ╔══════════════════════════════════════════════════════════════╗
 // ║                    REGISTRAR LOG SISTEMA                      ║
 // ╚══════════════════════════════════════════════════════════════╝
@@ -26,7 +147,7 @@ window.registrarLog = async (tipo_acao, funcionario_id, funcionario_nome, detalh
     funcionario_id, 
     funcionario_nome, 
     detalhes: detalhes_obj,
-    usuario: 'Administrador'
+    usuario: obterUsuarioLogado()
   }]);
   // Falha de auditoria não deve interromper a ação principal, mas precisa ser visível no console.
   if (error) console.error('Falha ao registrar log de auditoria:', error, { tipo_acao, funcionario_id });
@@ -35,14 +156,6 @@ window.registrarLog = async (tipo_acao, funcionario_id, funcionario_nome, detalh
 // ╔══════════════════════════════════════════════════════════════╗
 // ║                       ESTADO GLOBAL                           ║
 // ╚══════════════════════════════════════════════════════════════╝
-const state = {
-  vinculos: [], turnos: [], lotacoes: [], funcoes: [],
-  filtros: { busca: '', vinculo_id: null, lotacao_id: null, funcoes: [], turno_id: null },
-  sort: { col: 'nome', dir: 'asc' },
-  page: 1, pageSize: 15, total: 0,
-  funcionarioAtual: null,
-  locais: { categoria: null, lotacao: null },  // pro drill-down
-};
 
 function filtrosBase(extra = {}) {
   return { busca: '', vinculo_id: null, lotacao_id: null, funcoes: [], turno_id: null, ...extra };
@@ -58,8 +171,6 @@ window.verServidoresPorLotacao = (lotacaoId) => {
 // ╔══════════════════════════════════════════════════════════════╗
 // ║                          HELPERS                              ║
 // ╚══════════════════════════════════════════════════════════════╝
-const $ = (id) => document.getElementById(id);
-const $$ = (sel, root = document) => root.querySelectorAll(sel);
 
 // ── Card de Conselhos Tutelares: não vem em v_locais_resumo, calcula a partir das lotações ──
 function cardConselhoTutelar() {
@@ -680,6 +791,7 @@ const rotas = {
 };
 
 function navigate() {
+  if (!state.authenticated) return;
   const hash = (location.hash || '#painel').slice(1);
   const [rota, ...resto] = hash.split('/');
   const def = rotas[rota] || rotas['painel'];
@@ -1989,25 +2101,7 @@ window.verHistorico = async (id) => {
     </ul>`;
 };
 
-// ╔══════════════════════════════════════════════════════════════╗
-// ║                          BOOT                                 ║
-// ╚══════════════════════════════════════════════════════════════╝
-(async () => {
-  try {
-    // Desativa o hashchange durante o boot para não navegar antes dos domínios carregarem
-    window.removeEventListener('hashchange', navigate);
-
-    await carregarDominios();
-
-    // Reativa e navega manualmente
-    window.addEventListener('hashchange', navigate);
-    if (!location.hash || location.hash === '#') location.hash = '#painel';
-    navigate(); // sempre chama explicitamente após boot
-  } catch (e) {
-    console.error('Boot failed:', e);
-    showToast('Erro ao inicializar: ' + e.message, 'error');
-  }
-})();
+// Boot do app é disparado após login (bootApp em AUTENTICAÇÃO)
 
 // ╔══════════════════════════════════════════════════════════════╗
 // ║                     FOLHA DE PONTO                           ║
@@ -3190,16 +3284,6 @@ async function salvarCadastrarPendente() {
   closeModal('modal-cadastrar-pendente');
   renderPendentes();
 }
-
-// === Badge de pendentes + alertas de licença na boot ===
-(async () => {
-  const { data } = await sb.from('v_pendentes_kpis').select('pendentes').single();
-  if (data && $('badge-pendentes')) {
-    $('badge-pendentes').textContent = data.pendentes;
-    $('badge-pendentes').style.display = data.pendentes > 0 ? '' : 'none';
-  }
-  atualizarAlertasLicenca();
-})();
 
 // ╔══════════════════════════════════════════════════════════════╗
 // ║                         LICENÇAS                              ║

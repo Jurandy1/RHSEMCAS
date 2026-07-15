@@ -33,7 +33,37 @@
   </div>
 </div>
 
-<div class="app">
+<!-- Tela de login -->
+<div id="auth-gate" class="auth-gate">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <img src="MARCA-PREFS-VERTICAL-convertido-de-png.png" alt="Prefeitura de São Luís" class="auth-logo">
+      <div>
+        <div class="auth-org">SEMCAS</div>
+        <div class="auth-sub">Gestão de Pessoas · RH</div>
+      </div>
+    </div>
+    <h1 class="auth-title">Acesso ao sistema</h1>
+    <p class="auth-desc">Entre com o e-mail e a senha fornecidos pelo RH.</p>
+    <form id="login-form" class="auth-form" autocomplete="on">
+      <div class="form-group">
+        <label class="form-label" for="login-email">E-mail</label>
+        <input type="email" id="login-email" class="form-control" placeholder="seu.email@prefeitura.sl.gov.br" required autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="login-password">Senha</label>
+        <input type="password" id="login-password" class="form-control" placeholder="••••••••" required autocomplete="current-password">
+      </div>
+      <p id="login-error" class="auth-error" hidden></p>
+      <button type="submit" class="btn-primary auth-submit" id="btn-login">
+        <i class="ti ti-login"></i> Entrar
+      </button>
+    </form>
+    <p class="auth-foot">Usuários são cadastrados pelo administrador do sistema.</p>
+  </div>
+</div>
+
+<div class="app hidden" id="app-shell">
   <nav class="sidebar" id="sidebar" aria-label="Menu Principal">
     <div class="sidebar-logo">
       <img src="MARCA-PREFS-VERTICAL-convertido-de-png.png" alt="Logo" style="height:48px; margin-right:8px;">
@@ -88,12 +118,17 @@
       </a>
     </div>
 
-    <div class="sidebar-footer" style="display:flex;align-items:center;gap:10px">
-      <div class="user-av">AD</div>
-      <div>
-        <div class="user-name">Administrador</div>
-        <div class="user-role">RH · SEMCAS</div>
+    <div class="sidebar-footer">
+      <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+        <div class="user-av" id="user-av">RH</div>
+        <div style="min-width:0;flex:1">
+          <div class="user-name" id="user-name">Usuário</div>
+          <div class="user-role" id="user-email" style="font-size:11px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
+        </div>
       </div>
+      <button type="button" class="btn-logout" id="btn-logout" title="Sair do sistema">
+        <i class="ti ti-logout"></i>
+      </button>
     </div>
   </nav>
 
