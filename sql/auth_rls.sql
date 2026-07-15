@@ -12,6 +12,64 @@
 
 GRANT USAGE ON SCHEMA public TO authenticated;
 
+-- Perfis internos: somente a coordenadora pode listar e criar usuários.
+CREATE TABLE IF NOT EXISTS public.usuarios_sistema (
+  user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  nome text NOT NULL,
+  email text NOT NULL UNIQUE,
+  perfil text NOT NULL DEFAULT 'usuario' CHECK (perfil IN ('coordenador', 'usuario')),
+  ativo boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  created_by uuid REFERENCES auth.users(id)
+);
+
+ALTER TABLE public.usuarios_sistema ENABLE ROW LEVEL SECURITY;
+GRANT SELECT ON public.usuarios_sistema TO authenticated;
+REVOKE INSERT, UPDATE, DELETE ON public.usuarios_sistema FROM authenticated, anon;
+
+-- A função evita recursão nas políticas e verifica o papel pelo JWT atual.
+CREATE OR REPLACE FUNCTION public.usuario_eh_coordenador()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.usuarios_sistema
+    WHERE user_id = auth.uid()
+      AND perfil = 'coordenador'
+      AND ativo = true
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.usuario_eh_coordenador() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.usuario_eh_coordenador() TO authenticated;
+
+DROP POLICY IF EXISTS usuarios_ver_proprio_ou_coordenador ON public.usuarios_sistema;
+CREATE POLICY usuarios_ver_proprio_ou_coordenador
+ON public.usuarios_sistema
+FOR SELECT TO authenticated
+USING (user_id = auth.uid() OR public.usuario_eh_coordenador());
+
+-- Primeiro usuário já existente no Authentication vira coordenador.
+-- Se houver mais de um, confira o resultado do SELECT ao final do arquivo.
+INSERT INTO public.usuarios_sistema (user_id, nome, email, perfil, ativo, created_by)
+SELECT
+  u.id,
+  COALESCE(u.raw_user_meta_data->>'nome', split_part(u.email, '@', 1)),
+  u.email,
+  'coordenador',
+  true,
+  u.id
+FROM auth.users u
+WHERE u.email IS NOT NULL
+ORDER BY u.created_at
+LIMIT 1
+ON CONFLICT (user_id) DO UPDATE
+SET perfil = 'coordenador', ativo = true;
+
 -- Tabelas base usadas pelo sistema
 DO $$
 DECLARE
@@ -81,6 +139,8 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
 REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM anon;
 
 -- =====================================================================
--- Criar usuário de exemplo (opcional — prefira o Dashboard)
--- Dashboard → Authentication → Users → Add user → Email + Password
+-- Conferência: deve mostrar a coordenadora cadastrada
 -- =====================================================================
+SELECT user_id, nome, email, perfil, ativo
+FROM public.usuarios_sistema
+ORDER BY created_at;

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Painel RH SEMCAS - Gov.br</title>
+  <title>Painel RH</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://cdngovbr-ds.estaleiro.serpro.gov.br" crossorigin>
@@ -23,6 +23,7 @@
   </div>
   <div class="gov-top-bar-actions">
     <span class="govbr-org-full">Secretaria Municipal da Criança e Assistência Social — SEMCAS</span>
+    <span class="dev-credit">Desenvolvido por Jurandy Santana</span>
   </div>
 </div>
 
@@ -60,6 +61,7 @@
       </button>
     </form>
     <p class="auth-foot">Usuários são cadastrados pelo administrador do sistema.</p>
+    <p class="auth-credit">Desenvolvido por Jurandy Santana</p>
   </div>
 </div>
 
@@ -111,6 +113,9 @@
       </a>
       <a href="#logs" class="nav-item" data-route="logs">
         <i class="ti ti-history"></i> Histórico de Ações
+      </a>
+      <a href="#usuarios" class="nav-item hidden" data-route="usuarios" id="nav-usuarios">
+        <i class="ti ti-user-cog"></i> Usuários do Sistema
       </a>
       <div style="border-top:1px solid var(--gov-border); margin:10px 16px"></div>
       <a href="#lotacoes" class="nav-item" data-route="lotacoes">
@@ -721,13 +726,45 @@
               <thead>
                 <tr>
                   <th>Data/Hora</th>
+                  <th>Usuário</th>
                   <th>Ação</th>
                   <th>Servidor</th>
                   <th>Detalhes</th>
                 </tr>
               </thead>
               <tbody id="tbody-logs">
-                <tr><td colspan="4" class="empty-state"><span class="spinner"></span> Carregando...</td></tr>
+                <tr><td colspan="5" class="empty-state"><span class="spinner"></span> Carregando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== USUÁRIOS DO SISTEMA (COORDENADORA) ===== -->
+      <section id="view-usuarios" class="view-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+          <div>
+            <div class="row-label" style="margin:0"><i class="ti ti-user-cog"></i> Usuários do Sistema</div>
+            <small style="color:var(--color-text-muted)">Acesso exclusivo da coordenadora</small>
+          </div>
+          <button class="btn-primary" onclick="abrirCadastroUsuario()">
+            <i class="ti ti-user-plus"></i> Cadastrar usuário
+          </button>
+        </div>
+        <div class="card">
+          <div class="table-container">
+            <table class="gov-table">
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>E-mail</th>
+                  <th>Perfil</th>
+                  <th>Status</th>
+                  <th>Cadastrado em</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-usuarios">
+                <tr><td colspan="5" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>
               </tbody>
             </table>
           </div>
@@ -1347,6 +1384,47 @@
       <button class="btn-secondary" onclick="closeModal('modal-cedido')">Cancelar</button>
       <button class="btn-primary" onclick="salvarCedencia()" id="btn-salvar-cedencia">Salvar Registro</button>
     </div>
+  </div>
+</div>
+
+<!-- MODAL · CADASTRAR USUÁRIO -->
+<div class="modal-overlay" id="modal-usuario">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title"><i class="ti ti-user-plus"></i> Cadastrar Usuário</div>
+      <button class="modal-close" onclick="closeModal('modal-usuario')" aria-label="Fechar"></button>
+    </div>
+    <form id="form-usuario">
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-group full-width">
+            <label class="form-label" for="usr-nome">Nome *</label>
+            <input type="text" id="usr-nome" class="form-control" required autocomplete="off">
+          </div>
+          <div class="form-group full-width">
+            <label class="form-label" for="usr-email">E-mail *</label>
+            <input type="email" id="usr-email" class="form-control" required autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="usr-senha">Senha provisória *</label>
+            <input type="password" id="usr-senha" class="form-control" minlength="8" required autocomplete="new-password">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="usr-confirmar">Confirmar senha *</label>
+            <input type="password" id="usr-confirmar" class="form-control" minlength="8" required autocomplete="new-password">
+          </div>
+          <div class="form-group full-width">
+            <small style="color:var(--color-text-muted)">O novo usuário terá acesso completo ao sistema. Apenas a coordenadora pode criar contas.</small>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" onclick="closeModal('modal-usuario')">Cancelar</button>
+        <button type="submit" class="btn-primary" id="btn-salvar-usuario">
+          <i class="ti ti-user-plus"></i> Criar usuário
+        </button>
+      </div>
+    </form>
   </div>
 </div>
 

@@ -85,9 +85,25 @@
       font-size: 11px; color: var(--color-text-sec); font-weight: 500;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
+    .dev-credit {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--gov-blue-primary);
+      white-space: nowrap;
+      padding-left: 12px;
+      border-left: 1px solid var(--gov-border);
+    }
+    .auth-credit {
+      margin: 10px 0 0;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--gov-blue-dark);
+      text-align: center;
+    }
     @media (max-width: 768px) {
       .gov-top-bar { padding: 0 16px; }
       .govbr-org-full { display: none; }
+      .dev-credit { border-left: none; padding-left: 0; font-size: 10px; }
     }
 
     /* --- SIDEBAR --- */

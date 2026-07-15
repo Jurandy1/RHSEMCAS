@@ -29,6 +29,7 @@ const state = {
   locais: { categoria: null, lotacao: null },
   usuario: null,
   authenticated: false,
+  perfilUsuario: null,
 };
 
 // ╔══════════════════════════════════════════════════════════════╗
@@ -74,6 +75,7 @@ async function bootApp() {
   _appBooted = true;
   try {
     window.removeEventListener('hashchange', navigate);
+    await carregarPerfilUsuario();
     await carregarDominios();
     window.addEventListener('hashchange', navigate);
     if (!location.hash || location.hash === '#') location.hash = '#painel';
@@ -88,6 +90,28 @@ async function bootApp() {
     _appBooted = false;
     console.error('Boot failed:', e);
     showToast('Erro ao inicializar: ' + e.message, 'error');
+  }
+}
+
+async function carregarPerfilUsuario() {
+  const { data, error } = await sb.from('usuarios_sistema')
+    .select('user_id, nome, email, perfil, ativo')
+    .eq('user_id', state.usuario?.id)
+    .maybeSingle();
+
+  if (error) {
+    console.warn('Perfil de usuário indisponível:', error.message);
+    state.perfilUsuario = null;
+  } else {
+    state.perfilUsuario = data || null;
+  }
+
+  const coordenadora = state.perfilUsuario?.perfil === 'coordenador' && state.perfilUsuario?.ativo !== false;
+  $('nav-usuarios')?.classList.toggle('hidden', !coordenadora);
+
+  if (state.perfilUsuario?.nome) {
+    if ($('user-name')) $('user-name').textContent = state.perfilUsuario.nome;
+    if ($('user-av')) $('user-av').textContent = state.perfilUsuario.nome.trim().slice(0, 2).toUpperCase();
   }
 }
 
@@ -113,11 +137,13 @@ $('login-form')?.addEventListener('submit', async (e) => {
     }
     return;
   }
+  await registrarLog('LOGIN', null, 'Sistema', { email });
   // onAuthStateChange chama showApp
 });
 
 $('btn-logout')?.addEventListener('click', async () => {
   if (!confirm('Deseja sair do sistema?')) return;
+  await registrarLog('LOGOUT', null, 'Sistema');
   _appBooted = false;
   await sb.auth.signOut();
   location.hash = '';
@@ -787,13 +813,19 @@ const rotas = {
   'locais':       { titulo: 'Locais Operacionais',   bread: 'Locais',         render: renderLocais },
   'organograma':  { titulo: 'Organograma',           bread: 'Organograma',    render: renderOrganograma },
   'folha-ponto':  { titulo: 'Folha de Ponto',        bread: 'Folha de Ponto', render: renderFolhaPonto },
-  'logs':         { titulo: 'Histórico de Ações',     bread: 'Logs',           render: renderLogs }
+  'logs':         { titulo: 'Histórico de Ações',     bread: 'Logs',           render: renderLogs },
+  'usuarios':     { titulo: 'Usuários do Sistema',    bread: 'Usuários',       render: renderUsuarios }
 };
 
 function navigate() {
   if (!state.authenticated) return;
   const hash = (location.hash || '#painel').slice(1);
   const [rota, ...resto] = hash.split('/');
+  if (rota === 'usuarios' && state.perfilUsuario?.perfil !== 'coordenador') {
+    location.hash = '#painel';
+    showToast('Apenas a coordenadora pode gerenciar usuários.', 'warning');
+    return;
+  }
   const def = rotas[rota] || rotas['painel'];
   state.rotaAtual = rotas[rota] ? rota : 'painel';
 
@@ -1088,6 +1120,7 @@ async function renderLogs() {
     return `
     <tr>
       <td style="font-size:12px;color:var(--color-text-sec)">${new Date(l.created_at).toLocaleString('pt-BR')}</td>
+      <td style="font-size:12px"><i class="ti ti-user"></i> ${htmlEscape(l.usuario || 'Não identificado')}</td>
       <td><span style="background:var(--gov-blue-light);color:var(--gov-blue-dark);padding:2px 6px;border-radius:4px;font-size:11px;font-weight:bold">${htmlEscape(l.tipo_acao)}</span></td>
       <td><strong>${htmlEscape(l.funcionario_nome || '')}</strong></td>
       <td style="font-size:12px;color:var(--color-text-sec)">${det}</td>
@@ -1095,6 +1128,94 @@ async function renderLogs() {
   `;}).join('');
 }
 window.renderLogs = renderLogs;
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                 USUÁRIOS DO SISTEMA                          ║
+// ╚══════════════════════════════════════════════════════════════╝
+function usuarioEhCoordenador() {
+  return state.perfilUsuario?.perfil === 'coordenador' && state.perfilUsuario?.ativo !== false;
+}
+
+async function renderUsuarios() {
+  if (!usuarioEhCoordenador()) return;
+  const tbody = $('tbody-usuarios');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
+
+  const { data, error } = await sb.from('usuarios_sistema')
+    .select('user_id, nome, email, perfil, ativo, created_at')
+    .order('nome');
+
+  if (error) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="empty-state">Erro ao carregar usuários: ${htmlEscape(error.message)}</td></tr>`;
+    return;
+  }
+
+  if (!data?.length) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Nenhum usuário cadastrado.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.map(u => `
+    <tr>
+      <td><strong>${htmlEscape(u.nome || '—')}</strong></td>
+      <td>${htmlEscape(u.email || '—')}</td>
+      <td><span class="badge">${u.perfil === 'coordenador' ? 'Coordenadora' : 'Usuário'}</span></td>
+      <td><span style="color:${u.ativo === false ? 'var(--gov-red)' : 'var(--gov-green)'};font-weight:700;font-size:12px">${u.ativo === false ? 'Inativo' : 'Ativo'}</span></td>
+      <td style="font-size:12px">${u.created_at ? new Date(u.created_at).toLocaleString('pt-BR') : '—'}</td>
+    </tr>
+  `).join('');
+}
+
+window.abrirCadastroUsuario = () => {
+  if (!usuarioEhCoordenador()) {
+    showToast('Apenas a coordenadora pode cadastrar usuários.', 'warning');
+    return;
+  }
+  $('form-usuario')?.reset();
+  openModal('modal-usuario');
+};
+
+$('form-usuario')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!usuarioEhCoordenador()) return;
+
+  const nome = $('usr-nome').value.trim();
+  const email = $('usr-email').value.trim().toLowerCase();
+  const senha = $('usr-senha').value;
+  const confirmar = $('usr-confirmar').value;
+  if (!nome || !email || !senha) return showToast('Preencha todos os campos.', 'warning');
+  if (senha.length < 8) return showToast('A senha deve ter pelo menos 8 caracteres.', 'warning');
+  if (senha !== confirmar) return showToast('As senhas não conferem.', 'warning');
+
+  const btn = $('btn-salvar-usuario');
+  btn.disabled = true;
+  const { data: { session } } = await sb.auth.getSession();
+  let response;
+  try {
+    response = await fetch(`${SUPABASE_URL}/functions/v1/criar-usuario`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session?.access_token || ''}`,
+        'apikey': SUPABASE_ANON
+      },
+      body: JSON.stringify({ nome, email, senha })
+    });
+  } catch (err) {
+    btn.disabled = false;
+    return showToast('Não foi possível conectar ao serviço de cadastro.', 'error');
+  }
+
+  const result = await response.json().catch(() => ({}));
+  btn.disabled = false;
+  if (!response.ok) {
+    return showToast(result.error || 'Erro ao cadastrar usuário.', 'error');
+  }
+
+  closeModal('modal-usuario');
+  showToast(`Usuário ${nome} cadastrado com sucesso!`, 'success');
+  renderUsuarios();
+});
 
 // ╔══════════════════════════════════════════════════════════════╗
 // ║                       FUNCIONÁRIOS                            ║
@@ -1608,6 +1729,7 @@ window.excluirFuncionario = async (id) => {
   if (res.error) {
     showToast(`Erro ao excluir: ${res.error.message}`, 'error');
   } else {
+    await registrarLog('EXCLUSÃO DE SERVIDOR', id, `Servidor ID ${id}`);
     showToast('Funcionário excluído com sucesso!', 'success');
     carregarFuncionarios();
   }
@@ -1706,6 +1828,10 @@ $('btn-salvar-add').onclick = async () => {
     return showToast('Servidor criado, mas erro na lotação: ' + histError.message, 'error');
   }
 
+  await registrarLog('CADASTRO DE SERVIDOR', funcData.id, nome, {
+    matricula: funcPayload.matricula,
+    lotacao_id: Number(lotacaoId)
+  });
   showToast('Servidor cadastrado com sucesso!', 'success');
   closeModal('modal-add-funcionario');
   carregarFuncionarios();
@@ -1823,6 +1949,10 @@ $('btn-salvar-edit').onclick = async () => {
     showToast('Erro ao salvar: ' + (r1.error?.message || r1b.error?.message || r2.error?.message || r2b.error?.message), 'error');
     return;
   }
+  await registrarLog('EDIÇÃO DE SERVIDOR', id, $('edit-nome').value.trim() || 'Servidor(a)', {
+    matricula: $('edit-matricula').value.trim() || null,
+    regularizou_lotacao: semLotacao
+  });
   showToast('Alterações salvas com sucesso', 'success');
   closeModal('modal-edit');
   carregarFuncionarios();
@@ -2378,15 +2508,18 @@ async function fpAddFeriado() {
   $('fp-fer-nome').value = '';
   fpRenderFeriados();
   fpPopularDias();
+  await registrarLog('CADASTRO DE FERIADO', null, nome, { data: dt });
   showToast('Feriado personalizado adicionado!', 'success');
 }
 
 window.fpDelFeriado = async (id) => {
+  const feriado = (_fpHolCfg.custom || []).find(c => c.id === id);
   const { error } = await sb.from('feriados').delete().eq('id', id);
   if (error) { showToast('Erro ao remover feriado', 'error'); return; }
   _fpHolCfg.custom = _fpHolCfg.custom.filter(c => c.id !== id);
   fpRenderFeriados();
   fpPopularDias();
+  await registrarLog('EXCLUSÃO DE FERIADO', null, feriado?.nome || `Feriado ID ${id}`, { feriado_id: id });
   showToast('Feriado removido', 'info');
 };
 
@@ -3020,6 +3153,7 @@ window.descartarPendente = async (pendId) => {
   if (motivo === null) return;
   const { error } = await sb.rpc('fn_descartar_pendente', { p_pendente_id: pendId, p_motivo: motivo || null });
   if (error) return showToast('Erro: ' + error.message, 'error');
+  await registrarLog('DESCARTE DE PENDÊNCIA', null, `Pendência ID ${pendId}`, { motivo: motivo || null });
   showToast('Descartado', 'success');
   renderPendentes();
 };
@@ -3193,6 +3327,11 @@ window.salvarLotacao = async () => {
     r = await sb.rpc('fn_criar_lotacao', { ...params, p_parent_id: parent });
   }
   if (r.error) return showToast('Erro: ' + r.error.message, 'error');
+  await registrarLog(id ? 'EDIÇÃO DE LOTAÇÃO' : 'CADASTRO DE LOTAÇÃO', null, params.p_nome, {
+    lotacao_id: id ? Number(id) : null,
+    parent_id: parent,
+    tipo: params.p_tipo
+  });
   showToast(id ? 'Lotação atualizada' : 'Lotação criada', 'success');
   closeModal('modal-lotacao');
   await recarregarLotacoes();
@@ -3214,6 +3353,10 @@ window.confirmarMoverLotacao = async () => {
   const novoParent = $('mov-novo-parent').value ? Number($('mov-novo-parent').value) : null;
   const { error } = await sb.rpc('fn_mover_lotacao', { p_lotacao_id: id, p_novo_parent: novoParent });
   if (error) return showToast('Erro: ' + error.message, 'error');
+  await registrarLog('MOVIMENTAÇÃO DE LOTAÇÃO', null, state.lotacoes.find(l => l.id == id)?.nome || `Lotação ID ${id}`, {
+    lotacao_id: id,
+    novo_parent_id: novoParent
+  });
   showToast('Lotação movida', 'success');
   closeModal('modal-mover-lotacao');
   await recarregarLotacoes();
@@ -3224,6 +3367,7 @@ window.inativarLotacao = async (id) => {
   if (!confirm('Confirma inativar essa lotação?')) return;
   const { error } = await sb.rpc('fn_inativar_lotacao', { p_lotacao_id: id });
   if (error) return showToast('Erro: ' + error.message, 'error');
+  await registrarLog('INATIVAÇÃO DE LOTAÇÃO', null, state.lotacoes.find(l => l.id == id)?.nome || `Lotação ID ${id}`, { lotacao_id: id });
   showToast('Lotação inativada', 'success');
   await recarregarLotacoes();
   renderLotacoes();
@@ -3280,6 +3424,10 @@ async function salvarCadastrarPendente() {
     p_turno_id:    $('cad-pend-turno').value ? Number($('cad-pend-turno').value) : null,
   });
   if (error) return showToast('Erro: ' + error.message, 'error');
+  await registrarLog('CADASTRO VIA PENDÊNCIA', null, `Pendência ID ${pendId}`, {
+    lotacao_id: lotId,
+    vinculo_id: vincId
+  });
   showToast('Servidor cadastrado', 'success');
   closeModal('modal-cadastrar-pendente');
   renderPendentes();
@@ -3660,6 +3808,11 @@ window.retornarAtiva = async (licenca_id, funcionario_id) => {
     return showToast('Erro ao encerrar afastamento: ' + error.message, 'error');
   }
   
+  const licenca = (window._licencasCache || []).find(l => Number(l.licenca_id) === Number(licenca_id));
+  await registrarLog('ENCERRAMENTO DE LICENÇA', funcionario_id, licenca?.nome || 'Servidor(a)', {
+    licenca_id: licenca_id || null,
+    data_final: hoje
+  });
   showToast('Afastamento encerrado! O servidor permanece na lotação original.', 'success');
   carregarTabelaLicencas();
   carregarFuncionarios();
@@ -3966,8 +4119,14 @@ window.editarCedencia = async (id) => {
 
 window.excluirCedencia = async (id) => {
   if(confirm('Tem certeza que deseja excluir este registro de cedência?')) {
+    const cedencia = (window._cedidosCache || []).find(c => Number(c.id) === Number(id));
     const { error } = await sb.from('funcionario_cedencias').delete().eq('id', id);
     if (error) return showToast('Erro ao excluir: ' + error.message, 'error');
+    await registrarLog('EXCLUSÃO DE CEDÊNCIA', cedencia?.funcionario_id || null, cedencia?.nome || `Cedência ID ${id}`, {
+      cedencia_id: id,
+      tipo: cedencia?.tipo,
+      orgao: cedencia?.orgao_destino_origem
+    });
     showToast('Registro excluído com sucesso.', 'success');
     renderCedidos();
   }
@@ -4073,6 +4232,12 @@ window.salvarCedencia = async () => {
   if (error) {
     showToast('Erro: ' + error.message, 'error');
   } else {
+    const nomeServidor = $('cedido-func-search')?.value || $('cedido-func-nome-container')?.querySelector('input')?.value || 'Servidor(a)';
+    await registrarLog(editId ? 'EDIÇÃO DE CEDÊNCIA' : 'CADASTRO DE CEDÊNCIA', Number(fId), nomeServidor, {
+      cedencia_id: editId ? Number(editId) : null,
+      tipo,
+      orgao
+    });
     showToast('Registro salvo com sucesso!', 'success');
     if ($('cedencia-id-editar')) $('cedencia-id-editar').remove();
     closeModal('modal-cedido');
