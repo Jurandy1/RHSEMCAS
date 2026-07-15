@@ -736,6 +736,14 @@ async function carregarDominios() {
   state.lotacoes = (lRes.data || []).filter(l => l.ativo !== false);
   state.funcoes  = fRes?.data || [];
 
+  const listaFuncoes = $('funcoes-cadastradas');
+  if (listaFuncoes) {
+    listaFuncoes.innerHTML = [...new Set(state.funcoes.map(x => (x.funcao || '').trim()).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+      .map(funcao => `<option value="${htmlEscape(funcao)}"></option>`)
+      .join('');
+  }
+
   $('f-vinculo').innerHTML = '<option value="">Todos os vínculos</option>' +
     state.vinculos.map(x => `<option value="${x.id}">${htmlEscape(x.categoria)}</option>`).join('');
 
@@ -3450,7 +3458,12 @@ function renderTabelaLicencas(lista) {
                    <i class="ti ti-building"></i> Definir lotação
                  </button>`
               : ''}
-            <button class="btn-icon" onclick="retornarAtiva(${l.funcionario_id})" title="Encerrar e Retornar à Ativa">
+            ${l.licenca_id
+              ? `<button class="btn-icon" onclick="abrirEditarTipoLicenca(${l.licenca_id})" title="Editar esta licença">
+                   <i class="ti ti-edit"></i> Editar
+                 </button>`
+              : ''}
+            <button class="btn-icon" onclick="retornarAtiva(${l.licenca_id || 'null'}, ${l.funcionario_id})" title="Encerrar e Retornar à Ativa">
               <i class="ti ti-arrow-back-up"></i> Retornar à Ativa
             </button>
           </div>
@@ -3497,14 +3510,15 @@ $('lic-limpar')?.addEventListener('click', () => {
   if (window._licencasCache) renderTabelaLicencas(window._licencasCache);
 });
 
-window.retornarAtiva = async (funcionario_id) => {
+window.retornarAtiva = async (licenca_id, funcionario_id) => {
   if (!confirm('Deseja encerrar este afastamento e retornar o servidor à ativa?')) return;
   
   const hoje = new Date().toISOString().split('T')[0];
-  const { error } = await sb.from('funcionario_licencas')
+  let query = sb.from('funcionario_licencas')
     .update({ ativo: false, data_final: hoje })
-    .eq('funcionario_id', funcionario_id)
     .eq('ativo', true);
+  query = licenca_id ? query.eq('id', licenca_id) : query.eq('funcionario_id', funcionario_id);
+  const { error } = await query;
     
   if (error) {
     return showToast('Erro ao encerrar afastamento: ' + error.message, 'error');
@@ -3514,6 +3528,83 @@ window.retornarAtiva = async (funcionario_id) => {
   carregarTabelaLicencas();
   carregarFuncionarios();
 };
+
+const TIPOS_LICENCA_OFICIAIS = [
+  'Licença Prêmio',
+  'Licença para tratamento de saúde',
+  'Licença capacitação',
+  'Licença para tratar de interesse particular',
+  'Licença amamentação'
+];
+
+window.abrirEditarTipoLicenca = (licenca_id) => {
+  const licenca = (window._licencasCache || []).find(l => Number(l.licenca_id) === Number(licenca_id));
+  if (!licenca) return showToast('Registro de licença não encontrado. Atualize a página e tente novamente.', 'warning');
+
+  const atual = (licenca.tipo_afastamento || '').trim();
+  $('edit-licenca-id').value = licenca_id;
+  $('edit-licenca-servidor').innerHTML = `<strong>${htmlEscape(licenca.nome || 'Servidor')}</strong><br><small>Mat: ${htmlEscape(licenca.matricula || 'S/M')}</small>`;
+  if (TIPOS_LICENCA_OFICIAIS.includes(atual)) {
+    $('edit-licenca-tipo').value = atual;
+    $('edit-licenca-outro').value = '';
+    $('edit-licenca-outro-group').style.display = 'none';
+  } else {
+    $('edit-licenca-tipo').value = 'Outros';
+    $('edit-licenca-outro').value = atual;
+    $('edit-licenca-outro-group').style.display = '';
+  }
+  $('edit-licenca-inicio').value = licenca.data_inicial || '';
+  $('edit-licenca-fim').value = licenca.data_final || '';
+  $('edit-licenca-portaria').value = licenca.portaria || '';
+  $('edit-licenca-sei').value = licenca.num_sei || '';
+  $('edit-licenca-obs').value = licenca.observacao || '';
+  openModal('modal-editar-tipo-licenca');
+};
+
+$('edit-licenca-tipo')?.addEventListener('change', () => {
+  $('edit-licenca-outro-group').style.display = $('edit-licenca-tipo').value === 'Outros' ? '' : 'none';
+});
+
+$('btn-salvar-tipo-licenca')?.addEventListener('click', async () => {
+  const licencaId = Number($('edit-licenca-id').value);
+  const licenca = (window._licencasCache || []).find(l => Number(l.licenca_id) === licencaId);
+  if (!licencaId || !licenca) return showToast('Registro de licença inválido.', 'error');
+
+  let tipoNovo = $('edit-licenca-tipo').value;
+  if (tipoNovo === 'Outros') tipoNovo = $('edit-licenca-outro').value.trim().replace(/\s+/g, ' ');
+  if (!tipoNovo) return showToast('Informe o tipo correto da licença.', 'warning');
+  const inicio = $('edit-licenca-inicio').value;
+  if (!inicio) return showToast('Informe a data inicial.', 'warning');
+
+  const payload = {
+    tipo_afastamento: tipoNovo,
+    data_inicial: inicio,
+    data_final: $('edit-licenca-fim').value || null,
+    portaria: $('edit-licenca-portaria').value.trim() || null,
+    num_sei: $('edit-licenca-sei').value.trim() || null,
+    observacao: $('edit-licenca-obs').value.trim() || null
+  };
+
+  const btn = $('btn-salvar-tipo-licenca');
+  btn.disabled = true;
+  const { data, error } = await sb.from('funcionario_licencas')
+    .update(payload)
+    .eq('id', licencaId)
+    .eq('ativo', true)
+    .select('id')
+    .single();
+  btn.disabled = false;
+  if (error || !data) return showToast('Erro ao editar licença: ' + (error?.message || 'registro não atualizado'), 'error');
+
+  await registrarLog('EDIÇÃO DE LICENÇA', Number(licenca.funcionario_id), licenca.nome || 'Servidor(a)', {
+    licenca_id: licencaId,
+    tipo_anterior: (licenca.tipo_afastamento || '').trim(),
+    ...payload
+  });
+  closeModal('modal-editar-tipo-licenca');
+  showToast('Licença atualizada com sucesso.', 'success');
+  renderLicencas();
+});
 
 window.abrirModalLicenca = async (id = null) => {
   $('lic-func-id').value = id || '';

@@ -615,6 +615,7 @@
               </div>
             </div>
           </div>
+
         </div>
       </section>
 
@@ -798,7 +799,8 @@
         </div>
         <div class="form-group">
           <label class="form-label">Função / Cargo</label>
-          <input type="text" class="form-control" id="add-funcao">
+          <input type="text" class="form-control" id="add-funcao" list="funcoes-cadastradas" placeholder="Selecione uma existente ou digite">
+          <datalist id="funcoes-cadastradas"></datalist>
         </div>
         <div class="form-group">
           <label class="form-label">Ano do Concurso</label>
@@ -867,7 +869,7 @@
         </div>
         <div class="form-group">
           <label class="form-label">Função / Cargo</label>
-          <input type="text" class="form-control" id="edit-funcao">
+          <input type="text" class="form-control" id="edit-funcao" list="funcoes-cadastradas">
         </div>
         <div class="form-group">
           <label class="form-label">Ano do Concurso</label>
@@ -971,7 +973,7 @@
         <div id="trf-extras" style="display:none;grid-column:1/-1" class="form-grid">
           <div class="form-group">
             <label class="form-label">Nova Função</label>
-            <input type="text" id="trf-funcao" class="form-control" placeholder="Manter atual">
+            <input type="text" id="trf-funcao" class="form-control" list="funcoes-cadastradas" placeholder="Manter atual">
           </div>
           <div class="form-group">
             <label class="form-label">Novo Turno</label>
@@ -1150,7 +1152,7 @@
         </div>
         <div class="form-group full-width">
           <label class="form-label">Função / Cargo</label>
-          <input type="text" id="cad-pend-funcao" class="form-control">
+          <input type="text" id="cad-pend-funcao" class="form-control" list="funcoes-cadastradas">
         </div>
       </div>
     </div>
@@ -1216,6 +1218,61 @@
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal('modal-licenca')">Cancelar</button>
       <button class="btn-primary" id="btn-salvar-licenca">Salvar Afastamento</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · EDITAR LICENÇA -->
+<div class="modal-overlay" id="modal-editar-tipo-licenca">
+  <div class="modal-content" style="max-width:680px">
+    <div class="modal-header">
+      <div class="modal-title"><i class="ti ti-edit"></i> Editar Licença / Afastamento</div>
+      <button class="modal-close" onclick="closeModal('modal-editar-tipo-licenca')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="edit-licenca-id">
+      <div id="edit-licenca-servidor" style="background:var(--gov-bg-light);padding:10px 12px;border-radius:var(--br-sm);margin-bottom:14px"></div>
+      <div class="form-group">
+        <label class="form-label">Tipo de Afastamento *</label>
+        <select id="edit-licenca-tipo" class="form-control">
+          <option value="Licença Prêmio">Licença Prêmio</option>
+          <option value="Licença para tratamento de saúde">Licença para tratamento de saúde</option>
+          <option value="Licença capacitação">Licença capacitação</option>
+          <option value="Licença para tratar de interesse particular">Licença para tratar de interesse particular</option>
+          <option value="Licença amamentação">Licença amamentação</option>
+          <option value="Outros">Outros</option>
+        </select>
+      </div>
+      <div class="form-group" id="edit-licenca-outro-group" style="display:none;margin-top:12px">
+        <label class="form-label">Especificar outro tipo *</label>
+        <input type="text" id="edit-licenca-outro" class="form-control" placeholder="Informe o tipo correto">
+      </div>
+      <div class="form-grid" style="margin-top:12px">
+        <div class="form-group">
+          <label class="form-label">Data Inicial *</label>
+          <input type="date" id="edit-licenca-inicio" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data Final (opcional)</label>
+          <input type="date" id="edit-licenca-fim" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Portaria</label>
+          <input type="text" id="edit-licenca-portaria" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nº SEI</label>
+          <input type="text" id="edit-licenca-sei" class="form-control">
+        </div>
+        <div class="form-group full-width">
+          <label class="form-label">Observação</label>
+          <textarea id="edit-licenca-obs" class="form-control" rows="3"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-editar-tipo-licenca')">Cancelar</button>
+      <button class="btn-primary" id="btn-salvar-tipo-licenca">Salvar Alterações</button>
     </div>
   </div>
 </div>
