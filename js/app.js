@@ -2817,10 +2817,10 @@ function fpImprimirUnidade() {
           <tr class="fp-bg-head"><th rowspan="3">Dia</th><th colspan="8">Horário de Trabalho</th><th rowspan="3">Ocorrência</th></tr>
           <tr class="fp-bg-head"><th colspan="4">Manhã</th><th colspan="4">Tarde</th></tr>
           <tr class="fp-bg-head">
-            <th colspan="2" class="fp-hora-ref">Entrada:<br>08:00</th>
-            <th colspan="2" class="fp-hora-ref">Saída:<br>12:00</th>
-            <th colspan="2" class="fp-hora-ref">Entrada:<br>14:00</th>
-            <th colspan="2" class="fp-hora-ref">Saída:<br>18:00</th>
+            <th colspan="2" class="fp-hora-ref">Entrada: 08:00</th>
+            <th colspan="2" class="fp-hora-ref">Saída: 12:00</th>
+            <th colspan="2" class="fp-hora-ref">Entrada: 14:00</th>
+            <th colspan="2" class="fp-hora-ref">Saída: 18:00</th>
           </tr>
           <tr class="fp-bg-gray"><th></th><th class="fp-col-lbl">Hora</th><th class="fp-col-lbl">Rubrica</th><th class="fp-col-lbl">Hora</th><th class="fp-col-lbl">Rubrica</th><th class="fp-col-lbl">Hora</th><th class="fp-col-lbl">Rubrica</th><th class="fp-col-lbl">Hora</th><th class="fp-col-lbl">Rubrica</th><th class="fp-col-lbl">Obs</th></tr>
         </thead>
