@@ -1526,7 +1526,7 @@
     .sort-icon.active { opacity: 1; color: var(--gov-blue-primary); font-weight: 700; }
 
     /* ============================================================
-       FOLHA DE PONTO — preenche 1 página A4 (frequência)
+       FOLHA DE PONTO — 1 página A4, assinaturas reservadas
     ============================================================ */
     .page-wrapper-fp {
       width: 100%; display: flex; justify-content: center;
@@ -1567,11 +1567,13 @@
     }
     .fp-cabecalho {
       flex: 0 0 auto;
+      position: relative;
+      z-index: 2;
     }
     .fp-cabecalho td {
-      padding: 5px 6px;
+      padding: 4px 6px;
       font-size: 12px;
-      height: 8mm;
+      height: 7mm;
     }
     .fp-cabecalho .fp-bg-gray {
       font-size: 13px;
@@ -1579,12 +1581,20 @@
     }
     .fp-cabecalho .fp-orgao {
       font-size: 11px;
-      height: 7mm;
+      height: 6.5mm;
+    }
+    /* Área da grade: só ela cresce; nunca invade as assinaturas */
+    .fp-grade-wrap {
+      flex: 1 1 0;
+      min-height: 0;
+      overflow: hidden;
+      margin-top: -1px;
+      position: relative;
+      z-index: 1;
     }
     .fp-grade {
-      flex: 1 1 auto;
+      width: 100%;
       height: 100%;
-      margin-top: -1px;
       border-top: none;
     }
     .fp-grade thead th {
@@ -1595,47 +1605,45 @@
     .fp-grade .fp-col-lbl {
       font-size: 9px;
     }
-    .fp-grade tbody {
-      height: 100%;
-    }
-    .fp-grade tbody tr.fp-dia {
-      height: 3.226%; /* 100% / 31 dias — preenche o espaço restante */
-    }
     .fp-grade tbody tr.fp-dia td {
-      height: 6.5mm;
-      min-height: 6.5mm;
-      padding: 1px 2px;
+      padding: 0 2px;
       font-size: 11px;
+      line-height: 1;
     }
     .fp-grade tbody tr.fp-dia td[contenteditable="true"] {
       white-space: nowrap;
     }
+    /* Mesmo espaço útil da folha anterior (~90px), sem sobrepor a grade */
     .fp-assinaturas {
       width: 100%;
       border-collapse: collapse;
       margin-top: -1px;
-      flex: 0 0 auto;
-      height: 28mm;
+      flex: 0 0 24mm;
+      height: 24mm;
+      position: relative;
+      z-index: 3;
+      background: #fff;
     }
     .fp-assinaturas td {
       border: 1px solid #000;
       vertical-align: top;
-      padding: 5px 8px;
+      padding: 4px 8px;
       width: 50%;
-      height: 28mm;
+      height: 24mm;
+      background: #fff;
     }
     .fp-ass-titulo {
       font-weight: bold;
       font-size: 11px;
     }
     .fp-ass-linha {
-      margin-top: 14mm;
+      margin-top: 11mm;
       border-top: 1px solid #000;
       width: 85%;
     }
     .fp-ass-data {
       font-size: 10px;
-      margin-top: 4px;
+      margin-top: 3px;
     }
     .fp-ass-data-inp {
       display: inline-block;
@@ -1665,7 +1673,6 @@
         size: A4 portrait;
         margin: 0;
       }
-      /* ── Impressão individual (padrão) ── */
       .sidebar, .topbar, .bottom-nav, .sidebar-overlay, .gov-top-bar,
       #fp-controls, .fp-no-print { display: none !important; }
       body, html { margin: 0; padding: 0; background: #fff !important; height: auto !important; overflow: visible !important; display: block !important; }
@@ -1691,14 +1698,12 @@
       #fp-print-lote  { display: none !important; }
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 
-      /* ── Impressão em lote (Por Unidade) ── */
       body.fp-lote-print .app            { display: none !important; }
       body.fp-lote-print #fp-print-lote  { display: block !important; }
       body.fp-lote-print #view-folha-ponto { display: none !important; }
       #fp-print-lote .page-fp { page-break-after: always; page-break-inside: avoid; }
     }
 
-    /* Fora da impressão, o lote fica oculto */
     #fp-print-lote { display: none; }
 
     @media (max-width: 768px) {

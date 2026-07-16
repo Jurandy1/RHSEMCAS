@@ -2552,31 +2552,34 @@ function fpPopularDias() {
     }
     tbody.appendChild(tr);
   }
-  requestAnimationFrame(() => fpAjustarAlturaDias());
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => fpAjustarAlturaDias());
+  });
 }
 
-/** Distribui a altura das 31 linhas para preencher o A4 sem sobra. */
+/** Ajusta as 31 linhas para caber só na área da grade (assinaturas ficam intactas). */
 function fpAjustarAlturaDias(root = document) {
   const pages = root.querySelectorAll ? root.querySelectorAll('.page-fp') : [];
-  const list = pages.length ? pages : ($('fp-paper') ? [$('fp-paper')] : []);
+  const list = pages.length ? [...pages] : ($('fp-paper') ? [$('fp-paper')] : []);
   list.forEach(page => {
+    const wrap = page.querySelector('.fp-grade-wrap');
     const grade = page.querySelector('.fp-grade');
     const tbody = grade?.querySelector('tbody');
     const rows = tbody?.querySelectorAll('tr.fp-dia');
-    if (!grade || !tbody || !rows?.length) return;
+    const thead = grade?.querySelector('thead');
+    if (!wrap || !grade || !tbody || !rows?.length) return;
 
-    const cab = page.querySelector('.fp-cabecalho');
-    const ass = page.querySelector('.fp-assinaturas');
-    const thead = grade.querySelector('thead');
-    const style = getComputedStyle(page);
-    const padY = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
-    const disponivel = page.clientHeight
-      - padY
-      - (cab?.offsetHeight || 0)
-      - (ass?.offsetHeight || 0)
-      - (thead?.offsetHeight || 0)
-      - 2;
-    const h = Math.max(20, Math.floor(disponivel / rows.length));
+    // Limpa alturas anteriores para medir o espaço real do wrap
+    rows.forEach(tr => {
+      tr.style.height = '';
+      tr.querySelectorAll('td').forEach(td => { td.style.height = ''; });
+    });
+
+    const wrapH = wrap.clientHeight;
+    const theadH = thead?.offsetHeight || 0;
+    const disponivel = Math.max(0, wrapH - theadH - 1);
+    const h = Math.max(12, Math.floor(disponivel / rows.length));
+
     rows.forEach(tr => {
       tr.style.height = h + 'px';
       tr.querySelectorAll('td').forEach(td => { td.style.height = h + 'px'; });
@@ -2807,6 +2810,7 @@ function fpImprimirUnidade() {
         <tr><td style="background:#fff">Cargo/Função: <strong>${htmlEscape(cargo)}</strong></td><td style="background:#fff">Vínculo: <strong>${htmlEscape(srv.vinculo||'')}</strong></td></tr>
         <tr><td colspan="2" style="background:#fff">Unidade Administrativa: <strong>${htmlEscape(unidadeTexto)}</strong></td></tr>
       </table>
+      <div class="fp-grade-wrap">
       <table class="folha-table fp-grade">
         <colgroup><col style="width:6%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:14%"></colgroup>
         <thead>
@@ -2822,6 +2826,7 @@ function fpImprimirUnidade() {
         </thead>
         <tbody>${linhasDias}</tbody>
       </table>
+      </div>
       <table class="fp-assinaturas">
         <tr>
           <td>
