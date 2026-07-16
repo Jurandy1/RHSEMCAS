@@ -20,6 +20,20 @@ window.sb = sb;
 const $ = (id) => document.getElementById(id);
 const $$ = (sel, root = document) => root.querySelectorAll(sel);
 
+const SIMBOLOGIAS = [
+  'DAS',
+  'DAS 1', 'DAS 2', 'DAS 3', 'DAS 4', 'DAS 5', 'DAS 6', 'DAS 7',
+  'DAI 1', 'DAI 2', 'DAI 3', 'DAI 4', 'DAI 5'
+];
+
+function popularSelectSimbologia(selectId, valor = '') {
+  const el = $(selectId);
+  if (!el) return;
+  el.innerHTML = '<option value="">— Sem simbologia —</option>' +
+    SIMBOLOGIAS.map(s => `<option value="${s}">${s}</option>`).join('');
+  el.value = valor && SIMBOLOGIAS.includes(valor) ? valor : '';
+}
+
 const state = {
   vinculos: [], turnos: [], lotacoes: [], funcoes: [],
   filtros: { busca: '', vinculo_id: null, lotacao_id: null, funcoes: [], turno_id: null },
@@ -1271,24 +1285,39 @@ $('form-usuario')?.addEventListener('submit', async (e) => {
   const btn = $('btn-salvar-usuario');
   btn.disabled = true;
   const { data: { session } } = await sb.auth.getSession();
+  if (!session?.access_token) {
+    btn.disabled = false;
+    return showToast('Sessão expirada. Faça login novamente.', 'warning');
+  }
+
   let response;
   try {
     response = await fetch(`${SUPABASE_URL}/functions/v1/criar-usuario`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session?.access_token || ''}`,
+        'Authorization': `Bearer ${session.access_token}`,
         'apikey': SUPABASE_ANON
       },
       body: JSON.stringify({ nome, email, senha })
     });
   } catch (err) {
     btn.disabled = false;
-    return showToast('Não foi possível conectar ao serviço de cadastro.', 'error');
+    console.error('Cadastro de usuário — falha de rede/CORS:', err);
+    return showToast(
+      'Serviço de cadastro indisponível. A Edge Function criar-usuario ainda não está publicada no Supabase.',
+      'error'
+    );
   }
 
   const result = await response.json().catch(() => ({}));
   btn.disabled = false;
+  if (response.status === 404) {
+    return showToast(
+      'Função criar-usuario não encontrada. Publique-a no Supabase (veja supabase/DEPLOY.md).',
+      'error'
+    );
+  }
   if (!response.ok) {
     return showToast(result.error || 'Erro ao cadastrar usuário.', 'error');
   }
@@ -1825,6 +1854,7 @@ window.abrirModalAddFuncionario = () => {
   $('add-telefone').value = '';
   $('add-funcao').value = '';
   $('add-ano').value = '';
+  popularSelectSimbologia('add-simbologia');
   
   $('add-vinculo').innerHTML = '<option value="">Selecione...</option>' + state.vinculos.map(v => `<option value="${v.id}">${htmlEscape(v.categoria)}</option>`).join('');
   $('add-turno').innerHTML = '<option value="">Selecione...</option>' + state.turnos.map(t => `<option value="${t.id}">${htmlEscape(t.nome)}</option>`).join('');
@@ -1879,6 +1909,7 @@ $('btn-salvar-add').onclick = async () => {
     data_admissao: $('add-admissao').value || null,
     email: $('add-email').value.trim() || null,
     telefone: $('add-telefone').value.trim() || null,
+    simbologia: $('add-simbologia').value || null,
     ativo: true
   };
 
@@ -1921,8 +1952,8 @@ $('btn-salvar-add').onclick = async () => {
 window.abrirEdicao = async (id) => {
   const data = await handleErr(await sb.from('v_funcionarios_atual').select('*').eq('funcionario_id', id).limit(1).single(), 'editar');
   if (!data) return;
-  // Busca matrícula + admissão + observação (não vêm na view)
-  const ext = await handleErr(await sb.from('funcionarios').select('matricula, data_admissao, observacao').eq('id', id).single(), 'edit extras');
+  // Busca matrícula + admissão + observação + simbologia (não vêm na view)
+  const ext = await handleErr(await sb.from('funcionarios').select('matricula, data_admissao, observacao, simbologia').eq('id', id).single(), 'edit extras');
   state.funcionarioAtual = data;
   
   $('edit-id').value = id;
@@ -1932,6 +1963,7 @@ window.abrirEdicao = async (id) => {
   $('edit-admissao').value  = ext?.data_admissao || '';
   $('edit-email').value     = data.email || '';
   $('edit-telefone').value  = data.telefone ? mascaraTelefone(data.telefone) : '';
+  popularSelectSimbologia('edit-simbologia', ext?.simbologia || '');
   $('edit-funcao').value    = data.funcao || '';
   $('edit-ano').value       = data.ano_concurso || '';
   $('edit-obs').value       = ext?.observacao || '';
@@ -1982,9 +2014,13 @@ $('btn-salvar-edit').onclick = async () => {
     p_email:     $('edit-email').value.trim() || null,
     p_telefone:  $('edit-telefone').value.trim() || null,
   });
-  // data_admissao não está na RPC (coluna nova), atualiza direto.
+  // data_admissao / observacao / simbologia não estão na RPC — atualiza direto.
   // Campos deixados em branco também: a RPC ignora nulos, então não apaga valores — limpa direto na tabela
-  const diretos = { data_admissao: $('edit-admissao').value || null, observacao: $('edit-obs').value.trim() || null };
+  const diretos = {
+    data_admissao: $('edit-admissao').value || null,
+    observacao: $('edit-obs').value.trim() || null,
+    simbologia: $('edit-simbologia').value || null
+  };
   if (!$('edit-cpf').value.trim())       diretos.cpf = null;
   if (!$('edit-matricula').value.trim()) diretos.matricula = null;
   if (!$('edit-email').value.trim())     diretos.email = null;
