@@ -1526,37 +1526,128 @@
     .sort-icon.active { opacity: 1; color: var(--gov-blue-primary); font-weight: 700; }
 
     /* ============================================================
-       FOLHA DE PONTO
+       FOLHA DE PONTO — preenche 1 página A4 (frequência)
     ============================================================ */
     .page-wrapper-fp {
       width: 100%; display: flex; justify-content: center;
       padding: 20px 0; overflow-x: auto;
     }
     .page-fp {
-      width: 210mm; min-width: 210mm; min-height: 297mm;
-      background: #fff; color: #000;
-      padding: 12mm 15mm;
+      width: 210mm;
+      height: 297mm;
+      min-width: 210mm;
+      min-height: 297mm;
+      max-height: 297mm;
+      background: #fff;
+      color: #000;
+      padding: 6mm 7mm;
       box-sizing: border-box;
       box-shadow: 0 10px 15px -3px rgba(0,0,0,0.12);
       margin: 0 auto;
       font-family: Arial, Helvetica, sans-serif;
       position: relative;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
     .folha-table {
-      width: 100%; border-collapse: collapse;
-      table-layout: fixed; border: 2px solid #000;
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      border: 2px solid #000;
     }
     .folha-table td, .folha-table th {
-      border: 1px solid #000; padding: 2px 4px;
-      font-size: 11px; vertical-align: middle;
-      color: #000; overflow: hidden; white-space: nowrap;
+      border: 1px solid #000;
+      padding: 3px 4px;
+      font-size: 11px;
+      vertical-align: middle;
+      color: #000;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    .fp-cabecalho {
+      flex: 0 0 auto;
+    }
+    .fp-cabecalho td {
+      padding: 5px 6px;
+      font-size: 12px;
+      height: 8mm;
+    }
+    .fp-cabecalho .fp-bg-gray {
+      font-size: 13px;
+      letter-spacing: 0.3px;
+    }
+    .fp-cabecalho .fp-orgao {
+      font-size: 11px;
+      height: 7mm;
+    }
+    .fp-grade {
+      flex: 1 1 auto;
+      height: 100%;
+      margin-top: -1px;
+      border-top: none;
+    }
+    .fp-grade thead th {
+      padding: 2px 3px;
+      line-height: 1.15;
+    }
+    .fp-grade .fp-hora-ref,
+    .fp-grade .fp-col-lbl {
+      font-size: 9px;
+    }
+    .fp-grade tbody {
+      height: 100%;
+    }
+    .fp-grade tbody tr.fp-dia {
+      height: 3.226%; /* 100% / 31 dias — preenche o espaço restante */
+    }
+    .fp-grade tbody tr.fp-dia td {
+      height: 6.5mm;
+      min-height: 6.5mm;
+      padding: 1px 2px;
+      font-size: 11px;
+    }
+    .fp-grade tbody tr.fp-dia td[contenteditable="true"] {
+      white-space: nowrap;
+    }
+    .fp-assinaturas {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: -1px;
+      flex: 0 0 auto;
+      height: 28mm;
+    }
+    .fp-assinaturas td {
+      border: 1px solid #000;
+      vertical-align: top;
+      padding: 5px 8px;
+      width: 50%;
+      height: 28mm;
+    }
+    .fp-ass-titulo {
+      font-weight: bold;
+      font-size: 11px;
+    }
+    .fp-ass-linha {
+      margin-top: 14mm;
+      border-top: 1px solid #000;
+      width: 85%;
+    }
+    .fp-ass-data {
+      font-size: 10px;
+      margin-top: 4px;
+    }
+    .fp-ass-data-inp {
+      display: inline-block;
+      min-width: 100px;
+      border-bottom: 1px dotted #000;
     }
     .fp-bg-gray  { background-color: #e5e7eb !important; font-weight: bold; text-align: center; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .fp-bg-head  { background-color: #fff    !important; font-weight: bold; text-align: center; }
     .fp-inp {
       border: none; border-bottom: 1px solid #aaa;
       background: transparent; font-family: inherit;
-      font-size: 11px; font-weight: bold; width: 100%; outline: none;
+      font-size: 12px; font-weight: bold; width: 100%; outline: none;
     }
     .fp-inp:focus { border-bottom-color: #1351b4; background: rgba(19,81,180,0.05); }
     .fp-tab-btn {
@@ -1570,6 +1661,10 @@
     .fp-tab-pane.active { display: block; }
 
     @media print {
+      @page {
+        size: A4 portrait;
+        margin: 0;
+      }
       /* ── Impressão individual (padrão) ── */
       .sidebar, .topbar, .bottom-nav, .sidebar-overlay, .gov-top-bar,
       #fp-controls, .fp-no-print { display: none !important; }
@@ -1578,19 +1673,33 @@
       .main { overflow: visible !important; }
       .app { display: block !important; height: auto !important; overflow: visible !important; }
       .page-wrapper-fp { padding: 0; }
-      .page-fp { box-shadow: none; margin: 0; width: 100%; min-width: 0; page-break-after: always; }
+      .page-fp {
+        box-shadow: none;
+        margin: 0;
+        width: 210mm;
+        height: 297mm;
+        min-width: 210mm;
+        min-height: 297mm;
+        max-height: 297mm;
+        padding: 6mm 7mm;
+        page-break-after: always;
+        page-break-inside: avoid;
+        overflow: hidden;
+      }
       .fp-inp { border-bottom: none; }
       #view-folha-ponto { display: block !important; }
       #fp-print-lote  { display: none !important; }
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 
       /* ── Impressão em lote (Por Unidade) ── */
-      /* body recebe a classe .fp-lote-print antes do window.print() */
       body.fp-lote-print .app            { display: none !important; }
       body.fp-lote-print #fp-print-lote  { display: block !important; }
       body.fp-lote-print #view-folha-ponto { display: none !important; }
-      #fp-print-lote .page-fp { page-break-after: always; }
+      #fp-print-lote .page-fp { page-break-after: always; page-break-inside: avoid; }
     }
+
+    /* Fora da impressão, o lote fica oculto */
+    #fp-print-lote { display: none; }
 
     @media (max-width: 768px) {
       .page-wrapper-fp { padding: 10px 0; overflow-x: scroll; }

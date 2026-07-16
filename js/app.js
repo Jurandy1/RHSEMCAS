@@ -1162,9 +1162,19 @@ async function renderUsuarios() {
   const tbody = $('tbody-usuarios');
   if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
 
-  const { data, error } = await sb.from('usuarios_sistema')
-    .select('user_id, nome, email, perfil, ativo, created_at')
-    .order('nome');
+  let data = null;
+  let error = null;
+  const rpc = await sb.rpc('fn_listar_usuarios_sistema');
+  if (rpc.error) {
+    // Fallback se a RPC ainda não foi publicada no banco
+    const fallback = await sb.from('usuarios_sistema')
+      .select('user_id, nome, email, perfil, ativo, created_at')
+      .order('nome');
+    data = fallback.data;
+    error = fallback.error;
+  } else {
+    data = rpc.data;
+  }
 
   if (error) {
     if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Erro ao carregar usuários: ${htmlEscape(error.message)}</td></tr>`;
@@ -1321,9 +1331,16 @@ $('form-usuario')?.addEventListener('submit', async (e) => {
   if (!response.ok) {
     return showToast(result.error || 'Erro ao cadastrar usuário.', 'error');
   }
+  if (!result.ok || !result.usuario) {
+    console.error('Resposta inesperada do cadastro:', response.status, result);
+    return showToast(
+      'O serviço respondeu, mas não confirmou o cadastro. Confira se a Edge Function criar-usuario está com o código atualizado.',
+      'error'
+    );
+  }
 
   closeModal('modal-usuario');
-  showToast(`Usuário ${nome} cadastrado com sucesso!`, 'success');
+  showToast(`Usuário ${result.usuario.nome || nome} cadastrado com sucesso!`, 'success');
   renderUsuarios();
 });
 
@@ -2502,7 +2519,7 @@ function fpPopularDias() {
 
   for (let i = 1; i <= 31; i++) {
     const tr = document.createElement('tr');
-    tr.style.height = '18px';
+    tr.className = 'fp-dia';
 
     if (i <= diasNoMes) {
       const dt  = new Date(Number(aa), Number(mm)-1, i);
@@ -2535,6 +2552,36 @@ function fpPopularDias() {
     }
     tbody.appendChild(tr);
   }
+  requestAnimationFrame(() => fpAjustarAlturaDias());
+}
+
+/** Distribui a altura das 31 linhas para preencher o A4 sem sobra. */
+function fpAjustarAlturaDias(root = document) {
+  const pages = root.querySelectorAll ? root.querySelectorAll('.page-fp') : [];
+  const list = pages.length ? pages : ($('fp-paper') ? [$('fp-paper')] : []);
+  list.forEach(page => {
+    const grade = page.querySelector('.fp-grade');
+    const tbody = grade?.querySelector('tbody');
+    const rows = tbody?.querySelectorAll('tr.fp-dia');
+    if (!grade || !tbody || !rows?.length) return;
+
+    const cab = page.querySelector('.fp-cabecalho');
+    const ass = page.querySelector('.fp-assinaturas');
+    const thead = grade.querySelector('thead');
+    const style = getComputedStyle(page);
+    const padY = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
+    const disponivel = page.clientHeight
+      - padY
+      - (cab?.offsetHeight || 0)
+      - (ass?.offsetHeight || 0)
+      - (thead?.offsetHeight || 0)
+      - 2;
+    const h = Math.max(20, Math.floor(disponivel / rows.length));
+    rows.forEach(tr => {
+      tr.style.height = h + 'px';
+      tr.querySelectorAll('td').forEach(td => { td.style.height = h + 'px'; });
+    });
+  });
 }
 
 function fpSwitchTab(tab, btn) {
@@ -2547,8 +2594,12 @@ function fpSwitchTab(tab, btn) {
 }
 
 function fpImprimir() {
-  fpPopularDias(); // garante atualização
-  setTimeout(() => window.print(), 150);
+  fpPopularDias();
+  fpAjustarAlturaDias();
+  setTimeout(() => {
+    fpAjustarAlturaDias();
+    window.print();
+  }, 150);
 }
 
 // --- Feriados ---
@@ -2710,7 +2761,6 @@ function fpImprimirUnidade() {
   // Pega o template A4 atual, clona para cada servidor, imprime
   const container = document.createElement('div');
   container.id = 'fp-print-lote';
-  container.style.cssText = 'display:none';
 
   const ferList = fpGetHolidays(parseInt(aa));
   const ferMap  = new Map(ferList.map(h => [h.date, h.nome]));
@@ -2737,52 +2787,52 @@ function fpImprimirUnidade() {
         const dow = dt.getDay();
         const iso = `${aa}-${String(mm).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
         if (ferMap.has(iso)) {
-          linhasDias += `<tr style="height:18px"><td style="text-align:center;font-weight:bold">${i}</td><td colspan="9" style="text-align:center;background:#ffe4e6;color:#991b1b;font-weight:bold;font-size:9px">FERIADO &#8226; ${htmlEscape(ferMap.get(iso))}</td></tr>`;
+          linhasDias += `<tr class="fp-dia"><td style="text-align:center;font-weight:bold">${i}</td><td colspan="9" style="text-align:center;background:#ffe4e6;color:#991b1b;font-weight:bold;font-size:9px">FERIADO &#8226; ${htmlEscape(ferMap.get(iso))}</td></tr>`;
         } else if (dow === 0 || dow === 6) {
           const txt = dow === 6 ? 'SÁBADO' : 'DOMINGO';
-          linhasDias += `<tr style="height:18px"><td style="text-align:center;font-weight:bold">${i}</td><td colspan="9" style="text-align:center;background:#e5e7eb;color:#374151;font-weight:bold;font-size:9px">${txt}</td></tr>`;
+          linhasDias += `<tr class="fp-dia"><td style="text-align:center;font-weight:bold">${i}</td><td colspan="9" style="text-align:center;background:#e5e7eb;color:#374151;font-weight:bold;font-size:9px">${txt}</td></tr>`;
         } else {
-          linhasDias += `<tr style="height:18px"><td style="text-align:center;font-weight:bold">${i}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+          linhasDias += `<tr class="fp-dia"><td style="text-align:center;font-weight:bold">${i}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
         }
       } else {
-        linhasDias += `<tr style="height:18px"><td style="text-align:center;color:#bbb">—</td><td colspan="9" style="background:#d1d5db"></td></tr>`;
+        linhasDias += `<tr class="fp-dia"><td style="text-align:center;color:#bbb">—</td><td colspan="9" style="background:#d1d5db"></td></tr>`;
       }
     }
 
     wrap.innerHTML = `
-      <table class="folha-table">
-        <tr><td class="fp-bg-gray" style="width:70%;font-size:12px">REGISTRO INDIVIDUAL DE FREQUÊNCIA</td><td class="fp-bg-head">${mm}/${aa}</td></tr>
-        <tr><td colspan="2" class="fp-bg-head" style="font-size:11px">Secretaria Municipal da Criança e Assistência Social / SEMCAS</td></tr>
+      <table class="folha-table fp-cabecalho">
+        <tr><td class="fp-bg-gray" style="width:70%">REGISTRO INDIVIDUAL DE FREQUÊNCIA</td><td class="fp-bg-head">${mm}/${aa}</td></tr>
+        <tr><td colspan="2" class="fp-bg-head fp-orgao">Secretaria Municipal da Criança e Assistência Social / SEMCAS</td></tr>
         <tr><td style="background:#fff">Nome: <strong>${htmlEscape(srv.nome)}</strong></td><td style="background:#fff">Matrícula: <strong>${htmlEscape(srv.matricula||'')}</strong></td></tr>
         <tr><td style="background:#fff">Cargo/Função: <strong>${htmlEscape(cargo)}</strong></td><td style="background:#fff">Vínculo: <strong>${htmlEscape(srv.vinculo||'')}</strong></td></tr>
         <tr><td colspan="2" style="background:#fff">Unidade Administrativa: <strong>${htmlEscape(unidadeTexto)}</strong></td></tr>
       </table>
-      <table class="folha-table" style="margin-top:-1px">
+      <table class="folha-table fp-grade">
         <colgroup><col style="width:6%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:14%"></colgroup>
         <thead>
           <tr class="fp-bg-head"><th rowspan="3">Dia</th><th colspan="8">Horário de Trabalho</th><th rowspan="3">Ocorrência</th></tr>
           <tr class="fp-bg-head"><th colspan="4">Manhã</th><th colspan="4">Tarde</th></tr>
           <tr class="fp-bg-head">
-            <th colspan="2" style="font-size:9px">Entrada:<br>08:00</th>
-            <th colspan="2" style="font-size:9px">Saída:<br>12:00</th>
-            <th colspan="2" style="font-size:9px">Entrada:<br>14:00</th>
-            <th colspan="2" style="font-size:9px">Saída:<br>18:00</th>
+            <th colspan="2" class="fp-hora-ref">Entrada:<br>08:00</th>
+            <th colspan="2" class="fp-hora-ref">Saída:<br>12:00</th>
+            <th colspan="2" class="fp-hora-ref">Entrada:<br>14:00</th>
+            <th colspan="2" class="fp-hora-ref">Saída:<br>18:00</th>
           </tr>
-          <tr class="fp-bg-gray"><th></th><th style="font-size:9px">Hora</th><th style="font-size:9px">Rubrica</th><th style="font-size:9px">Hora</th><th style="font-size:9px">Rubrica</th><th style="font-size:9px">Hora</th><th style="font-size:9px">Rubrica</th><th style="font-size:9px">Hora</th><th style="font-size:9px">Rubrica</th><th style="font-size:9px">Obs</th></tr>
+          <tr class="fp-bg-gray"><th></th><th class="fp-col-lbl">Hora</th><th class="fp-col-lbl">Rubrica</th><th class="fp-col-lbl">Hora</th><th class="fp-col-lbl">Rubrica</th><th class="fp-col-lbl">Hora</th><th class="fp-col-lbl">Rubrica</th><th class="fp-col-lbl">Hora</th><th class="fp-col-lbl">Rubrica</th><th class="fp-col-lbl">Obs</th></tr>
         </thead>
         <tbody>${linhasDias}</tbody>
       </table>
-      <table style="width:100%;border-collapse:collapse;margin-top:-1px">
+      <table class="fp-assinaturas">
         <tr>
-          <td style="border:1px solid #000;height:90px;vertical-align:top;padding:5px;width:50%">
-            <div style="font-weight:bold;font-size:11px">Chefia Imediata:</div>
-            <div style="margin-top:40px;border-top:1px solid #000;width:80%"></div>
-            <div style="font-size:10px;margin-top:4px">São Luís, __/__/____</div>
+          <td>
+            <div class="fp-ass-titulo">Chefia Imediata:</div>
+            <div class="fp-ass-linha"></div>
+            <div class="fp-ass-data">São Luís, __/__/____</div>
           </td>
-          <td style="border:1px solid #000;height:90px;vertical-align:top;padding:5px;width:50%">
-            <div style="font-weight:bold;font-size:11px">Visto (Recursos Humanos):</div>
-            <div style="margin-top:40px;border-top:1px solid #000;width:80%"></div>
-            <div style="font-size:10px;margin-top:4px">São Luís, __/__/____</div>
+          <td>
+            <div class="fp-ass-titulo">Visto (Recursos Humanos):</div>
+            <div class="fp-ass-linha"></div>
+            <div class="fp-ass-data">São Luís, __/__/____</div>
           </td>
         </tr>
       </table>`;
@@ -2790,19 +2840,21 @@ function fpImprimirUnidade() {
   });
 
   document.body.appendChild(container);
+  // Mede altura fora da tela (display:none zera clientHeight)
+  container.style.cssText = 'position:fixed;left:0;top:0;opacity:0;pointer-events:none;z-index:-1;display:block;';
+  fpAjustarAlturaDias(container);
+  container.style.cssText = '';
 
-  // Ativa classe que controla @media print (não pode usar display:none inline
-  // pois .app { display:block !important } no @media print sobrescreveria)
   document.body.classList.add('fp-lote-print');
 
   setTimeout(() => {
+    fpAjustarAlturaDias(container);
     window.print();
-    // Aguarda o diálogo fechar antes de limpar
     setTimeout(() => {
       document.body.classList.remove('fp-lote-print');
       container.remove();
     }, 800);
-  }, 100);
+  }, 200);
 }
 
 // ╔══════════════════════════════════════════════════════════════╗

@@ -62,15 +62,34 @@ Deno.serve(async (req) => {
       user_metadata: { nome: nomeLimpo },
     })
 
-    if (criarError || !criado.user) {
-      const mensagem = criarError?.message?.toLowerCase().includes('already')
-        ? 'Já existe um usuário com este e-mail.'
-        : (criarError?.message || 'Não foi possível criar o usuário.')
-      return json({ error: mensagem }, 400)
+    let novoUserId = criado?.user?.id || null
+
+    if (criarError || !novoUserId) {
+      const jaExiste = (criarError?.message || '').toLowerCase().includes('already')
+      if (!jaExiste) {
+        return json({ error: criarError?.message || 'Não foi possível criar o usuário.' }, 400)
+      }
+
+      // Conta já existe no Auth: localiza e garante o perfil em usuarios_sistema
+      const { data: lista, error: listError } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      if (listError) return json({ error: 'Já existe um usuário com este e-mail, mas não foi possível recuperar o cadastro.' }, 400)
+      const existente = (lista?.users || []).find(u => (u.email || '').toLowerCase() === emailLimpo)
+      if (!existente) return json({ error: 'Já existe um usuário com este e-mail.' }, 400)
+      novoUserId = existente.id
+    }
+
+    const { data: perfilExistente } = await adminClient
+      .from('usuarios_sistema')
+      .select('user_id, perfil')
+      .eq('user_id', novoUserId)
+      .maybeSingle()
+
+    if (perfilExistente) {
+      return json({ error: 'Já existe um usuário com este e-mail.' }, 400)
     }
 
     const { error: perfilNovoError } = await adminClient.from('usuarios_sistema').insert({
-      user_id: criado.user.id,
+      user_id: novoUserId,
       nome: nomeLimpo,
       email: emailLimpo,
       perfil: 'usuario',
@@ -79,21 +98,26 @@ Deno.serve(async (req) => {
     })
 
     if (perfilNovoError) {
-      await adminClient.auth.admin.deleteUser(criado.user.id)
-      return json({ error: 'Não foi possível registrar o perfil do usuário.' }, 500)
+      // Só remove do Auth se acabamos de criar nesta requisição
+      if (criado?.user?.id && !criarError) {
+        await adminClient.auth.admin.deleteUser(criado.user.id)
+      }
+      return json({
+        error: 'Não foi possível registrar o perfil do usuário: ' + (perfilNovoError.message || 'erro desconhecido'),
+      }, 500)
     }
 
     await adminClient.from('sistema_logs').insert({
       tipo_acao: 'CADASTRO DE USUÁRIO',
       funcionario_id: null,
       funcionario_nome: nomeLimpo,
-      detalhes: { email: emailLimpo, perfil: 'usuario' },
+      detalhes: { email: emailLimpo, perfil: 'usuario', user_id: novoUserId },
       usuario: perfil.email || user.email || 'Coordenadora',
     })
 
     return json({
       ok: true,
-      usuario: { id: criado.user.id, nome: nomeLimpo, email: emailLimpo },
+      usuario: { id: novoUserId, nome: nomeLimpo, email: emailLimpo },
     }, 201)
   } catch (error) {
     console.error(error)

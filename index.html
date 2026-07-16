@@ -451,19 +451,19 @@
         <div class="page-wrapper-fp">
           <div class="page-fp" id="fp-paper">
             <!-- Cabeçalho -->
-            <table class="folha-table">
+            <table class="folha-table fp-cabecalho">
               <tr>
-                <td class="fp-bg-gray" style="width:70%;font-size:12px">REGISTRO INDIVIDUAL DE FREQU&Ecirc;NCIA</td>
+                <td class="fp-bg-gray" style="width:70%">REGISTRO INDIVIDUAL DE FREQU&Ecirc;NCIA</td>
                 <td class="fp-bg-head"><span id="fp-label-mesano">MES/ANO</span></td>
               </tr>
               <tr>
-                <td colspan="2" class="fp-bg-head" style="font-size:11px">
+                <td colspan="2" class="fp-bg-head fp-orgao">
                   Secretaria Municipal da Crian&ccedil;a e Assist&ecirc;ncia Social / SEMCAS
                 </td>
               </tr>
               <tr>
                 <td style="background:#fff">Nome: <input id="fp-inp-nome" class="fp-inp"></td>
-                <td style="background:#fff">Matr&iacute;cula: <input id="fp-inp-mat" class="fp-inp" style="width:80px"></td>
+                <td style="background:#fff">Matr&iacute;cula: <input id="fp-inp-mat" class="fp-inp" style="width:90px"></td>
               </tr>
               <tr>
                 <td style="background:#fff">Cargo/Fun&ccedil;&atilde;o: <input id="fp-inp-cargo" class="fp-inp"></td>
@@ -477,7 +477,7 @@
             </table>
 
             <!-- Grade de dias -->
-            <table class="folha-table" style="margin-top:-1px">
+            <table class="folha-table fp-grade">
               <colgroup>
                 <col style="width:6%">
                 <col style="width:10%"><col style="width:10%">
@@ -497,35 +497,35 @@
                   <th colspan="4">Tarde</th>
                 </tr>
                 <tr class="fp-bg-head">
-                  <th colspan="2" style="font-size:9px">Entrada:<br>08:00</th>
-                  <th colspan="2" style="font-size:9px">Sa&iacute;da:<br>12:00</th>
-                  <th colspan="2" style="font-size:9px">Entrada:<br>14:00</th>
-                  <th colspan="2" style="font-size:9px">Sa&iacute;da:<br>18:00</th>
+                  <th colspan="2" class="fp-hora-ref">Entrada:<br>08:00</th>
+                  <th colspan="2" class="fp-hora-ref">Sa&iacute;da:<br>12:00</th>
+                  <th colspan="2" class="fp-hora-ref">Entrada:<br>14:00</th>
+                  <th colspan="2" class="fp-hora-ref">Sa&iacute;da:<br>18:00</th>
                 </tr>
                 <tr class="fp-bg-gray">
                   <th></th>
-                  <th style="font-size:9px">Hora</th><th style="font-size:9px">Rubrica</th>
-                  <th style="font-size:9px">Hora</th><th style="font-size:9px">Rubrica</th>
-                  <th style="font-size:9px">Hora</th><th style="font-size:9px">Rubrica</th>
-                  <th style="font-size:9px">Hora</th><th style="font-size:9px">Rubrica</th>
-                  <th style="font-size:9px">Obs</th>
+                  <th class="fp-col-lbl">Hora</th><th class="fp-col-lbl">Rubrica</th>
+                  <th class="fp-col-lbl">Hora</th><th class="fp-col-lbl">Rubrica</th>
+                  <th class="fp-col-lbl">Hora</th><th class="fp-col-lbl">Rubrica</th>
+                  <th class="fp-col-lbl">Hora</th><th class="fp-col-lbl">Rubrica</th>
+                  <th class="fp-col-lbl">Obs</th>
                 </tr>
               </thead>
               <tbody id="fp-days-body"></tbody>
             </table>
 
             <!-- Assinaturas -->
-            <table style="width:100%;border-collapse:collapse;margin-top:-1px">
+            <table class="fp-assinaturas">
               <tr>
-                <td style="border:1px solid #000;height:90px;vertical-align:top;padding:5px;width:50%">
-                  <div style="font-weight:bold;font-size:11px">Chefia Imediata:</div>
-                  <div style="margin-top:40px;border-top:1px solid #000;width:80%"></div>
-                  <div style="font-size:10px;margin-top:4px">S&atilde;o Lu&iacute;s, <span contenteditable="true" style="display:inline-block;min-width:100px;border-bottom:1px dotted #000">__/__/____</span></div>
+                <td>
+                  <div class="fp-ass-titulo">Chefia Imediata:</div>
+                  <div class="fp-ass-linha"></div>
+                  <div class="fp-ass-data">S&atilde;o Lu&iacute;s, <span contenteditable="true" class="fp-ass-data-inp">__/__/____</span></div>
                 </td>
-                <td style="border:1px solid #000;height:90px;vertical-align:top;padding:5px;width:50%">
-                  <div style="font-weight:bold;font-size:11px">Visto (Recursos Humanos):</div>
-                  <div style="margin-top:40px;border-top:1px solid #000;width:80%"></div>
-                  <div style="font-size:10px;margin-top:4px">S&atilde;o Lu&iacute;s, <span contenteditable="true" style="display:inline-block;min-width:100px;border-bottom:1px dotted #000">__/__/____</span></div>
+                <td>
+                  <div class="fp-ass-titulo">Visto (Recursos Humanos):</div>
+                  <div class="fp-ass-linha"></div>
+                  <div class="fp-ass-data">S&atilde;o Lu&iacute;s, <span contenteditable="true" class="fp-ass-data-inp">__/__/____</span></div>
                 </td>
               </tr>
             </table>
