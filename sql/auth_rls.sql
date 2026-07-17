@@ -184,7 +184,9 @@ BEGIN
     'v_pendentes_kpis',
     'v_pendentes_com_sugestao',
     'v_licencas_atuais',
-    'v_licencas_kpis'
+    'v_licencas_kpis',
+    'v_exonerados',
+    'v_servidores_sem_lotacao'
   ]
   LOOP
     BEGIN

@@ -99,6 +99,7 @@ async function bootApp() {
       $('badge-pendentes').textContent = data.pendentes;
       $('badge-pendentes').style.display = data.pendentes > 0 ? '' : 'none';
     }
+    atualizarBadgesSemLotacaoExonerados();
     atualizarAlertasLicenca();
   } catch (e) {
     _appBooted = false;
@@ -1489,7 +1490,7 @@ async function carregarFuncionarios() {
             <button class="btn-icon" title="Editar" onclick="abrirEdicao(${f.funcionario_id})">Editar</button>
             <button class="btn-icon" title="Transferir" onclick="abrirTransferencia(${f.funcionario_id})">Transferir</button>
             <button class="btn-icon" title="Histórico" onclick="verHistorico(${f.funcionario_id})">Histórico</button>
-            <button class="btn-icon" style="color:var(--gov-red)" title="Excluir" onclick="excluirFuncionario(${f.funcionario_id})">Excluir</button>
+            <button class="btn-icon" style="color:var(--gov-red)" title="Remover" onclick="abrirRemoverServidor(${f.funcionario_id})">Remover</button>
           </div>
         </td>
       </tr>`;
@@ -1758,7 +1759,7 @@ async function renderLocais(resto) {
               <button class="btn-icon" title="Editar" onclick="abrirEdicao(${f.funcionario_id})">Editar</button>
               <button class="btn-icon" title="Transferir" onclick="abrirTransferencia(${f.funcionario_id})">Transferir</button>
               <button class="btn-icon" title="Histórico" onclick="verHistorico(${f.funcionario_id})">Histórico</button>
-              <button class="btn-icon" style="color:var(--gov-red)" title="Excluir" onclick="excluirFuncionario(${f.funcionario_id})">Excluir</button>
+              <button class="btn-icon" style="color:var(--gov-red)" title="Remover" onclick="abrirRemoverServidor(${f.funcionario_id})">Remover</button>
             </div>
           </td>
         </tr>`).join('');
@@ -1850,17 +1851,82 @@ window.orgRecolherTudo = () => {
 // ║                     MODAL EDIÇÃO                              ║
 // ╚══════════════════════════════════════════════════════════════╝
 window.excluirFuncionario = async (id) => {
-  if (!confirm('Tem certeza que deseja excluir este funcionário? Esta ação não pode ser desfeita.')) return;
-  
-  const res = await sb.rpc('fn_excluir_funcionario', { p_id: id });
-  if (res.error) {
-    showToast(`Erro ao excluir: ${res.error.message}`, 'error');
-  } else {
-    await registrarLog('EXCLUSÃO DE SERVIDOR', id, `Servidor ID ${id}`);
-    showToast('Funcionário excluído com sucesso!', 'success');
-    carregarFuncionarios();
-  }
+  abrirRemoverServidor(id);
 };
+
+window.abrirRemoverServidor = async (id) => {
+  const fid = Number(id);
+  if (!fid) return;
+  let nome = 'este servidor';
+  const { data } = await sb.from('funcionarios').select('nome').eq('id', fid).maybeSingle();
+  if (data?.nome) nome = data.nome;
+
+  $('rem-func-id').value = String(fid);
+  $('rem-func-nome').textContent = nome;
+  $('rem-tipo-exo').checked = true;
+  $('rem-tipo-errado').checked = false;
+  $('rem-exo-campos').style.display = '';
+  $('rem-data-exo').value = new Date().toISOString().slice(0, 10);
+  atualizarCamposRemover();
+  openModal('modal-remover-servidor');
+};
+
+function atualizarCamposRemover() {
+  const exo = $('rem-tipo-exo')?.checked;
+  if ($('rem-exo-campos')) $('rem-exo-campos').style.display = exo ? '' : 'none';
+  const btn = $('btn-confirmar-remover');
+  if (btn) btn.textContent = exo ? 'Confirmar exoneração' : 'Excluir cadastro errado';
+}
+
+$('rem-tipo-exo')?.addEventListener('change', atualizarCamposRemover);
+$('rem-tipo-errado')?.addEventListener('change', atualizarCamposRemover);
+
+$('btn-confirmar-remover')?.addEventListener('click', async () => {
+  const id = Number($('rem-func-id').value);
+  const nome = $('rem-func-nome')?.textContent || 'Servidor(a)';
+  if (!id) return;
+
+  const tipo = document.querySelector('input[name="rem-tipo"]:checked')?.value;
+  const btn = $('btn-confirmar-remover');
+  btn.disabled = true;
+
+  try {
+    if (tipo === 'exonerado') {
+      const dataExo = $('rem-data-exo').value;
+      if (!dataExo) {
+        showToast('Informe a data da exoneração.', 'warning');
+        btn.disabled = false;
+        return;
+      }
+      const { error } = await sb.rpc('fn_exonerar_funcionario', {
+        p_funcionario_id: id,
+        p_data_exoneracao: dataExo,
+        p_motivo: null
+      });
+      if (error) throw error;
+      await registrarLog('EXONERAÇÃO DE SERVIDOR', id, nome, { data_exoneracao: dataExo });
+      showToast('Servidor marcado como exonerado.', 'success');
+    } else {
+      if (!confirm('Confirma exclusão definitiva por cadastro errado? Esta ação não pode ser desfeita.')) {
+        btn.disabled = false;
+        return;
+      }
+      const res = await sb.rpc('fn_excluir_funcionario', { p_id: id });
+      if (res.error) throw res.error;
+      await registrarLog('EXCLUSÃO DE SERVIDOR (CADASTRO ERRADO)', id, nome, {});
+      showToast('Cadastro errado excluído.', 'success');
+    }
+    closeModal('modal-remover-servidor');
+    carregarFuncionarios();
+    atualizarBadgesSemLotacaoExonerados();
+    if (state.rotaAtual === 'sem-lotacao') renderSemLotacao();
+    if (state.rotaAtual === 'exonerados') renderExonerados();
+  } catch (e) {
+    showToast('Erro: ' + (e.message || e), 'error');
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 window.abrirModalAddFuncionario = () => {
   $('add-nome').value = '';
@@ -2326,6 +2392,10 @@ $('btn-confirmar-trf').onclick = async () => {
   closeModal('modal-transfer');
   carregarFuncionarios();
   if (veioDeLicencas || state.rotaAtual === 'licencas') carregarTabelaLicencas();
+  if (semLotacao || state.rotaAtual === 'sem-lotacao') {
+    atualizarBadgesSemLotacaoExonerados();
+    if (state.rotaAtual === 'sem-lotacao') renderSemLotacao();
+  }
 };
 
 window.abrirHistoricoDoTransfer = () => {
@@ -2866,10 +2936,143 @@ function fpImprimirUnidade() {
 // ║              ROTEAMENTO — adiciona novas rotas                ║
 // ╚══════════════════════════════════════════════════════════════╝
 if (typeof rotas !== 'undefined') {
-  rotas.ferias    = { titulo: 'Controle de Férias',     bread: 'Férias',     render: renderFerias };
-  rotas.pendentes = { titulo: 'Servidores Pendentes',   bread: 'Pendentes',  render: renderPendentes };
-  rotas.lotacoes  = { titulo: 'Gestão de Lotações',     bread: 'Lotações',   render: renderLotacoes };
+  rotas.ferias       = { titulo: 'Controle de Férias',     bread: 'Férias',       render: renderFerias };
+  rotas.pendentes    = { titulo: 'Servidores Pendentes',   bread: 'Pendentes',    render: renderPendentes };
+  rotas.lotacoes     = { titulo: 'Gestão de Lotações',     bread: 'Lotações',     render: renderLotacoes };
+  rotas['sem-lotacao'] = { titulo: 'Servidores sem Lotação', bread: 'Sem Lotação', render: renderSemLotacao };
+  rotas.exonerados   = { titulo: 'Servidores Exonerados',  bread: 'Exonerados',   render: renderExonerados };
 }
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║              SEM LOTAÇÃO  /  EXONERADOS                       ║
+// ╚══════════════════════════════════════════════════════════════╝
+async function atualizarBadgesSemLotacaoExonerados() {
+  try {
+    const [s, e] = await Promise.all([
+      sb.from('v_servidores_sem_lotacao').select('funcionario_id', { count: 'exact', head: true }),
+      sb.from('v_exonerados').select('funcionario_id', { count: 'exact', head: true })
+    ]);
+    const ns = s.count || 0;
+    const ne = e.count || 0;
+    const bs = $('badge-sem-lotacao');
+    const be = $('badge-exonerados');
+    if (bs) {
+      bs.textContent = ns;
+      bs.style.display = ns > 0 ? '' : 'none';
+    }
+    if (be) {
+      be.textContent = ne;
+      be.style.display = ne > 0 ? '' : 'none';
+    }
+  } catch (_) { /* views podem ainda não existir */ }
+}
+
+async function renderSemLotacao() {
+  const tbody = $('tbody-sem-lotacao');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
+
+  const { data, error } = await sb.from('v_servidores_sem_lotacao')
+    .select('funcionario_id, nome, matricula, cpf, simbologia, data_admissao, email, telefone')
+    .order('nome');
+
+  if (error) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Erro: ${htmlEscape(error.message)}. Rode sql/exonerados_e_sem_lotacao.sql no Supabase.</td></tr>`;
+    return;
+  }
+
+  let lista = data || [];
+  window._semLotacaoCache = lista;
+  const termo = ($('semlot-busca')?.value || '').trim().toLowerCase();
+  if (termo) {
+    lista = lista.filter(f =>
+      (f.nome || '').toLowerCase().includes(termo) ||
+      String(f.matricula || '').toLowerCase().includes(termo) ||
+      String(f.cpf || '').includes(termo)
+    );
+  }
+
+  if ($('semlot-count')) $('semlot-count').textContent = `${lista.length} servidor(es)`;
+  atualizarBadgesSemLotacaoExonerados();
+
+  if (!lista.length) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="empty-state" style="color:var(--gov-green);font-weight:600">Nenhum servidor sem lotação.</td></tr>';
+    return;
+  }
+
+  const fmtDt = (s) => s ? new Date(s + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+  tbody.innerHTML = lista.map(f => `
+    <tr>
+      <td style="font-family:monospace;font-size:12px">${htmlEscape(f.matricula || '—')}</td>
+      <td style="font-weight:600;color:var(--gov-blue-dark)">${htmlEscape(f.nome || '—')}</td>
+      <td style="font-size:12px">${htmlEscape(f.cpf || '—')}</td>
+      <td>${htmlEscape(f.simbologia || '—')}</td>
+      <td style="font-size:12px">${fmtDt(f.data_admissao)}</td>
+      <td style="font-size:12px;color:var(--color-text-sec)">
+        <div>${htmlEscape(f.email || '—')}</div>
+        <div>${htmlEscape(f.telefone || '')}</div>
+      </td>
+      <td style="text-align:center">
+        <button class="btn-primary" style="padding:6px 10px;font-size:12px" onclick="alocarServidorSemLotacao(${f.funcionario_id})">
+          <i class="ti ti-map-pin"></i> Alocar
+        </button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+window.alocarServidorSemLotacao = async (funcionarioId) => {
+  await abrirTransferencia(funcionarioId, { fromLicencas: true });
+};
+
+async function renderExonerados() {
+  const tbody = $('tbody-exonerados');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
+
+  const { data, error } = await sb.from('v_exonerados')
+    .select('funcionario_id, nome, matricula, data_exoneracao, funcao, lotacao_nome, vinculo, simbologia, data_admissao')
+    .order('data_exoneracao', { ascending: false });
+
+  if (error) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="empty-state">Erro: ${htmlEscape(error.message)}. Rode sql/exonerados_e_sem_lotacao.sql no Supabase.</td></tr>`;
+    return;
+  }
+
+  let lista = data || [];
+  const termo = ($('exo-busca')?.value || '').trim().toLowerCase();
+  if (termo) {
+    lista = lista.filter(f =>
+      (f.nome || '').toLowerCase().includes(termo) ||
+      String(f.matricula || '').toLowerCase().includes(termo)
+    );
+  }
+
+  if ($('exo-count')) $('exo-count').textContent = `${lista.length} exonerado(s)`;
+  atualizarBadgesSemLotacaoExonerados();
+
+  if (!lista.length) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Nenhum servidor exonerado.</td></tr>';
+    return;
+  }
+
+  const fmtDt = (s) => s ? new Date(s + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+  tbody.innerHTML = lista.map(f => `
+    <tr>
+      <td style="font-family:monospace;font-size:12px">${htmlEscape(f.matricula || '—')}</td>
+      <td style="font-weight:600">${htmlEscape(f.nome || '—')}</td>
+      <td style="font-weight:700;color:var(--gov-red)">${fmtDt(f.data_exoneracao)}</td>
+      <td>${htmlEscape(f.funcao || '—')}</td>
+      <td>${htmlEscape(f.lotacao_nome || '—')}</td>
+      <td>${htmlEscape(f.vinculo || '—')}</td>
+      <td>${htmlEscape(f.simbologia || '—')}</td>
+      <td style="font-size:12px">${fmtDt(f.data_admissao)}</td>
+    </tr>
+  `).join('');
+}
+
+document.addEventListener('input', debounce((e) => {
+  if (e.target.id === 'semlot-busca') renderSemLotacao();
+  if (e.target.id === 'exo-busca') renderExonerados();
+}, 250));
 
 // ╔══════════════════════════════════════════════════════════════╗
 // ║                          FÉRIAS                               ║

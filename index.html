@@ -111,6 +111,14 @@
         <i class="ti ti-user-exclamation"></i> Auditoria de Dados
         <span id="badge-pendentes" style="display:none;margin-left:auto;background:var(--gov-red,#d9363e);color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;line-height:16px"></span>
       </a>
+      <a href="#sem-lotacao" class="nav-item" data-route="sem-lotacao">
+        <i class="ti ti-map-off"></i> Sem Lotação
+        <span id="badge-sem-lotacao" style="display:none;margin-left:auto;background:var(--gov-orange,#ed8936);color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;line-height:16px"></span>
+      </a>
+      <a href="#exonerados" class="nav-item" data-route="exonerados">
+        <i class="ti ti-user-off"></i> Exonerados
+        <span id="badge-exonerados" style="display:none;margin-left:auto;background:#718096;color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;line-height:16px"></span>
+      </a>
       <a href="#logs" class="nav-item" data-route="logs">
         <i class="ti ti-history"></i> Histórico de Ações
       </a>
@@ -664,6 +672,75 @@
         </div>
       </section>
 
+      <!-- ===== SERVIDORES SEM LOTAÇÃO ===== -->
+      <section id="view-sem-lotacao" class="view-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+          <div>
+            <div class="row-label" style="margin:0"><i class="ti ti-map-off"></i> Servidores sem Lotação</div>
+            <small style="color:var(--color-text-muted)">Ativos no cadastro, mas sem lotação atual — aloque para regularizar</small>
+          </div>
+        </div>
+        <div class="toolbar-filters" style="margin-bottom:12px">
+          <input type="text" id="semlot-busca" class="form-control" placeholder="🔍 Buscar por nome, matrícula ou CPF…" style="max-width:360px">
+          <span class="filter-result-count" id="semlot-count"></span>
+        </div>
+        <div class="card">
+          <div class="table-container">
+            <table class="gov-table">
+              <thead>
+                <tr>
+                  <th>Matrícula</th>
+                  <th>Nome</th>
+                  <th>CPF</th>
+                  <th>Simbologia</th>
+                  <th>Admissão</th>
+                  <th>E-mail / Telefone</th>
+                  <th style="text-align:center">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-sem-lotacao">
+                <tr><td colspan="7" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== EXONERADOS ===== -->
+      <section id="view-exonerados" class="view-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+          <div>
+            <div class="row-label" style="margin:0"><i class="ti ti-user-off"></i> Servidores Exonerados</div>
+            <small style="color:var(--color-text-muted)">Servidores removidos do quadro ativo com data de exoneração</small>
+          </div>
+        </div>
+        <div class="toolbar-filters" style="margin-bottom:12px">
+          <input type="text" id="exo-busca" class="form-control" placeholder="🔍 Buscar por nome ou matrícula…" style="max-width:360px">
+          <span class="filter-result-count" id="exo-count"></span>
+        </div>
+        <div class="card">
+          <div class="table-container">
+            <table class="gov-table">
+              <thead>
+                <tr>
+                  <th>Matrícula</th>
+                  <th>Nome</th>
+                  <th>Data exoneração</th>
+                  <th>Última função</th>
+                  <th>Última lotação</th>
+                  <th>Vínculo</th>
+                  <th>Simbologia</th>
+                  <th>Admissão</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-exonerados">
+                <tr><td colspan="8" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <!-- ===== LICENÇAS E AFASTAMENTOS ===== -->
       <section id="view-licencas" class="view-section">
         <div id="alerta-licencas-page" class="alerta-licenca-wrap" hidden></div>
@@ -893,6 +970,42 @@
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal('modal-add-funcionario')">Cancelar</button>
       <button class="btn-primary" id="btn-salvar-add">Cadastrar Servidor</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · REMOVER SERVIDOR (exonerar ou cadastro errado) -->
+<div class="modal-overlay" id="modal-remover-servidor">
+  <div class="modal-content" style="max-width:480px">
+    <div class="modal-header">
+      <div class="modal-title"><i class="ti ti-user-x"></i> Remover servidor</div>
+      <button class="modal-close" onclick="closeModal('modal-remover-servidor')" aria-label="Fechar"></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="rem-func-id">
+      <p style="margin:0 0 14px;font-size:14px">O que deseja fazer com <strong id="rem-func-nome">este servidor</strong>?</p>
+      <div class="form-group full-width" style="margin-bottom:12px">
+        <label class="form-label" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-weight:600">
+          <input type="radio" name="rem-tipo" id="rem-tipo-exo" value="exonerado" checked style="margin-top:3px">
+          <span>Servidor foi exonerado<br><small style="font-weight:400;color:var(--color-text-muted)">Vai para a lista de Exonerados (não apaga o histórico)</small></span>
+        </label>
+      </div>
+      <div class="form-group full-width" id="rem-exo-campos" style="margin-bottom:14px;padding-left:24px">
+        <label class="form-label" for="rem-data-exo">Data da exoneração *</label>
+        <input type="date" id="rem-data-exo" class="form-control" required>
+      </div>
+      <div class="form-group full-width">
+        <label class="form-label" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-weight:600">
+          <input type="radio" name="rem-tipo" id="rem-tipo-errado" value="cadastro_errado" style="margin-top:3px">
+          <span>Cadastro errado<br><small style="font-weight:400;color:var(--color-text-muted)">Exclui definitivamente o registro (não pode ser desfeito)</small></span>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary" onclick="closeModal('modal-remover-servidor')">Cancelar</button>
+      <button type="button" class="btn-primary" id="btn-confirmar-remover" style="background:var(--gov-red)">
+        Confirmar
+      </button>
     </div>
   </div>
 </div>
