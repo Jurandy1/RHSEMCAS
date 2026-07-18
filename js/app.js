@@ -643,9 +643,42 @@ const _gs = { cache: null, carregando: false, ativo: -1, resultados: [] };
 async function gsGarantirCache() {
   if (_gs.cache || _gs.carregando) return;
   _gs.carregando = true;
-  const { data } = await fetchTudo('v_funcionarios_atual', 'funcionario_id, nome, matricula, cpf, funcao, lotacao_nome, vinculo', 'nome');
-  _gs.cache = data || [];
-  _gs.carregando = false;
+  try {
+    const { data } = await fetchTudo('v_funcionarios_atual', 'funcionario_id, nome, matricula, cpf, funcao, lotacao_nome, vinculo', 'nome');
+    const porId = new Map();
+    for (const f of data || []) {
+      porId.set(f.funcionario_id, { ...f, _fonte: 'ativos' });
+    }
+    // Cedidos/Recebidos também entram na busca global (muitas vezes não estão em v_funcionarios_atual)
+    try {
+      const { data: ceds } = await sb.from('v_cedencias_atuais')
+        .select('funcionario_id, nome, matricula, tipo, orgao_destino_origem')
+        .limit(2000);
+      for (const c of ceds || []) {
+        const id = c.funcionario_id;
+        if (!id) continue;
+        if (porId.has(id)) {
+          const cur = porId.get(id);
+          cur.vinculo = cur.vinculo || c.tipo;
+          cur.lotacao_nome = cur.lotacao_nome || c.orgao_destino_origem || cur.lotacao_nome;
+        } else {
+          porId.set(id, {
+            funcionario_id: id,
+            nome: c.nome,
+            matricula: c.matricula,
+            cpf: null,
+            funcao: null,
+            lotacao_nome: c.orgao_destino_origem || 'Cedência',
+            vinculo: c.tipo || 'CEDIDO/RECEBIDO',
+            _fonte: 'cedencia'
+          });
+        }
+      }
+    } catch (_) { /* view pode faltar */ }
+    _gs.cache = [...porId.values()];
+  } finally {
+    _gs.carregando = false;
+  }
 }
 
 function gsBuscar(termo) {
@@ -1399,15 +1432,52 @@ function renderFilterTags() {
   });
 }
 
-/** Busca na RPC; com várias funções aplica filtro no cliente. */
+/** Busca na RPC; com várias funções aplica filtro no cliente.
+ *  Cedidos/Recebidos (fora de v_funcionarios_atual) entram quando há termo de busca. */
 async function buscarFuncionariosRpc({ paginar = true } = {}) {
   const funcoesSel = Array.isArray(state.filtros.funcoes) ? state.filtros.funcoes : [];
   const multiFunc = funcoesSel.length > 1;
   const pFuncao = funcoesSel.length === 1 ? funcoesSel[0] : null;
+  const termo = state.filtros.busca ? state.filtros.busca.trim() : '';
+
+  async function mesclarCedidos(rows, totalBase) {
+    if (!termo || termo.length < 2) return { rows, total: totalBase };
+    try {
+      const t = termo.replace(/%/g, '').trim();
+      const safe = t.replace(/[,.()]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (safe.length < 2) return { rows, total: totalBase };
+      const { data: ceds } = await sb.from('v_cedencias_atuais')
+        .select('funcionario_id, nome, matricula, tipo, orgao_destino_origem')
+        .or(`nome.ilike.%${safe}%,matricula.ilike.%${safe}%`)
+        .limit(100);
+      if (!ceds?.length) return { rows, total: totalBase };
+      const ids = new Set(rows.map((r) => r.funcionario_id));
+      const extras = [];
+      for (const c of ceds) {
+        if (!c.funcionario_id || ids.has(c.funcionario_id)) continue;
+        ids.add(c.funcionario_id);
+        extras.push({
+          funcionario_id: c.funcionario_id,
+          nome: c.nome,
+          vinculo: c.tipo || 'CEDIDO/RECEBIDO',
+          funcao: null,
+          lotacao_nome: c.orgao_destino_origem || 'Cedência',
+          caminho_lotacao: null,
+          turno: null,
+          total: null
+        });
+      }
+      if (!extras.length) return { rows, total: totalBase };
+      const merged = [...extras, ...rows];
+      return { rows: merged, total: totalBase + extras.length };
+    } catch (_) {
+      return { rows, total: totalBase };
+    }
+  }
 
   if (!multiFunc && paginar) {
     const params = {
-      p_termo:      state.filtros.busca ? state.filtros.busca.trim().split(/\s+/).join('%') : null,
+      p_termo:      termo ? termo.split(/\s+/).join('%') : null,
       p_vinculo_id: state.filtros.vinculo_id ? Number(state.filtros.vinculo_id) : null,
       p_lotacao_id: state.filtros.lotacao_id ? Number(state.filtros.lotacao_id) : null,
       p_funcao:     pFuncao,
@@ -1419,7 +1489,12 @@ async function buscarFuncionariosRpc({ paginar = true } = {}) {
     };
     const data = await handleErr(await sb.rpc('fn_buscar_funcionarios', params), 'busca funcionários');
     if (!data) return null;
-    return { rows: data, total: data[0]?.total || 0 };
+    const baseTotal = data[0]?.total || 0;
+    if (state.page === 1 && termo) {
+      const m = await mesclarCedidos(data, baseTotal);
+      return { rows: m.rows.slice(0, state.pageSize), total: m.total };
+    }
+    return { rows: data, total: baseTotal };
   }
 
   const pageSize = 1000;
@@ -1428,7 +1503,7 @@ async function buscarFuncionariosRpc({ paginar = true } = {}) {
   const todos = [];
   while (offset < totalRpc) {
     const params = {
-      p_termo:      state.filtros.busca ? state.filtros.busca.trim().split(/\s+/).join('%') : null,
+      p_termo:      termo ? termo.split(/\s+/).join('%') : null,
       p_vinculo_id: state.filtros.vinculo_id ? Number(state.filtros.vinculo_id) : null,
       p_lotacao_id: state.filtros.lotacao_id ? Number(state.filtros.lotacao_id) : null,
       p_funcao:     multiFunc ? null : pFuncao,
@@ -1451,6 +1526,8 @@ async function buscarFuncionariosRpc({ paginar = true } = {}) {
     const set = new Set(funcoesSel);
     filtrados = todos.filter(f => set.has((f.funcao || '').trim()));
   }
+  const mesclado = await mesclarCedidos(filtrados, filtrados.length);
+  filtrados = mesclado.rows;
   const total = filtrados.length;
   if (!paginar) return { rows: filtrados, total };
   const ini = (state.page - 1) * state.pageSize;
@@ -2941,6 +3018,7 @@ if (typeof rotas !== 'undefined') {
   rotas.lotacoes     = { titulo: 'Gestão de Lotações',     bread: 'Lotações',     render: renderLotacoes };
   rotas['sem-lotacao'] = { titulo: 'Servidores sem Lotação', bread: 'Sem Lotação', render: renderSemLotacao };
   rotas.exonerados   = { titulo: 'Servidores Exonerados',  bread: 'Exonerados',   render: renderExonerados };
+  rotas['relatorio-api'] = { titulo: 'Relatório API GIAP', bread: 'Relatório API', render: renderRelatorioApi };
 }
 
 // ╔══════════════════════════════════════════════════════════════╗
@@ -2964,6 +3042,7 @@ async function atualizarBadgesSemLotacaoExonerados() {
       be.textContent = ne;
       be.style.display = ne > 0 ? '' : 'none';
     }
+    if (typeof giapAtualizarBadges === 'function') giapAtualizarBadges();
   } catch (_) { /* views podem ainda não existir */ }
 }
 
@@ -3073,6 +3152,1178 @@ document.addEventListener('input', debounce((e) => {
   if (e.target.id === 'semlot-busca') renderSemLotacao();
   if (e.target.id === 'exo-busca') renderExonerados();
 }, 250));
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                    RELATÓRIO API GIAP                         ║
+// ╚══════════════════════════════════════════════════════════════╝
+let _giapPollTimer = null;
+let _giapJobId = null;
+
+function giapCompetenciaPadrao() {
+  const d = new Date();
+  let y = d.getFullYear();
+  let m = d.getMonth(); // 0 = jan → competência mês anterior
+  if (m === 0) { m = 12; y -= 1; }
+  return y * 100 + m;
+}
+
+async function giapProxy(acao, extra = {}) {
+  const { data: sess } = await sb.auth.getSession();
+  const token = sess?.session?.access_token;
+  if (!token) throw new Error('Sessão expirada. Faça login novamente.');
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/giap-proxy`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      apikey: SUPABASE_ANON
+    },
+    body: JSON.stringify({ acao, ...extra })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Erro HTTP ${res.status}`);
+  return data;
+}
+
+function giapPintarProgresso(job) {
+  if (!job) return;
+  const pct = Number(job.progresso_pct || 0);
+  const bar = $('giap-progress-bar');
+  const lbl = $('giap-progress-label');
+  const meta = $('giap-job-meta');
+  const etapa = $('giap-job-etapa');
+  const resumo = $('giap-resumo');
+  if (bar) {
+    bar.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+    if (job.status === 'running' || job.status === 'pending') {
+      bar.style.background = 'var(--gov-blue-primary, #3182ce)';
+    } else if (job.status === 'error') {
+      bar.style.background = 'var(--gov-red, #e53e3e)';
+    } else {
+      bar.style.background = 'var(--gov-green, #2f855a)';
+    }
+  }
+  if (lbl) lbl.textContent = `${pct}% · ${job.status || '—'}`;
+  if (meta) {
+    meta.textContent = job.id
+      ? `Job #${job.id} · competência ${job.competencia} · ${job.modo || 'manual'}${job.dry_run ? ' · SIMULAÇÃO' : ''}`
+      : (job.meta || '—');
+  }
+  if (etapa) etapa.textContent = job.resumo?.etapa || job.etapa || '';
+  if (resumo) {
+    resumo.textContent = job.erro
+      ? `ERRO: ${job.erro}\n\n${JSON.stringify(job.resumo || {}, null, 2)}`
+      : JSON.stringify(job.resumo || {}, null, 2);
+  }
+}
+
+function giapProgressoLocal(texto, etapa) {
+  giapPintarProgresso({
+    id: null,
+    progresso_pct: 2,
+    status: 'pending',
+    competencia: Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao()),
+    modo: 'manual',
+    meta: texto,
+    etapa,
+    resumo: { etapa: etapa || 'iniciando' }
+  });
+  const card = $('giap-progress-bar')?.closest('.card');
+  if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function giapAtualizarBadges() {
+  try {
+    const comp = Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
+    const { count } = await sb.from('folha_pmsl')
+      .select('id', { count: 'exact', head: true })
+      .eq('competencia', comp);
+    const n = count || 0;
+    const b = $('badge-giap-revisao');
+    if (b) {
+      b.textContent = n > 999 ? '999+' : String(n);
+      b.style.display = n > 0 ? '' : 'none';
+      b.title = `Registros na folha GIAP (competência ${comp})`;
+    }
+  } catch (_) { /* ok */ }
+}
+
+function giapNormNome(s) {
+  if (!s) return '';
+  return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase().replace(/[^A-Z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function giapFiltrosBusca() {
+  return {
+    soSemMatricula: !!$('giap-opt-sem-matricula')?.checked,
+    soSemAdmissao: !!$('giap-opt-sem-admissao')?.checked,
+    incluirComMatricula: !!$('giap-opt-com-matricula')?.checked
+  };
+}
+
+const _giapFolha = {
+  rows: [],
+  filtered: [],
+  sortKey: 'funcionario',
+  sortDir: 'asc',
+  page: 1,
+  pageSize: 50,
+  okCount: 0,
+  competencia: null,
+  busca: '',
+  filtroAcao: ''
+};
+
+function giapFolhaFmtDt(d) {
+  if (!d) return '—';
+  const s = String(d).slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [y, m, day] = s.split('-');
+    return `${day}/${m}/${y}`;
+  }
+  return s;
+}
+
+/** Normaliza data GIAP/RH para YYYY-MM-DD */
+function giapDataISO(d) {
+  if (!d) return '';
+  const s = String(d).trim();
+  let m = s.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  return '';
+}
+
+function giapFolhaFindRow(mat) {
+  const key = String(mat ?? '').trim();
+  return _giapFolha.rows.find((r) => String(r.matricula ?? '').trim() === key) || null;
+}
+
+/** Detecta o que falta corrigir entre GIAP e RH */
+function giapFolhaDetectarCorrecoes(r) {
+  if (!r._rhId) {
+    return {
+      sem_vinculo: true,
+      precisa: false,
+      tipos: ['sem_vinculo'],
+      labels: ['Sem vínculo RH'],
+      resumo: 'Sem vínculo RH'
+    };
+  }
+  const matG = r.matricula != null ? String(r.matricula).trim() : '';
+  const matR = r._rhMatricula != null ? String(r._rhMatricula).trim() : '';
+  const nomeDiff = giapNormNome(r.funcionario) !== giapNormNome(r._rhNome);
+  const admG = giapDataISO(r.admissao);
+  const admR = giapDataISO(r._rhAdmissao);
+  const admDiff = !!admG && admG !== admR;
+  const matDiff = !!(matG && (!matR || matR !== matG));
+  const matNova = matDiff && !matR;
+  const demissao = !!r.demissao;
+
+  const tipos = [];
+  const labels = [];
+  if (matDiff) {
+    tipos.push('matricula');
+    labels.push(matNova ? 'Cadastrar matrícula' : 'Corrigir matrícula');
+  }
+  if (nomeDiff) {
+    tipos.push('nome');
+    labels.push('Corrigir nome');
+  }
+  if (admDiff) {
+    tipos.push('admissao');
+    labels.push('Corrigir admissão');
+  }
+  if (demissao) {
+    tipos.push('exoneracao');
+    labels.push('Demissão GIAP');
+  }
+
+  if (!tipos.length) {
+    return {
+      alinhado: true,
+      precisa: false,
+      tipos: ['alinhado'],
+      labels: ['Alinhado'],
+      resumo: 'Alinhado',
+      matDiff: false,
+      matNova: false,
+      nomeDiff: false,
+      admDiff: false,
+      demissao: false
+    };
+  }
+
+  return {
+    precisa: true,
+    tipos,
+    labels,
+    resumo: labels.join(' · '),
+    matDiff,
+    matNova,
+    nomeDiff,
+    admDiff,
+    demissao,
+    matG,
+    admG
+  };
+}
+
+function giapFolhaChip(texto, cor) {
+  const cores = {
+    azul: 'background:#ebf8ff;color:#2b6cb0;border:1px solid #bee3f8',
+    laranja: 'background:#fffaf0;color:#c05621;border:1px solid #fbd38d',
+    verde: 'background:#f0fff4;color:#276749;border:1px solid #9ae6b4',
+    vermelho: 'background:#fff5f5;color:#c53030;border:1px solid #feb2b2',
+    cinza: 'background:#edf2f7;color:#4a5568;border:1px solid #e2e8f0',
+    roxo: 'background:#faf5ff;color:#6b46c1;border:1px solid #d6bcfa'
+  };
+  return `<span style="display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;margin:1px;white-space:nowrap;${cores[cor] || cores.cinza}">${htmlEscape(texto)}</span>`;
+}
+
+function giapFolhaHtmlCorrecao(r) {
+  const c = r._correcao || giapFolhaDetectarCorrecoes(r);
+  if (c.sem_vinculo) return giapFolhaChip('Sem vínculo RH', 'cinza');
+  if (c.alinhado) return giapFolhaChip('Alinhado', 'verde');
+  const mapCor = {
+    matricula: 'azul',
+    nome: 'roxo',
+    admissao: 'laranja',
+    exoneracao: 'vermelho'
+  };
+  return `<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:2px;max-width:200px">${
+    c.tipos.map((t, i) => giapFolhaChip(c.labels[i], mapCor[t] || 'cinza')).join('')
+  }</div>`;
+}
+
+function giapFolhaHtmlAcoes(r) {
+  const c = r._correcao || giapFolhaDetectarCorrecoes(r);
+  if (c.sem_vinculo) {
+    return '<span style="font-size:11px;color:var(--color-text-muted)">—</span>';
+  }
+  if (c.alinhado) {
+    return '<span style="font-size:11px;color:var(--gov-green)">OK</span>';
+  }
+  const matKey = JSON.stringify(c.matG || String(r.matricula ?? '').trim());
+  const btns = [];
+  const btn = (label, fn, title, danger) =>
+    `<button type="button" class="btn-secondary" style="padding:3px 7px;font-size:11px;margin:1px;${danger ? 'color:var(--gov-red);border-color:#feb2b2' : ''}" title="${htmlEscape(title || label)}" onclick='${fn}(${matKey})'>${label}</button>`;
+
+  if (c.matDiff) {
+    btns.push(btn(c.matNova ? 'Cadastrar mat.' : 'Corrigir mat.', 'giapAplicarMatricula', 'Gravar matrícula do GIAP no RH'));
+  }
+  if (c.nomeDiff) {
+    btns.push(btn('Corrigir nome', 'giapAplicarNome', 'Corrigir nome no RH com o da folha GIAP'));
+  }
+  if (c.admDiff) {
+    btns.push(btn('Corrigir admissão', 'giapAplicarAdmissao', `Usar admissão GIAP ${giapFolhaFmtDt(r.admissao)}`));
+  }
+  if (c.demissao) {
+    btns.push(btn('→ Exonerados', 'giapAplicarExoneracao', 'Manual: so se confirmar (pode ter novo cargo no mes seguinte)', true));
+  }
+  return `<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:2px;max-width:220px">${btns.join('')}</div>`;
+}
+
+function giapFolhaSortValor(row, key) {
+  if (key === 'ok') return row._ok ? 1 : 0;
+  if (key === 'rh') return row._rhLabel || '';
+  if (key === 'correcao') return (row._correcao?.resumo || '').toLowerCase();
+  if (key === 'matricula' || key === 'codigo_orgao' || key === 'cpf') {
+    return String(row[key] ?? '');
+  }
+  if (key === 'admissao' || key === 'demissao') return String(row[key] || '');
+  return String(row[key] ?? '').toLowerCase();
+}
+
+function giapFolhaAplicarFiltro() {
+  const q = giapNormNome(_giapFolha.busca);
+  const acao = _giapFolha.filtroAcao || '';
+  _giapFolha.filtered = _giapFolha.rows.filter((r) => {
+    if (q) {
+      const blob = giapNormNome([
+        r.funcionario,
+        r.matricula,
+        r.lotacao,
+        r.codigo_orgao,
+        r.cargo_origem,
+        r.cpf,
+        r._rhLabel,
+        r._correcao?.resumo
+      ].join(' '));
+      if (!blob.includes(q)) return false;
+    }
+    if (!acao) return true;
+    const c = r._correcao || giapFolhaDetectarCorrecoes(r);
+    if (acao === 'precisa') return !!c.precisa;
+    if (acao === 'alinhado') return !!c.alinhado;
+    if (acao === 'sem_vinculo') return !!c.sem_vinculo;
+    return (c.tipos || []).includes(acao);
+  });
+}
+
+function giapFolhaAplicarSort() {
+  const { sortKey, sortDir } = _giapFolha;
+  const mult = sortDir === 'desc' ? -1 : 1;
+  _giapFolha.filtered.sort((a, b) => {
+    const va = giapFolhaSortValor(a, sortKey);
+    const vb = giapFolhaSortValor(b, sortKey);
+    if (va < vb) return -1 * mult;
+    if (va > vb) return 1 * mult;
+    return 0;
+  });
+}
+
+function giapFolhaPintarCabecalhos() {
+  document.querySelectorAll('#table-giap-folha th[data-giap-sort]').forEach((th) => {
+    const key = th.getAttribute('data-giap-sort');
+    const base = th.textContent.replace(/\s*[▲▼]\s*$/, '').trim();
+    if (key === _giapFolha.sortKey) {
+      th.textContent = base + (_giapFolha.sortDir === 'desc' ? ' ▼' : ' ▲');
+    } else {
+      th.textContent = base;
+    }
+  });
+}
+
+function giapFolhaRenderPagina() {
+  const tbody = $('tbody-giap-folha');
+  if (!tbody) return;
+  const { filtered, page, pageSize, rows } = _giapFolha;
+  const total = filtered.length;
+  const pages = Math.max(1, Math.ceil(total / pageSize) || 1);
+  if (_giapFolha.page > pages) _giapFolha.page = pages;
+  const p = _giapFolha.page;
+  const start = (p - 1) * pageSize;
+  const slice = filtered.slice(start, start + pageSize);
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="12" class="empty-state">Nenhum registro em folha_pmsl${_giapFolha.competencia ? ` para ${_giapFolha.competencia}` : ''}. Use “Buscar e gravar folha”.</td></tr>`;
+  } else if (!total) {
+    tbody.innerHTML = `<tr><td colspan="12" class="empty-state">Nenhum resultado para o filtro atual.</td></tr>`;
+  } else {
+    tbody.innerHTML = slice.map((r) => {
+      const badge = r._ok
+        ? '<span style="background:var(--gov-green,#2f855a);color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">OK</span>'
+        : '<span style="background:#cbd5e0;color:#4a5568;padding:2px 8px;border-radius:4px;font-size:11px">—</span>';
+      const mat = r.matricula != null ? String(r.matricula).trim() : '';
+      return `<tr>
+        <td style="text-align:center">${badge}</td>
+        <td style="font-family:monospace;font-size:12px">${htmlEscape(mat || '—')}</td>
+        <td style="font-weight:600">${htmlEscape(r.funcionario || '—')}</td>
+        <td>${htmlEscape(r.lotacao || '—')}</td>
+        <td>${htmlEscape(r.codigo_orgao != null ? String(r.codigo_orgao) : '—')}</td>
+        <td style="font-size:12px">${giapFolhaFmtDt(r.admissao)}</td>
+        <td style="font-size:12px;${r.demissao ? 'color:var(--gov-orange,#c05621);font-weight:600' : ''}">${giapFolhaFmtDt(r.demissao)}</td>
+        <td style="font-size:12px">${htmlEscape(r.cargo_origem || '—')}</td>
+        <td style="font-family:monospace;font-size:11px">${htmlEscape(r.cpf || '—')}</td>
+        <td style="font-size:12px">${r._rhLabel}</td>
+        <td style="text-align:center">${giapFolhaHtmlCorrecao(r)}</td>
+        <td style="text-align:center">${giapFolhaHtmlAcoes(r)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  giapFolhaPintarCabecalhos();
+  if ($('giap-folha-count')) {
+    const precisa = _giapFolha.rows.filter((r) => r._correcao?.precisa).length;
+    const partes = [`${rows.length} registro(s)`, `${_giapFolha.okCount} OK no RH`, `${precisa} com correção`];
+    if (_giapFolha.busca || _giapFolha.filtroAcao) {
+      partes.push(`filtro: ${total}/${rows.length}`);
+    }
+    partes.push(`competência ${_giapFolha.competencia}`);
+    $('giap-folha-count').textContent = partes.join(' · ');
+  }
+  if ($('giap-folha-pager-info')) {
+    const de = total ? start + 1 : 0;
+    const ate = Math.min(start + pageSize, total);
+    $('giap-folha-pager-info').textContent = total
+      ? `Exibindo ${de}–${ate} de ${total}`
+      : 'Sem registros';
+  }
+  if ($('giap-folha-page-num')) {
+    $('giap-folha-page-num').textContent = `${p} / ${pages}`;
+  }
+}
+
+window.giapFolhaFiltrarTexto = function giapFolhaFiltrarTexto(valor) {
+  _giapFolha.busca = String(valor || '');
+  _giapFolha.page = 1;
+  giapFolhaAplicarFiltro();
+  giapFolhaAplicarSort();
+  giapFolhaRenderPagina();
+};
+
+window.giapFolhaFiltrarAcao = function giapFolhaFiltrarAcao(valor) {
+  _giapFolha.filtroAcao = String(valor || '');
+  _giapFolha.page = 1;
+  giapFolhaAplicarFiltro();
+  giapFolhaAplicarSort();
+  giapFolhaRenderPagina();
+};
+
+window.giapPuxarNomeApi = async function giapPuxarNomeApi() {
+  const nome = String($('giap-folha-busca')?.value || '').trim();
+  if (!nome || nome.split(/\s+/).length < 2) {
+    return showToast('Digite o nome completo (pelo menos 2 palavras), ex.: Jurandy Soares Santana Junior', 'error');
+  }
+  const btn = $('giap-btn-puxar-nome');
+  if (btn) btn.disabled = true;
+  try {
+    const competencia = Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
+    showToast(`Buscando “${nome}” no GIAP…`, 'info');
+    const data = await giapProxy('sync_nome', { nomeServidor: nome, competencia });
+    const n = data.registros_inseridos ?? data.registros_filtrados ?? data.registros_encontrados ?? 0;
+    if ((data.registros_encontrados || 0) === 0) {
+      showToast('Portal respondeu vazio para este nome nesta competência (pode não estar na folha do mês).', 'info');
+    } else {
+      showToast(`OK: ${n} registro(s) gravado(s) / filtrado(s). Atualizando lista…`, 'success');
+    }
+    await giapCarregarFolhaTabela();
+    giapFolhaFiltrarTexto(nome);
+  } catch (e) {
+    showToast(e.message || String(e), 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+};
+
+window.giapFolhaOrdenar = function giapFolhaOrdenar(key) {
+  if (_giapFolha.sortKey === key) {
+    _giapFolha.sortDir = _giapFolha.sortDir === 'desc' ? 'asc' : 'desc';
+  } else {
+    _giapFolha.sortKey = key;
+    _giapFolha.sortDir = 'desc';
+  }
+  _giapFolha.page = 1;
+  giapFolhaAplicarSort();
+  giapFolhaRenderPagina();
+};
+
+window.giapFolhaPagina = function giapFolhaPagina(delta) {
+  const pages = Math.max(1, Math.ceil(_giapFolha.filtered.length / _giapFolha.pageSize) || 1);
+  _giapFolha.page = Math.min(pages, Math.max(1, _giapFolha.page + delta));
+  giapFolhaRenderPagina();
+};
+
+window.giapFolhaMudarPageSize = function giapFolhaMudarPageSize(v) {
+  _giapFolha.pageSize = Math.max(10, Number(v) || 50);
+  _giapFolha.page = 1;
+  giapFolhaRenderPagina();
+};
+
+async function giapCarregarFolhaTabela() {
+  const tbody = $('tbody-giap-folha');
+  if (!tbody) return;
+  const comp = Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
+  tbody.innerHTML = '<tr><td colspan="12" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
+  try {
+    const [folha, funcs] = await Promise.all([
+      (async () => {
+        const all = [];
+        for (let from = 0; ; from += 1000) {
+          const { data, error } = await sb.from('folha_pmsl')
+            .select('matricula, funcionario, lotacao, codigo_orgao, admissao, demissao, cargo_origem, cpf, competencia')
+            .eq('competencia', comp)
+            .order('funcionario')
+            .range(from, from + 999);
+          if (error) throw error;
+          if (data?.length) all.push(...data);
+          if (!data || data.length < 1000) break;
+        }
+        return all;
+      })(),
+      (async () => {
+        const all = [];
+        for (let from = 0; ; from += 1000) {
+          // Inclui inativos: cedidos/exonerados ainda precisam de match p/ ações
+          const { data, error: e } = await sb.from('funcionarios')
+            .select('id, nome, matricula, data_admissao, ativo')
+            .range(from, from + 999);
+          if (e) throw e;
+          if (data?.length) all.push(...data);
+          if (!data || data.length < 1000) break;
+        }
+        return all;
+      })()
+    ]);
+
+    const porMat = new Map();
+    const porNome = new Map();
+    for (const f of funcs) {
+      if (f.matricula && String(f.matricula).trim()) {
+        porMat.set(String(f.matricula).trim(), f);
+      }
+      const nn = giapNormNome(f.nome);
+      if (nn) {
+        if (!porNome.has(nn)) porNome.set(nn, []);
+        porNome.get(nn).push(f);
+      }
+    }
+
+    let okCount = 0;
+    const rows = (folha || []).map((r) => {
+      const mat = r.matricula != null ? String(r.matricula).trim() : '';
+      let rh = mat ? porMat.get(mat) : null;
+      if (!rh) {
+        const cands = (porNome.get(giapNormNome(r.funcionario)) || []).filter((c) => c.ativo !== false);
+        if (cands.length === 1) rh = cands[0];
+        else if (!cands.length) {
+          const candsAll = porNome.get(giapNormNome(r.funcionario)) || [];
+          if (candsAll.length === 1) rh = candsAll[0];
+        }
+      }
+      const ok = !!rh;
+      if (ok) okCount++;
+      const row = {
+        ...r,
+        _ok: ok,
+        _rhId: rh?.id || null,
+        _rhNome: rh?.nome || null,
+        _rhMatricula: rh?.matricula || null,
+        _rhAdmissao: rh?.data_admissao || null,
+        _rhLabel: rh
+          ? `${htmlEscape(rh.nome || '')}${rh.matricula ? ` · ${htmlEscape(String(rh.matricula))}` : ' · s/ mat.'}${rh.ativo === false ? ' · inativo' : ''}`
+          : '—'
+      };
+      row._correcao = giapFolhaDetectarCorrecoes(row);
+      return row;
+    });
+
+    _giapFolha.rows = rows;
+    _giapFolha.okCount = okCount;
+    _giapFolha.competencia = comp;
+    _giapFolha.page = 1;
+    if ($('giap-folha-page-size')) {
+      _giapFolha.pageSize = Number($('giap-folha-page-size').value) || 50;
+    }
+    if ($('giap-folha-busca')) {
+      _giapFolha.busca = $('giap-folha-busca').value || '';
+    }
+    if ($('giap-folha-filtro-acao')) {
+      _giapFolha.filtroAcao = $('giap-folha-filtro-acao').value || '';
+    }
+    giapFolhaAplicarFiltro();
+    giapFolhaAplicarSort();
+    giapFolhaRenderPagina();
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="12" class="empty-state">Erro: ${htmlEscape(e.message || e)}</td></tr>`;
+  }
+}
+
+async function giapMarcarCompetenciaBuscada(comp) {
+  const c = Number(comp);
+  if (!c) return;
+  try {
+    const { data: cfg } = await sb.from('giap_config').select('competencias_buscadas').eq('id', 1).maybeSingle();
+    const lista = Array.isArray(cfg?.competencias_buscadas) ? [...cfg.competencias_buscadas] : [];
+    if (!lista.includes(c)) lista.push(c);
+    lista.sort((a, b) => b - a);
+    await sb.from('giap_config').upsert({
+      id: 1,
+      competencias_buscadas: lista.slice(0, 36),
+      updated_at: new Date().toISOString()
+    });
+  } catch (_) { /* coluna pode faltar até rodar o SQL */ }
+}
+
+function giapPintarBadgeCompetencia(cfg) {
+  const el = $('giap-comp-badge');
+  if (!el) return;
+  const comp = Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
+  const lista = Array.isArray(cfg?.competencias_buscadas) ? cfg.competencias_buscadas : [];
+  if (lista.map(Number).includes(comp)) {
+    el.textContent = `Competência ${comp}: buscas já gravadas`;
+    el.style.background = '#c6f6d5';
+    el.style.color = '#22543d';
+  } else {
+    el.textContent = `Competência ${comp}: ainda sem busca gravada`;
+    el.style.background = '#feebc8';
+    el.style.color = '#7b341e';
+  }
+}
+
+window.giapAplicarMatricula = async function giapAplicarMatricula(mat) {
+  const r = giapFolhaFindRow(mat);
+  if (!r?._rhId || !mat) return showToast('Sem match RH para aplicar matrícula.', 'error');
+  if (!confirm(`Cadastrar/corrigir matrícula ${mat} em “${r._rhNome}”?`)) return;
+  try {
+    const { error } = await sb.from('funcionarios').update({ matricula: String(mat).trim() }).eq('id', r._rhId);
+    if (error) throw error;
+    await registrarLog('GIAP — MATRÍCULA', r._rhId, r._rhNome, { matricula: String(mat).trim(), competencia: r.competencia });
+    showToast('Matrícula gravada no RH.', 'success');
+    gsInvalidarCache();
+    await giapCarregarFolhaTabela();
+  } catch (e) {
+    showToast(e.message || String(e), 'error');
+  }
+};
+
+window.giapAplicarNome = async function giapAplicarNome(mat) {
+  const r = giapFolhaFindRow(mat);
+  if (!r?._rhId || !r.funcionario) return showToast('Sem match RH para corrigir nome.', 'error');
+  if (!confirm(`Corrigir nome no RH?\n\nDe: ${r._rhNome}\nPara: ${r.funcionario}`)) return;
+  try {
+    const { error } = await sb.from('funcionarios').update({ nome: r.funcionario }).eq('id', r._rhId);
+    if (error) throw error;
+    await registrarLog('GIAP — NOME', r._rhId, r.funcionario, { antes: r._rhNome, depois: r.funcionario });
+    showToast('Nome corrigido no RH.', 'success');
+    gsInvalidarCache();
+    await giapCarregarFolhaTabela();
+  } catch (e) {
+    showToast(e.message || String(e), 'error');
+  }
+};
+
+window.giapAplicarAdmissao = async function giapAplicarAdmissao(mat) {
+  const r = giapFolhaFindRow(mat);
+  const iso = giapDataISO(r?.admissao);
+  if (!r?._rhId || !iso) return showToast('Sem data de admissão no GIAP.', 'error');
+  if (!confirm(`Corrigir data de admissão de “${r._rhNome}”?\n\nRH: ${giapFolhaFmtDt(r._rhAdmissao)}\nGIAP: ${giapFolhaFmtDt(iso)}`)) return;
+  try {
+    const { error } = await sb.from('funcionarios').update({ data_admissao: iso }).eq('id', r._rhId);
+    if (error) throw error;
+    await registrarLog('GIAP — ADMISSÃO', r._rhId, r._rhNome, {
+      antes: r._rhAdmissao,
+      depois: iso,
+      competencia: r.competencia
+    });
+    showToast('Data de admissão corrigida.', 'success');
+    gsInvalidarCache();
+    await giapCarregarFolhaTabela();
+  } catch (e) {
+    showToast(e.message || String(e), 'error');
+  }
+};
+
+window.giapAplicarExoneracao = async function giapAplicarExoneracao(mat) {
+  const r = giapFolhaFindRow(mat);
+  if (!r?._rhId) return showToast('Sem match RH.', 'error');
+  const dataExo = giapDataISO(r.demissao) || new Date().toISOString().slice(0, 10);
+  const ok = confirm(
+    `Enviar “${r._rhNome}” para o menu Exonerados?\n\n` +
+    `Data GIAP: ${giapFolhaFmtDt(dataExo)}\n\n` +
+    `Atenção: se a pessoa reaparecer em outro cargo no mês seguinte, NÃO use esta ação — a demissão no GIAP de um mês não significa exoneração definitiva.`
+  );
+  if (!ok) return;
+  try {
+    const { error } = await sb.rpc('fn_exonerar_funcionario', {
+      p_funcionario_id: r._rhId,
+      p_data_exoneracao: dataExo,
+      p_motivo: `Manual via Relatório API GIAP (competência ${r.competencia})`
+    });
+    if (error) throw error;
+    await registrarLog('GIAP — EXONERAÇÃO MANUAL', r._rhId, r._rhNome, {
+      data_exoneracao: dataExo,
+      competencia: r.competencia
+    });
+    showToast('Servidor enviado para Exonerados.', 'success');
+    gsInvalidarCache();
+    atualizarBadgesSemLotacaoExonerados();
+    await giapCarregarFolhaTabela();
+  } catch (e) {
+    showToast(e.message || String(e), 'error');
+  }
+};
+
+function giapBindBotoes() {
+  const run = $('giap-btn-run');
+  if (run && !run.dataset.giapBound) {
+    run.dataset.giapBound = '1';
+    run.addEventListener('click', (e) => {
+      e.preventDefault();
+      window.giapRodarCiclo();
+    });
+  }
+  const dem = $('giap-btn-demissao');
+  if (dem && !dem.dataset.giapBound) {
+    dem.dataset.giapBound = '1';
+    dem.addEventListener('click', (e) => {
+      e.preventDefault();
+      window.giapBuscarDemissoes();
+    });
+  }
+}
+
+async function renderRelatorioApi() {
+  giapBindBotoes();
+  await giapAtualizarBadges();
+
+  const kpisEl = $('giap-kpis');
+  try {
+    const comp = Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
+    const { data: view } = await sb.from('v_giap_relatorio').select('*').maybeSingle();
+    const { count: ativos } = await sb.from('funcionarios').select('id', { count: 'exact', head: true }).eq('ativo', true);
+    let semMatricula = view?.sem_matricula;
+    if (semMatricula == null) {
+      const { data: all } = await sb.from('funcionarios').select('matricula').eq('ativo', true);
+      semMatricula = (all || []).filter(f => !f.matricula || !String(f.matricula).trim()).length;
+    }
+    const { count: naFolha } = await sb.from('folha_pmsl')
+      .select('id', { count: 'exact', head: true })
+      .eq('competencia', comp);
+    const pct = view?.ultimo_progresso ?? 0;
+    if (kpisEl) {
+      kpisEl.innerHTML = [
+        ['Ativos no RH', ativos ?? view?.total_ativos ?? '—', 'Servidores ativos', 'var(--gov-blue-primary)'],
+        ['Sem matrícula', semMatricula ?? '—', 'Prioridade na busca por nome', 'var(--gov-orange,#ed8936)'],
+        ['Folha GIAP', naFolha ?? 0, `Competência ${comp}`, 'var(--gov-yellow,#d69e2e)'],
+        ['Último progresso', `${pct ?? 0}%`, view?.ultimo_status || 'sem job', 'var(--gov-green)'],
+      ].map(([lbl, val, sub, cor]) => `
+        <div class="stat" style="border-left-color:${cor}">
+          <div class="stat-lbl">${lbl}</div>
+          <div class="stat-val">${val}</div>
+          <div class="stat-sub">${sub}</div>
+        </div>`).join('');
+    }
+  } catch (e) {
+    if (kpisEl) {
+      kpisEl.innerHTML = `<div class="stat"><div class="stat-lbl">Aviso</div><div class="stat-sub">Rode sql/giap_relatorio_api.sql no Supabase. ${htmlEscape(e.message || '')}</div></div>`;
+    }
+  }
+
+  try {
+    const { data: cfg } = await sb.from('giap_config').select('*').eq('id', 1).maybeSingle();
+    if ($('giap-cfg-auto')) $('giap-cfg-auto').checked = !!cfg?.automatico;
+    if ($('giap-cfg-dia')) $('giap-cfg-dia').value = cfg?.dia_mes ?? 27;
+    if ($('giap-cfg-comp') && !$('giap-cfg-comp').value) {
+      $('giap-cfg-comp').value = giapCompetenciaPadrao();
+    }
+    giapPintarBadgeCompetencia(cfg);
+  } catch (_) { /* ok */ }
+
+  if ($('giap-cfg-comp') && !$('giap-cfg-comp').dataset.giapBound) {
+    $('giap-cfg-comp').dataset.giapBound = '1';
+    $('giap-cfg-comp').addEventListener('change', async () => {
+      try {
+        const { data: cfg } = await sb.from('giap_config').select('competencias_buscadas').eq('id', 1).maybeSingle();
+        giapPintarBadgeCompetencia(cfg);
+      } catch (_) { giapPintarBadgeCompetencia(null); }
+      await giapCarregarFolhaTabela();
+      await giapCarregarFaltandoFolha();
+    });
+  }
+
+  try {
+    const { data: jobs } = await sb.from('giap_jobs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(1);
+    const job = jobs?.[0];
+    if (job) {
+      _giapJobId = job.id;
+      giapPintarProgresso(job);
+      if (job.status === 'running' || job.status === 'pending') giapIniciarPoll(job.id);
+    }
+  } catch (_) { /* ok */ }
+
+  await giapCarregarFolhaTabela();
+  await giapCarregarFaltandoFolha();
+}
+
+const _giapFaltando = { rows: [], page: 1, pageSize: 25 };
+
+function giapFaltandoExcluido(vinculo) {
+  const c = giapNormNome(vinculo || '');
+  return !c || c.includes('TERCEIRIZ') || c.includes('PROCAD') || c.includes('ESTAGI');
+}
+
+function giapFaltandoRender() {
+  const tbody = $('tbody-giap-faltando');
+  if (!tbody) return;
+  const { rows, page, pageSize } = _giapFaltando;
+  const pages = Math.max(1, Math.ceil(rows.length / pageSize) || 1);
+  if (_giapFaltando.page > pages) _giapFaltando.page = pages;
+  const p = _giapFaltando.page;
+  const start = (p - 1) * pageSize;
+  const slice = rows.slice(start, start + pageSize);
+
+  if ($('giap-faltando-count')) {
+    $('giap-faltando-count').textContent = `${rows.length} faltando na sync`;
+  }
+  if ($('giap-faltando-page')) {
+    $('giap-faltando-page').textContent = `${p} / ${pages}`;
+  }
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state" style="color:var(--gov-green);font-weight:600">Ninguém faltando: todo o RH elegível já está na folha sync.</td></tr>';
+    return;
+  }
+
+  const fmt = (d) => {
+    if (!d) return '—';
+    const s = String(d).slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const [y, m, day] = s.split('-');
+      return `${day}/${m}/${y}`;
+    }
+    return s;
+  };
+
+  tbody.innerHTML = slice.map((r) => {
+    const nomeJs = JSON.stringify(r.nome || '');
+    return `<tr>
+      <td style="font-family:monospace;font-size:12px">${htmlEscape(r.matricula || '—')}</td>
+      <td style="font-weight:600">${htmlEscape(r.nome || '—')}</td>
+      <td>${htmlEscape(r.vinculo || '—')}</td>
+      <td style="font-size:12px">${fmt(r.data_admissao)}</td>
+      <td style="text-align:center">
+        <button type="button" class="btn-secondary" style="padding:4px 8px;font-size:12px"
+          onclick='giapPuxarNomeDireto(${nomeJs})'>Puxar</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+window.giapFaltandoPagina = function giapFaltandoPagina(delta) {
+  const pages = Math.max(1, Math.ceil(_giapFaltando.rows.length / _giapFaltando.pageSize) || 1);
+  _giapFaltando.page = Math.min(pages, Math.max(1, _giapFaltando.page + delta));
+  giapFaltandoRender();
+};
+
+window.giapPuxarNomeDireto = async function giapPuxarNomeDireto(nome) {
+  if ($('giap-folha-busca')) $('giap-folha-busca').value = nome;
+  await giapPuxarNomeApi();
+  await giapCarregarFaltandoFolha();
+};
+
+const _giapPuxarTodos = { rodando: false, parar: false };
+
+window.giapPararPuxarTodos = function giapPararPuxarTodos() {
+  _giapPuxarTodos.parar = true;
+  const st = $('giap-puxar-todos-status');
+  if (st) st.textContent = 'Parando após o nome atual…';
+};
+
+window.giapPuxarTodosFaltando = async function giapPuxarTodosFaltando() {
+  if (_giapPuxarTodos.rodando) {
+    return showToast('Já está puxando a fila. Use Parar se quiser interromper.', 'info');
+  }
+  if (!_giapFaltando.rows.length) {
+    await giapCarregarFaltandoFolha();
+  }
+  const fila = _giapFaltando.rows.filter((r) => (r.nome || '').trim().split(/\s+/).length >= 2);
+  if (!fila.length) {
+    return showToast('Ninguém faltando na folha para puxar.', 'info');
+  }
+
+  const okConfirm = confirm(
+    `Puxar ${fila.length} nome(s) um a um na API?\n\n` +
+    `Cada nome abre e fecha o Chrome no servidor (seguro no plano free).\n` +
+    `Pode levar vários minutos. Você pode clicar em Parar a qualquer momento.`
+  );
+  if (!okConfirm) return;
+
+  _giapPuxarTodos.rodando = true;
+  _giapPuxarTodos.parar = false;
+  const btn = $('giap-btn-puxar-todos');
+  const btnParar = $('giap-btn-parar-puxar');
+  const st = $('giap-puxar-todos-status');
+  if (btn) btn.disabled = true;
+  if (btnParar) btnParar.style.display = '';
+  if (st) st.style.display = '';
+
+  const competencia = Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
+  let ok = 0;
+  let vazio = 0;
+  let erro = 0;
+  const total = fila.length;
+
+  try {
+    for (let i = 0; i < fila.length; i++) {
+      if (_giapPuxarTodos.parar) break;
+      const nome = String(fila[i].nome || '').trim();
+      const pct = Math.round(((i) / total) * 100);
+      giapPintarProgresso({
+        id: null,
+        progresso_pct: pct,
+        status: 'running',
+        competencia,
+        meta: `Puxar todos ${i + 1}/${total}`,
+        etapa: nome,
+        resumo: { etapa: `puxar_${i + 1}/${total}`, nome, ok, vazio, erro }
+      });
+      if (st) {
+        st.textContent = `${i + 1}/${total} · ${nome} · ok ${ok} · vazio ${vazio} · erro ${erro}`;
+      }
+
+      try {
+        const data = await giapProxy('sync_nome', { nomeServidor: nome, competencia });
+        if ((data.registros_encontrados || 0) === 0 && (data.registros_inseridos || 0) === 0) {
+          vazio++;
+        } else {
+          ok++;
+        }
+      } catch (e) {
+        erro++;
+        console.warn('[GIAP] puxar todos', nome, e.message || e);
+        // Pausa extra após erro (possível OOM/restart)
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+
+      // Pausa entre nomes para o Render liberar RAM
+      await new Promise((r) => setTimeout(r, 800));
+    }
+
+    const msg = _giapPuxarTodos.parar
+      ? `Parado. ok ${ok}, vazio ${vazio}, erro ${erro} de ${total}.`
+      : `Concluído. ok ${ok}, vazio ${vazio}, erro ${erro} de ${total}.`;
+    showToast(msg, erro ? 'info' : 'success');
+    giapPintarProgresso({
+      id: null,
+      progresso_pct: 100,
+      status: _giapPuxarTodos.parar ? 'cancelled' : 'done',
+      competencia,
+      meta: 'Puxar todos',
+      resumo: { ok, vazio, erro, total, parado: _giapPuxarTodos.parar }
+    });
+    if (st) st.textContent = msg;
+    await giapCarregarFolhaTabela();
+    await giapCarregarFaltandoFolha();
+  } finally {
+    _giapPuxarTodos.rodando = false;
+    _giapPuxarTodos.parar = false;
+    if (btn) btn.disabled = false;
+    if (btnParar) btnParar.style.display = 'none';
+  }
+};
+
+async function giapCarregarFaltandoFolha() {
+  const tbody = $('tbody-giap-faltando');
+  if (!tbody) return;
+  const comp = Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
+  tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><span class="spinner"></span> Comparando RH × folha…</td></tr>';
+  try {
+    // Preferência: view com vínculo; fallback funcionarios
+    let rhRows = [];
+    const viewTry = await sb.from('v_funcionarios_atual')
+      .select('funcionario_id, nome, matricula, vinculo')
+      .order('nome')
+      .limit(2000);
+    if (!viewTry.error && viewTry.data?.length) {
+      rhRows = viewTry.data.map((r) => ({
+        id: r.funcionario_id,
+        nome: r.nome,
+        matricula: r.matricula,
+        vinculo: r.vinculo,
+        data_admissao: null
+      }));
+    } else {
+      const all = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await sb.from('funcionarios')
+          .select('id, nome, matricula, data_admissao')
+          .eq('ativo', true)
+          .range(from, from + 999);
+        if (error) throw error;
+        if (data?.length) all.push(...data.map((r) => ({ ...r, vinculo: null })));
+        if (!data || data.length < 1000) break;
+      }
+      rhRows = all;
+    }
+
+    const matsFolha = new Set();
+    const nomesFolha = new Set();
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await sb.from('folha_pmsl')
+        .select('matricula, funcionario')
+        .eq('competencia', comp)
+        .range(from, from + 999);
+      if (error) throw error;
+      for (const f of data || []) {
+        if (f.matricula != null) matsFolha.add(String(f.matricula).trim());
+        const nn = giapNormNome(f.funcionario);
+        if (nn) nomesFolha.add(nn);
+      }
+      if (!data || data.length < 1000) break;
+    }
+
+    const faltando = rhRows.filter((r) => {
+      if (giapFaltandoExcluido(r.vinculo)) return false;
+      const mat = r.matricula != null ? String(r.matricula).trim() : '';
+      if (mat && matsFolha.has(mat)) return false;
+      if (giapNormNome(r.nome) && nomesFolha.has(giapNormNome(r.nome))) return false;
+      return true;
+    });
+
+    // Seu caso no topo se estiver na lista
+    faltando.sort((a, b) => {
+      const aJ = String(a.matricula) === '6470648' ? 0 : 1;
+      const bJ = String(b.matricula) === '6470648' ? 0 : 1;
+      if (aJ !== bJ) return aJ - bJ;
+      return String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR');
+    });
+
+    _giapFaltando.rows = faltando;
+    _giapFaltando.page = 1;
+    giapFaltandoRender();
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty-state">Erro: ${htmlEscape(e.message || e)}</td></tr>`;
+  }
+}
+
+function giapIniciarPoll(jobId) {
+  if (_giapPollTimer) clearInterval(_giapPollTimer);
+  const iniciadoEm = Date.now();
+  const MAX_POLL_MS = 50 * 60 * 1000; // 50 min
+  // 1ª leitura imediata (não espera 2,5s)
+  (async () => {
+    try {
+      const { data: job } = await sb.from('giap_jobs').select('*').eq('id', jobId).maybeSingle();
+      if (job) giapPintarProgresso(job);
+    } catch (_) { /* ignore */ }
+  })();
+  _giapPollTimer = setInterval(async () => {
+    try {
+      if (Date.now() - iniciadoEm > MAX_POLL_MS) {
+        clearInterval(_giapPollTimer);
+        _giapPollTimer = null;
+        showToast('Job ainda em andamento no servidor, ou o Render reiniciou. Atualize a página.', 'info');
+        return;
+      }
+      const { data: job } = await sb.from('giap_jobs').select('*').eq('id', jobId).maybeSingle();
+      if (!job) return;
+      giapPintarProgresso(job);
+      if (job.status === 'done' || job.status === 'error' || job.status === 'cancelled') {
+        clearInterval(_giapPollTimer);
+        _giapPollTimer = null;
+        if (job.status === 'done') {
+          showToast('Buscas da competência gravadas na folha.', 'success');
+          if (job.competencia) await giapMarcarCompetenciaBuscada(job.competencia);
+        }
+        if (job.status === 'error') showToast(`Job GIAP falhou: ${job.erro || 'erro'}`, 'error');
+        renderRelatorioApi();
+      }
+    } catch (_) { /* ignore */ }
+  }, 2000);
+}
+
+window.giapRodarCiclo = async function giapRodarCiclo() {
+  const btn = $('giap-btn-run');
+  if (btn) btn.disabled = true;
+  try {
+    const competencia = Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
+    const filtros = giapFiltrosBusca();
+    giapProgressoLocal(`Iniciando busca da competência ${competencia}…`, 'chamando_api');
+    showToast(`Buscando e gravando folha ${competencia}…`, 'info');
+    const data = await giapProxy('start_job', {
+      tipo: 'sync_orgao',
+      competencia,
+      dryRun: false,
+      filtros
+    });
+    const job = data.job;
+    if (!job?.id) throw new Error('Job não retornado pela API. Verifique o proxy GIAP e o serviço no Render.');
+    _giapJobId = job.id;
+    giapPintarProgresso(job);
+    giapIniciarPoll(job.id);
+  } catch (e) {
+    console.error('[GIAP] Buscar e gravar:', e);
+    giapPintarProgresso({
+      id: null,
+      progresso_pct: 0,
+      status: 'error',
+      competencia: Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao()),
+      erro: e.message || String(e),
+      meta: 'Falha ao iniciar',
+      resumo: { erro: e.message || String(e) }
+    });
+    showToast(e.message || String(e), 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+};
+
+window.giapBuscarDemissoes = async function giapBuscarDemissoes() {
+  const btn = $('giap-btn-demissao');
+  if (btn) btn.disabled = true;
+  try {
+    const competencia = Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
+    giapProgressoLocal(`Detectando demissões (${competencia})…`, 'buscar_demissoes');
+    showToast('Detectando demissões (somente leitura — não exonera)…', 'info');
+    const data = await giapProxy('start_job', {
+      tipo: 'buscar_demissoes',
+      competencia,
+      dryRun: true,
+      filtros: { mesesAtras: 12 }
+    });
+    const job = data.job;
+    if (!job?.id) throw new Error('Job não retornado pela API');
+    _giapJobId = job.id;
+    giapPintarProgresso(job);
+    giapIniciarPoll(job.id);
+  } catch (e) {
+    console.error('[GIAP] Detectar demissões:', e);
+    giapPintarProgresso({
+      id: null,
+      progresso_pct: 0,
+      status: 'error',
+      erro: e.message || String(e),
+      meta: 'Falha ao iniciar',
+      resumo: { erro: e.message || String(e) }
+    });
+    showToast(e.message || String(e), 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+};
+
+window.giapSalvarConfig = async function giapSalvarConfig() {
+  try {
+    const automatico = !!$('giap-cfg-auto')?.checked;
+    const dia_mes = Math.min(28, Math.max(1, Number($('giap-cfg-dia')?.value || 27)));
+    const { data: sess } = await sb.auth.getSession();
+    const { error } = await sb.from('giap_config').upsert({
+      id: 1,
+      automatico,
+      dia_mes,
+      updated_at: new Date().toISOString(),
+      updated_by: sess?.session?.user?.id || null
+    });
+    if (error) throw error;
+    showToast('Configuração salva.', 'success');
+  } catch (e) {
+    showToast(e.message || String(e), 'error');
+  }
+};
+
+window.giapExonerarRevisao = async function giapExonerarRevisao(revisaoId, funcionarioId) {
+  if (!confirm('Exonerar este servidor agora?')) return;
+  try {
+    const hoje = new Date().toISOString().slice(0, 10);
+    const { error } = await sb.rpc('fn_exonerar_funcionario', {
+      p_funcionario_id: funcionarioId,
+      p_data_exoneracao: hoje,
+      p_motivo: 'Revisão GIAP — ausência na folha'
+    });
+    if (error) throw error;
+    await sb.from('giap_revisao_ausencia').update({
+      status: 'exonerado',
+      resolved_at: new Date().toISOString()
+    }).eq('id', revisaoId);
+    showToast('Servidor exonerado.', 'success');
+    renderRelatorioApi();
+    atualizarBadgesSemLotacaoExonerados();
+  } catch (e) {
+    showToast(e.message || String(e), 'error');
+  }
+};
+
+window.giapIgnorarRevisao = async function giapIgnorarRevisao(revisaoId) {
+  try {
+    const { error } = await sb.from('giap_revisao_ausencia').update({
+      status: 'ignorado',
+      resolved_at: new Date().toISOString()
+    }).eq('id', revisaoId);
+    if (error) throw error;
+    showToast('Item ignorado.', 'success');
+    renderRelatorioApi();
+  } catch (e) {
+    showToast(e.message || String(e), 'error');
+  }
+};
 
 // ╔══════════════════════════════════════════════════════════════╗
 // ║                          FÉRIAS                               ║
