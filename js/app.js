@@ -3272,7 +3272,9 @@ const _giapFolha = {
   okCount: 0,
   competencia: null,
   busca: '',
-  filtroAcao: ''
+  filtroAcao: '',
+  /** semcas = SEMCAS + cedidos; todas = inclui outras secretarias */
+  escopoOrgao: 'semcas'
 };
 
 function giapFolhaFmtDt(d) {
@@ -3441,7 +3443,13 @@ function giapFolhaSortValor(row, key) {
 function giapFolhaAplicarFiltro() {
   const q = giapNormNome(_giapFolha.busca);
   const acao = _giapFolha.filtroAcao || '';
+  const escopo = _giapFolha.escopoOrgao || 'semcas';
   _giapFolha.filtered = _giapFolha.rows.filter((r) => {
+    // Padrão: SEMCAS + linhas de outras secs que casaram com Cedido/Recebido
+    if (escopo === 'semcas') {
+      const okOutra = r._outraSecretaria && r._ok;
+      if (r._outraSecretaria && !okOutra) return false;
+    }
     if (q) {
       const blob = giapNormNome([
         r.funcionario,
@@ -3564,6 +3572,14 @@ window.giapFolhaFiltrarAcao = function giapFolhaFiltrarAcao(valor) {
   giapFolhaRenderPagina();
 };
 
+window.giapFolhaFiltrarEscopo = function giapFolhaFiltrarEscopo(valor) {
+  _giapFolha.escopoOrgao = String(valor || 'semcas');
+  _giapFolha.page = 1;
+  giapFolhaAplicarFiltro();
+  giapFolhaAplicarSort();
+  giapFolhaRenderPagina();
+};
+
 window.giapPuxarNomeApi = async function giapPuxarNomeApi() {
   const nome = String($('giap-folha-busca')?.value || '').trim();
   if (!nome || nome.split(/\s+/).length < 2) {
@@ -3573,11 +3589,20 @@ window.giapPuxarNomeApi = async function giapPuxarNomeApi() {
   if (btn) btn.disabled = true;
   try {
     const competencia = Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
-    showToast(`Buscando “${nome}” no GIAP…`, 'info');
-    const data = await giapProxy('sync_nome', { nomeServidor: nome, competencia });
+    const naFila = (_giapFaltando.rows || []).find(
+      (r) => giapNormNome(r.nome) === giapNormNome(nome)
+    );
+    showToast(`Buscando “${nome}” no GIAP (só SEMCAS, salvo Cedidos)…`, 'info');
+    const data = await giapProxy('sync_nome', {
+      nomeServidor: nome,
+      competencia,
+      matricula: naFila?.matricula || undefined
+    });
     const n = data.registros_inseridos ?? data.registros_filtrados ?? data.registros_encontrados ?? 0;
-    if ((data.registros_encontrados || 0) === 0) {
-      showToast('Portal respondeu vazio para este nome nesta competência (pode não estar na folha do mês).', 'info');
+    if ((data.registros_encontrados || 0) === 0 && (data.registros_filtrados || 0) === 0) {
+      showToast('Portal vazio ou só achou outra secretaria (ignorado — não é Cedido/Recebido).', 'info');
+    } else if ((data.registros_inseridos || 0) === 0 && (data.registros_filtrados || 0) === 0) {
+      showToast('Nenhum registro SEMCAS compatível para gravar.', 'info');
     } else {
       showToast(`OK: ${n} registro(s) gravado(s) / filtrado(s). Atualizando lista…`, 'success');
     }
@@ -3620,7 +3645,7 @@ async function giapCarregarFolhaTabela() {
   const comp = Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
   tbody.innerHTML = '<tr><td colspan="12" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
   try {
-    const [folha, funcs] = await Promise.all([
+    const [folha, funcs, cedencias] = await Promise.all([
       (async () => {
         const all = [];
         for (let from = 0; ; from += 1000) {
@@ -3638,7 +3663,6 @@ async function giapCarregarFolhaTabela() {
       (async () => {
         const all = [];
         for (let from = 0; ; from += 1000) {
-          // Inclui inativos: cedidos/exonerados ainda precisam de match p/ ações
           const { data, error: e } = await sb.from('funcionarios')
             .select('id, nome, matricula, data_admissao, ativo')
             .range(from, from + 999);
@@ -3647,46 +3671,84 @@ async function giapCarregarFolhaTabela() {
           if (!data || data.length < 1000) break;
         }
         return all;
+      })(),
+      (async () => {
+        try {
+          const { data } = await sb.from('v_cedencias_atuais')
+            .select('funcionario_id, matricula')
+            .limit(3000);
+          return data || [];
+        } catch (_) {
+          return [];
+        }
       })()
     ]);
 
+    const cedIds = new Set();
+    const cedMats = new Set();
+    for (const c of cedencias) {
+      if (c.funcionario_id) cedIds.add(c.funcionario_id);
+      const mk = giapMatKey(c.matricula);
+      if (mk) cedMats.add(mk);
+    }
+
     const porMat = new Map();
-    const porNome = new Map();
+    const funcsAtivos = [];
     for (const f of funcs) {
-      if (f.matricula && String(f.matricula).trim()) {
-        porMat.set(String(f.matricula).trim(), f);
-      }
-      const nn = giapNormNome(f.nome);
-      if (nn) {
-        if (!porNome.has(nn)) porNome.set(nn, []);
-        porNome.get(nn).push(f);
-      }
+      const mk = giapMatKey(f.matricula);
+      if (mk) porMat.set(mk, f);
+      funcsAtivos.push(f);
     }
 
     let okCount = 0;
     const rows = (folha || []).map((r) => {
       const mat = r.matricula != null ? String(r.matricula).trim() : '';
-      let rh = mat ? porMat.get(mat) : null;
+      const matKey = giapMatKey(mat);
+      const folhaSemcas = giapEhFolhaSemcas(r);
+      let rh = matKey ? porMat.get(matKey) : null;
+
+      // Match por matrícula: OK sempre (é a mesma pessoa)
+      // Match só por nome: SEMCAS casa com SEMCAS; outra secretaria só Cedidos/Recebidos
       if (!rh) {
-        const cands = (porNome.get(giapNormNome(r.funcionario)) || []).filter((c) => c.ativo !== false);
+        let cands = funcsAtivos.filter(
+          (c) => c.ativo !== false && giapNomesCompativeis(r.funcionario, c.nome)
+        );
+        if (!folhaSemcas) {
+          cands = cands.filter(
+            (c) => cedIds.has(c.id) || cedMats.has(giapMatKey(c.matricula))
+          );
+        }
         if (cands.length === 1) rh = cands[0];
         else if (!cands.length) {
-          const candsAll = porNome.get(giapNormNome(r.funcionario)) || [];
+          let candsAll = funcsAtivos.filter((c) => giapNomesCompativeis(r.funcionario, c.nome));
+          if (!folhaSemcas) {
+            candsAll = candsAll.filter(
+              (c) => cedIds.has(c.id) || cedMats.has(giapMatKey(c.matricula))
+            );
+          }
           if (candsAll.length === 1) rh = candsAll[0];
         }
+      } else if (!folhaSemcas) {
+        // Matrícula bateu em folha de outra secretaria: só aceita se for cedido/recebido
+        if (!cedIds.has(rh.id) && !cedMats.has(matKey)) {
+          rh = null;
+        }
       }
+
       const ok = !!rh;
       if (ok) okCount++;
       const row = {
         ...r,
         _ok: ok,
+        _folhaSemcas: folhaSemcas,
+        _outraSecretaria: !folhaSemcas,
         _rhId: rh?.id || null,
         _rhNome: rh?.nome || null,
         _rhMatricula: rh?.matricula || null,
         _rhAdmissao: rh?.data_admissao || null,
         _rhLabel: rh
           ? `${htmlEscape(rh.nome || '')}${rh.matricula ? ` · ${htmlEscape(String(rh.matricula))}` : ' · s/ mat.'}${rh.ativo === false ? ' · inativo' : ''}`
-          : '—'
+          : (folhaSemcas ? '—' : `<span style="color:#c05621;font-size:11px">Outra sec. (não cedido)</span>`)
       };
       row._correcao = giapFolhaDetectarCorrecoes(row);
       return row;
@@ -3704,6 +3766,9 @@ async function giapCarregarFolhaTabela() {
     }
     if ($('giap-folha-filtro-acao')) {
       _giapFolha.filtroAcao = $('giap-folha-filtro-acao').value || '';
+    }
+    if ($('giap-folha-escopo')) {
+      _giapFolha.escopoOrgao = $('giap-folha-escopo').value || 'semcas';
     }
     giapFolhaAplicarFiltro();
     giapFolhaAplicarSort();
@@ -3923,11 +3988,61 @@ async function renderRelatorioApi() {
   await giapCarregarFaltandoFolha();
 }
 
-const _giapFaltando = { rows: [], page: 1, pageSize: 25 };
+const _giapFaltando = {
+  rows: [],
+  page: 1,
+  pageSize: 25,
+  totalFora: 0,
+  semMatricula: 0,
+  comMatricula: 0
+};
+
+function giapMatKey(m) {
+  if (m == null || m === '') return '';
+  const raw = String(m).trim();
+  const digits = raw.replace(/\D/g, '');
+  const s = digits || raw;
+  const stripped = s.replace(/^0+/, '');
+  return stripped || '0';
+}
+
+/** Igual ao backend: JR/JUNIOR e partículas não atrapalham o match.
+ *  Exige tamanho parecido — evita MARIA DA CONCEICAO × CONCEICAO DE MARIA ABREU… */
+function giapNomesCompativeis(a, b) {
+  const na = giapNormNome(a);
+  const nb = giapNormNome(b);
+  if (!na || !nb) return false;
+  if (na.replace(/\s+/g, '') === nb.replace(/\s+/g, '')) return true;
+  const ign = new Set(['JR', 'JUNIOR', 'FILHO', 'NETO', 'SOBRINHO', 'DE', 'DA', 'DO', 'DAS', 'DOS', 'E', 'DI', 'DU']);
+  const ta = na.split(' ').filter((t) => t && !ign.has(t));
+  const tb = nb.split(' ').filter((t) => t && !ign.has(t));
+  if (!ta.length || !tb.length) return false;
+  const setA = new Set(ta);
+  const setB = new Set(tb);
+  const aInB = ta.every((t) => setB.has(t));
+  const bInA = tb.every((t) => setA.has(t));
+  if (!aInB && !bInA) return false;
+  const menor = Math.min(ta.length, tb.length);
+  const maior = Math.max(ta.length, tb.length);
+  return menor / maior >= 0.75;
+}
+
+function giapEhFolhaSemcas(r) {
+  return (
+    String(r?.lotacao || '').toUpperCase().trim() === 'SEMCAS' ||
+    String(r?.codigo_orgao ?? '') === '9'
+  );
+}
 
 function giapFaltandoExcluido(vinculo) {
   const c = giapNormNome(vinculo || '');
-  return !c || c.includes('TERCEIRIZ') || c.includes('PROCAD') || c.includes('ESTAGI');
+  if (!c) return true;
+  if (c.includes('TERCEIRIZ') || c.includes('PROCAD') || c.includes('ESTAGI')) return true;
+  return false;
+}
+
+function giapTemMatricula(m) {
+  return !!giapMatKey(m);
 }
 
 function giapFaltandoRender() {
@@ -3941,7 +4056,18 @@ function giapFaltandoRender() {
   const slice = rows.slice(start, start + pageSize);
 
   if ($('giap-faltando-count')) {
-    $('giap-faltando-count').textContent = `${rows.length} faltando na sync`;
+    const { rows, semMatricula, comMatricula } = _giapFaltando;
+    const mostrarComMat = !!$('giap-fila-com-matricula')?.checked;
+    if (mostrarComMat) {
+      $('giap-faltando-count').textContent =
+        `${rows.length} na fila (${semMatricula} s/ mat. · ${comMatricula} c/ mat.)`;
+    } else {
+      $('giap-faltando-count').textContent = rows.length
+        ? `${rows.length} sem matrícula fora dos Resultados`
+        : (comMatricula
+          ? `Fila limpa (s/ mat.) · ${comMatricula} c/ mat. fora — use Completar Resultados`
+          : 'Fila limpa — todos nos Resultados');
+    }
   }
   if ($('giap-faltando-page')) {
     $('giap-faltando-page').textContent = `${p} / ${pages}`;
@@ -4001,18 +4127,27 @@ window.giapPuxarTodosFaltando = async function giapPuxarTodosFaltando() {
   if (_giapPuxarTodos.rodando) {
     return showToast('Já está puxando a fila. Use Parar se quiser interromper.', 'info');
   }
-  if (!_giapFaltando.rows.length) {
+  await giapCarregarFaltandoFolha();
+
+  // Completar Resultados: prioriza sem matrícula; se a opção do job pedir, inclui c/ mat.
+  const incluirComMat =
+    !!$('giap-opt-com-matricula')?.checked || !!$('giap-fila-com-matricula')?.checked;
+  let fila = _giapFaltando.rows.filter((r) => (r.nome || '').trim().split(/\s+/).length >= 2);
+
+  // Se a fila visual está só s/ mat. mas o usuário quer completar c/ mat. também:
+  if (incluirComMat && $('giap-fila-com-matricula') && !$('giap-fila-com-matricula').checked) {
+    $('giap-fila-com-matricula').checked = true;
     await giapCarregarFaltandoFolha();
+    fila = _giapFaltando.rows.filter((r) => (r.nome || '').trim().split(/\s+/).length >= 2);
   }
-  const fila = _giapFaltando.rows.filter((r) => (r.nome || '').trim().split(/\s+/).length >= 2);
+
   if (!fila.length) {
-    return showToast('Ninguém faltando na folha para puxar.', 'info');
+    return showToast('Ninguém pendente para puxar para Resultados.', 'info');
   }
 
   const okConfirm = confirm(
-    `Puxar ${fila.length} nome(s) um a um na API?\n\n` +
-    `Cada nome abre e fecha o Chrome no servidor (seguro no plano free).\n` +
-    `Pode levar vários minutos. Você pode clicar em Parar a qualquer momento.`
+    `Completar Resultados com ${fila.length} nome(s), um a um?\n\n` +
+    `Grava em Resultados da folha GIAP. Pode demorar. Use Parar se precisar.`
   );
   if (!okConfirm) return;
 
@@ -4050,20 +4185,35 @@ window.giapPuxarTodosFaltando = async function giapPuxarTodosFaltando() {
       }
 
       try {
-        const data = await giapProxy('sync_nome', { nomeServidor: nome, competencia });
-        if ((data.registros_encontrados || 0) === 0 && (data.registros_inseridos || 0) === 0) {
+        const data = await giapProxy('sync_nome', {
+          nomeServidor: nome,
+          competencia,
+          matricula: fila[i].matricula || undefined
+        });
+        if (
+          (data.registros_inseridos || 0) === 0 &&
+          (data.registros_filtrados || 0) === 0
+        ) {
           vazio++;
         } else {
           ok++;
+          // Remove da fila local — destino é Resultados
+          _giapFaltando.rows = _giapFaltando.rows.filter(
+            (r) => giapNormNome(r.nome) !== giapNormNome(nome)
+          );
+          giapFaltandoRender();
         }
       } catch (e) {
         erro++;
         console.warn('[GIAP] puxar todos', nome, e.message || e);
-        // Pausa extra após erro (possível OOM/restart)
         await new Promise((r) => setTimeout(r, 3000));
       }
 
-      // Pausa entre nomes para o Render liberar RAM
+      // A cada 5 nomes, atualiza Resultados na tela
+      if ((i + 1) % 5 === 0 || i === fila.length - 1) {
+        await giapCarregarFolhaTabela();
+      }
+
       await new Promise((r) => setTimeout(r, 800));
     }
 
@@ -4090,7 +4240,7 @@ window.giapPuxarTodosFaltando = async function giapPuxarTodosFaltando() {
   }
 };
 
-async function giapCarregarFaltandoFolha() {
+window.giapCarregarFaltandoFolha = async function giapCarregarFaltandoFolha() {
   const tbody = $('tbody-giap-faltando');
   if (!tbody) return;
   const comp = Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
@@ -4125,40 +4275,76 @@ async function giapCarregarFaltandoFolha() {
     }
 
     const matsFolha = new Set();
-    const nomesFolha = new Set();
+    const nomesFolhaList = [];
+    const nomesFolhaExact = new Set();
     for (let from = 0; ; from += 1000) {
       const { data, error } = await sb.from('folha_pmsl')
-        .select('matricula, funcionario')
+        .select('matricula, funcionario, funcionario_norm')
         .eq('competencia', comp)
         .range(from, from + 999);
       if (error) throw error;
       for (const f of data || []) {
-        if (f.matricula != null) matsFolha.add(String(f.matricula).trim());
-        const nn = giapNormNome(f.funcionario);
-        if (nn) nomesFolha.add(nn);
+        const mk = giapMatKey(f.matricula);
+        if (mk) matsFolha.add(mk);
+        const nn = f.funcionario_norm || giapNormNome(f.funcionario);
+        if (nn) {
+          nomesFolhaExact.add(nn);
+          nomesFolhaList.push(f.funcionario || nn);
+        }
       }
       if (!data || data.length < 1000) break;
     }
 
-    const faltando = rhRows.filter((r) => {
+    // Também usa o que já está carregado em Resultados (evita falso “faltando”)
+    for (const r of _giapFolha.rows || []) {
+      const mk = giapMatKey(r.matricula);
+      if (mk) matsFolha.add(mk);
+      if (r.funcionario) nomesFolhaList.push(r.funcionario);
+      const nn = giapNormNome(r.funcionario);
+      if (nn) nomesFolhaExact.add(nn);
+    }
+
+    const jaNaFolha = (r) => {
+      const mk = giapMatKey(r.matricula);
+      if (mk && matsFolha.has(mk)) return true;
+      const nn = giapNormNome(r.nome);
+      if (nn && nomesFolhaExact.has(nn)) return true;
+      for (const nf of nomesFolhaList) {
+        if (giapNomesCompativeis(r.nome, nf)) return true;
+      }
+      return false;
+    };
+
+    const fora = rhRows.filter((r) => {
       if (giapFaltandoExcluido(r.vinculo)) return false;
-      const mat = r.matricula != null ? String(r.matricula).trim() : '';
-      if (mat && matsFolha.has(mat)) return false;
-      if (giapNormNome(r.nome) && nomesFolha.has(giapNormNome(r.nome))) return false;
+      if (jaNaFolha(r)) return false;
       return true;
     });
 
-    // Seu caso no topo se estiver na lista
+    const semMat = fora.filter((r) => !giapTemMatricula(r.matricula));
+    const comMat = fora.filter((r) => giapTemMatricula(r.matricula));
+    const mostrarComMat = !!$('giap-fila-com-matricula')?.checked;
+
+    // Padrão: só sem matrícula (os ~547 com mat. não poluem a fila)
+    const faltando = (mostrarComMat ? fora : semMat).slice();
+
     faltando.sort((a, b) => {
-      const aJ = String(a.matricula) === '6470648' ? 0 : 1;
-      const bJ = String(b.matricula) === '6470648' ? 0 : 1;
-      if (aJ !== bJ) return aJ - bJ;
+      const am = giapTemMatricula(a.matricula) ? 1 : 0;
+      const bm = giapTemMatricula(b.matricula) ? 1 : 0;
+      if (am !== bm) return am - bm;
       return String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR');
     });
 
     _giapFaltando.rows = faltando;
+    _giapFaltando.totalFora = fora.length;
+    _giapFaltando.semMatricula = semMat.length;
+    _giapFaltando.comMatricula = comMat.length;
     _giapFaltando.page = 1;
     giapFaltandoRender();
+
+    const card = $('giap-card-fila-resultados');
+    // Mantém o card visível se houver pendência (mesmo só c/ matrícula)
+    if (card) card.style.display = (fora.length || faltando.length) ? '' : 'none';
   } catch (e) {
     tbody.innerHTML = `<tr><td colspan="5" class="empty-state">Erro: ${htmlEscape(e.message || e)}</td></tr>`;
   }

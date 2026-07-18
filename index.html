@@ -826,8 +826,17 @@
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;padding:0 4px">
             <div class="row-label" style="margin:0"><i class="ti ti-table"></i> Resultados da folha GIAP</div>
-            <span class="filter-result-count" id="giap-folha-count"></span>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <span class="filter-result-count" id="giap-folha-count"></span>
+              <button type="button" class="btn-primary" id="giap-btn-puxar-todos" onclick="giapPuxarTodosFaltando()" title="Puxa quem ainda falta e grava em Resultados">
+                <i class="ti ti-cloud-download"></i> Completar Resultados (1 a 1)
+              </button>
+              <button type="button" class="btn-secondary" id="giap-btn-parar-puxar" onclick="giapPararPuxarTodos()" style="display:none">
+                Parar
+              </button>
+            </div>
           </div>
+          <div id="giap-puxar-todos-status" style="display:none;margin:0 4px 10px;padding:8px 12px;background:#ebf8ff;border-radius:6px;font-size:13px;color:#2b6cb0"></div>
           <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin:0 4px 10px">
             <div class="filter-field" style="flex:1;min-width:220px">
               <label for="giap-folha-busca">Buscar na lista / puxar na API</label>
@@ -844,6 +853,13 @@
                 <option value="exoneracao">Demissão GIAP (→ Exonerados)</option>
                 <option value="alinhado">Já alinhado</option>
                 <option value="sem_vinculo">Sem vínculo no RH</option>
+              </select>
+            </div>
+            <div class="filter-field" style="min-width:200px">
+              <label for="giap-folha-escopo">Secretaria</label>
+              <select id="giap-folha-escopo" class="form-control" onchange="giapFolhaFiltrarEscopo(this.value)">
+                <option value="semcas" selected>SEMCAS + Cedidos/Recebidos</option>
+                <option value="todas">Todas (inclui SEMOSP etc.)</option>
               </select>
             </div>
             <button type="button" class="btn-primary" id="giap-btn-puxar-nome" onclick="giapPuxarNomeApi()" style="white-space:nowrap">
@@ -893,25 +909,19 @@
           </div>
         </div>
 
-        <div class="card" style="margin-top:16px">
+        <div class="card" id="giap-card-fila-resultados" style="margin-top:16px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;padding:0 4px">
-            <div class="row-label" style="margin:0"><i class="ti ti-user-exclamation"></i> No RH, mas ainda não na folha sincronizada</div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <span class="filter-result-count" id="giap-faltando-count"></span>
-              <button type="button" class="btn-primary" id="giap-btn-puxar-todos" onclick="giapPuxarTodosFaltando()">
-                <i class="ti ti-cloud-download"></i> Puxar todos (1 a 1)
-              </button>
-              <button type="button" class="btn-secondary" id="giap-btn-parar-puxar" onclick="giapPararPuxarTodos()" style="display:none">
-                Parar
-              </button>
-            </div>
+            <div class="row-label" style="margin:0"><i class="ti ti-list-check"></i> Fila → Resultados</div>
+            <span class="filter-result-count" id="giap-faltando-count"></span>
           </div>
           <small style="display:block;margin:0 4px 10px;color:var(--color-text-muted)">
-            Cadastro no sistema existe, mas ainda <strong>não entrou</strong> na folha desta competência.
-            <strong>Puxar todos</strong> busca um nome por vez (seguro no Render free) — pode demorar; use <strong>Parar</strong> se precisar.
-            Ou <strong>Puxar</strong> só na linha.
+            Lista só quem está <strong>sem matrícula</strong> e ainda não entrou em Resultados.
+            Quem já tem matrícula no RH entra via <strong>Completar Resultados</strong> ou <strong>Buscar e gravar folha</strong> (não polui esta fila).
           </small>
-          <div id="giap-puxar-todos-status" style="display:none;margin:0 4px 10px;padding:8px 12px;background:#ebf8ff;border-radius:6px;font-size:13px;color:#2b6cb0"></div>
+          <label style="display:flex;align-items:center;gap:8px;margin:0 4px 10px;cursor:pointer;font-size:13px">
+            <input type="checkbox" id="giap-fila-com-matricula" onchange="giapCarregarFaltandoFolha()">
+            Mostrar também quem <strong>já tem matrícula</strong> mas ainda não está nos Resultados
+          </label>
           <div class="table-container" style="overflow-x:auto">
             <table class="gov-table">
               <thead>
@@ -1407,7 +1417,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20260718e"></script>
+  <script type="module" src="js/app.js?v=20260718h"></script>
 
 
 

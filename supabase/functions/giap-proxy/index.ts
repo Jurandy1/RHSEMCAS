@@ -90,6 +90,7 @@ Deno.serve(async (req) => {
       const nomeServidor = String(body.nomeServidor || '').trim()
       if (!nomeServidor) return json({ error: 'Informe o nome do servidor.' }, 400)
       const competencia = body.competencia || undefined
+      const matricula = body.matricula != null ? String(body.matricula).trim() : undefined
       const r = await fetch(`${giapUrl}/sync/nome`, {
         method: 'POST',
         headers: {
@@ -101,6 +102,8 @@ Deno.serve(async (req) => {
           codigoInstituicao: 1,
           competencia,
           filtrarNomeAlvo: nomeServidor,
+          matricula: matricula || undefined,
+          apenasSemcas: true,
         }),
       })
       const data = await r.json().catch(() => ({}))
