@@ -123,6 +123,9 @@
         <i class="ti ti-api"></i> Relatório API
         <span id="badge-giap-revisao" style="display:none;margin-left:auto;background:var(--gov-orange,#ed8936);color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;line-height:16px"></span>
       </a>
+      <a href="#remuneracoes" class="nav-item" data-route="remuneracoes">
+        <i class="ti ti-currency-real"></i> Remunerações
+      </a>
       <a href="#logs" class="nav-item" data-route="logs">
         <i class="ti ti-history"></i> Histórico de Ações
       </a>
@@ -888,7 +891,8 @@
                   <th style="cursor:pointer" data-giap-sort="codigo_orgao" onclick="giapFolhaOrdenar('codigo_orgao')">Órgão</th>
                   <th style="cursor:pointer" data-giap-sort="admissao" onclick="giapFolhaOrdenar('admissao')">Admissão</th>
                   <th style="cursor:pointer" data-giap-sort="demissao" onclick="giapFolhaOrdenar('demissao')">Demissão</th>
-                  <th style="cursor:pointer" data-giap-sort="cargo_origem" onclick="giapFolhaOrdenar('cargo_origem')">Cargo</th>
+                  <th style="cursor:pointer" data-giap-sort="cargo_origem" onclick="giapFolhaOrdenar('cargo_origem')">Cargo (GIAP)</th>
+                  <th style="cursor:pointer" data-giap-sort="funcao_rh" onclick="giapFolhaOrdenar('funcao_rh')" title="Função cadastrada no nosso sistema">Função (RH)</th>
                   <th style="cursor:pointer" data-giap-sort="cpf" onclick="giapFolhaOrdenar('cpf')">CPF</th>
                   <th style="cursor:pointer" data-giap-sort="rh" onclick="giapFolhaOrdenar('rh')">RH (se OK)</th>
                   <th style="cursor:pointer;text-align:center" data-giap-sort="correcao" onclick="giapFolhaOrdenar('correcao')">Correção</th>
@@ -896,7 +900,7 @@
                 </tr>
               </thead>
               <tbody id="tbody-giap-folha">
-                <tr><td colspan="12" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>
+                <tr><td colspan="13" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>
               </tbody>
             </table>
           </div>
@@ -973,6 +977,59 @@
             <button type="button" class="btn-secondary" style="padding:4px 10px" onclick="giapFaltandoPagina(-1)">←</button>
             <span id="giap-faltando-page" style="font-size:13px;min-width:70px;text-align:center"></span>
             <button type="button" class="btn-secondary" style="padding:4px 10px" onclick="giapFaltandoPagina(1)">→</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== REMUNERAÇÕES (últimos 2 salários GIAP) ===== -->
+      <section id="view-remuneracoes" class="view-section">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:12px">
+          <div>
+            <div class="row-label" style="margin:0"><i class="ti ti-currency-real"></i> Remunerações</div>
+            <small style="color:var(--color-text-muted)">
+              Últimos <strong>2 salários</strong> por servidor (fonte GIAP). Ao puxar um mês novo, o mais antigo é removido automaticamente — facilita conferência quando o servidor questionar o valor.
+            </small>
+          </div>
+          <button type="button" class="btn-secondary" onclick="sincronizarRemuneracoesGiap()" title="Atualiza a partir da folha GIAP já gravada">
+            <i class="ti ti-refresh"></i> Atualizar da folha
+          </button>
+        </div>
+        <div class="stats-grid" id="remun-kpis" style="margin-bottom:16px"></div>
+        <div class="toolbar-filters" style="margin-bottom:12px">
+          <input type="text" id="remun-busca" class="form-control" placeholder="Pesquisar nome do servidor…" style="flex:1;min-width:240px" oninput="filtrarRemuneracoes()">
+          <select id="remun-lotacao" class="form-control" style="min-width:200px" onchange="filtrarRemuneracoes()">
+            <option value="">Todas as lotações</option>
+          </select>
+          <select id="remun-comp" class="form-control" style="min-width:140px" onchange="filtrarRemuneracoes()">
+            <option value="">Todas competências</option>
+          </select>
+          <button type="button" id="remun-limpar" class="btn btn-outline" style="padding:0 12px" title="Limpar filtros" onclick="limparFiltrosRemuneracoes()">Limpar</button>
+          <span class="filter-result-count" id="remun-count"></span>
+        </div>
+        <div class="card">
+          <div class="table-container" style="overflow-x:auto">
+            <table class="gov-table" id="tabela-remuneracoes">
+              <thead>
+                <tr>
+                  <th class="sortable" data-remun-sort="matricula" onclick="sortRemuneracoes('matricula')">Matrícula <i class="ti ti-arrows-sort sort-icon"></i></th>
+                  <th class="sortable" data-remun-sort="nome" onclick="sortRemuneracoes('nome')">Nome <i class="ti ti-arrows-sort sort-icon"></i></th>
+                  <th class="sortable" data-remun-sort="lotacao_nome" onclick="sortRemuneracoes('lotacao_nome')">Lotação <i class="ti ti-arrows-sort sort-icon"></i></th>
+                  <th class="sortable" data-remun-sort="competencia" onclick="sortRemuneracoes('competencia')">Competência <i class="ti ti-arrows-sort sort-icon"></i></th>
+                  <th class="sortable" data-remun-sort="vencimento_base" onclick="sortRemuneracoes('vencimento_base')" style="text-align:right">Venc. base <i class="ti ti-arrows-sort sort-icon"></i></th>
+                  <th class="sortable" data-remun-sort="proventos" onclick="sortRemuneracoes('proventos')" style="text-align:right">Proventos <i class="ti ti-arrows-sort sort-icon"></i></th>
+                  <th class="sortable" data-remun-sort="descontos" onclick="sortRemuneracoes('descontos')" style="text-align:right">Descontos <i class="ti ti-arrows-sort sort-icon"></i></th>
+                  <th class="sortable" data-remun-sort="liquido" onclick="sortRemuneracoes('liquido')" style="text-align:right">Líquido <i class="ti ti-arrows-sort sort-icon"></i></th>
+                  <th class="sortable" data-remun-sort="cargo_origem" onclick="sortRemuneracoes('cargo_origem')">Cargo <i class="ti ti-arrows-sort sort-icon"></i></th>
+                </tr>
+              </thead>
+              <tbody id="tbody-remuneracoes">
+                <tr><td colspan="9" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>
+              </tbody>
+            </table>
+            <div class="pagination">
+              <div class="page-info" id="remun-page-info">—</div>
+              <div class="page-controls" id="remun-page-controls"></div>
+            </div>
           </div>
         </div>
       </section>
@@ -1328,6 +1385,13 @@
           <textarea class="form-control" id="edit-obs" rows="3" placeholder="Anotações internas sobre o servidor…"></textarea>
         </div>
 
+        <div class="form-group full-width" id="edit-remun-wrap" style="border:1px solid var(--gov-border);border-radius:var(--br-md);padding:12px;margin-top:4px;background:#f7fafc">
+          <div style="font-weight:700;font-size:13px;color:var(--gov-blue-dark);margin-bottom:8px;display:flex;align-items:center;gap:6px">
+            <i class="ti ti-currency-real"></i> Últimas remunerações (GIAP)
+          </div>
+          <div id="edit-remun-content" style="font-size:12px;color:var(--color-text-muted)">Carregando…</div>
+        </div>
+
         <details class="form-group full-width" id="edit-afast-details" style="border:1px solid var(--gov-border);border-radius:var(--br-md);padding:0;margin-top:4px">
           <summary style="cursor:pointer;padding:12px;font-weight:700;color:var(--gov-blue-dark);font-size:13px;display:flex;align-items:center;gap:8px">
             <i class="ti ti-activity"></i> Registrar Afastamento / Licença
@@ -1460,7 +1524,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20260719a"></script>
+  <script type="module" src="js/app.js?v=20260719f"></script>
 
 
 

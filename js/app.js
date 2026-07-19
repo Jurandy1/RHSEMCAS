@@ -2174,6 +2174,7 @@ window.abrirEdicao = async (id) => {
   $('edit-funcao').value    = data.funcao || '';
   $('edit-ano').value       = data.ano_concurso || '';
   $('edit-obs').value       = ext?.observacao || '';
+  carregarRemuneracoesNoEdit(id);
 
   // Reset da seção "Registrar Afastamento / Licença"
   $('edit-afast-details').open = false;
@@ -3115,7 +3116,333 @@ if (typeof rotas !== 'undefined') {
   rotas['sem-lotacao'] = { titulo: 'Servidores sem Lotação', bread: 'Sem Lotação', render: renderSemLotacao };
   rotas.exonerados   = { titulo: 'Servidores Exonerados',  bread: 'Exonerados',   render: renderExonerados };
   rotas['relatorio-api'] = { titulo: 'Relatório API GIAP', bread: 'Relatório API', render: renderRelatorioApi };
+  rotas.remuneracoes = { titulo: 'Remunerações', bread: 'Remunerações', render: renderRemuneracoes };
 }
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  REMUNERAÇÕES — últimos 2 salários GIAP por servidor         ║
+// ╚══════════════════════════════════════════════════════════════╝
+window._remunCache = [];
+
+function fmtRemunMoeda(v) {
+  if (v == null || v === '') return '—';
+  const n = Number(v);
+  if (!Number.isFinite(n)) return '—';
+  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function fmtRemunComp(c) {
+  const s = String(c || '');
+  if (s.length !== 6) return s || '—';
+  return `${s.slice(4, 6)}/${s.slice(0, 4)}`;
+}
+
+/** Alimenta funcionario_remuneracoes a partir de folha_pmsl e poda para 2 competências. */
+window.sincronizarRemuneracoesGiap = async function sincronizarRemuneracoesGiap(opts = {}) {
+  const silencioso = !!opts.silencioso;
+  const comp = opts.competencia != null
+    ? Number(opts.competencia)
+    : Number($('giap-cfg-comp')?.value || 0) || null;
+  try {
+    const { data, error } = await sb.rpc('fn_giap_alimentar_remuneracoes', {
+      p_competencia: comp || null
+    });
+    if (error) throw error;
+    const r = data || {};
+    if (!silencioso) {
+      if (r.ok === false) {
+        showToast(r.erro || 'Não foi possível alimentar remunerações.', 'warning');
+      } else {
+        showToast(
+          `Remunerações: ${r.gravados || 0} gravado(s) · competência ${r.competencia}` +
+            (r.podados ? ` · ${r.podados} antigo(s) removido(s)` : ''),
+          'success'
+        );
+      }
+    }
+    if (state.rotaAtual === 'remuneracoes') await renderRemuneracoes();
+    return r;
+  } catch (e) {
+    const msg = e.message || String(e);
+    if (!silencioso) {
+      if (/fn_giap_alimentar_remuneracoes|does not exist|404/i.test(msg)) {
+        showToast('Rode o SQL funcionario_remuneracoes.sql no Supabase primeiro.', 'warning');
+      } else {
+        showToast(msg, 'error');
+      }
+    } else {
+      console.warn('[Remunerações]', msg);
+    }
+    return null;
+  }
+};
+
+async function carregarRemuneracoesNoEdit(funcionarioId) {
+  const box = $('edit-remun-content');
+  if (!box) return;
+  box.innerHTML = 'Carregando…';
+  try {
+    const { data, error } = await sb.from('funcionario_remuneracoes')
+      .select('competencia, vencimento_base, proventos, descontos, liquido, cargo_origem')
+      .eq('funcionario_id', funcionarioId)
+      .order('competencia', { ascending: false })
+      .limit(2);
+    if (error) throw error;
+    if (!data?.length) {
+      box.innerHTML = 'Sem remuneração GIAP gravada. Puxe a folha ou use <strong>Atualizar da folha</strong> em Remunerações.';
+      return;
+    }
+    box.innerHTML = `
+      <div style="display:grid;gap:8px">
+        ${data.map((r) => `
+          <div style="display:grid;grid-template-columns:90px 1fr;gap:4px 12px;padding:8px;background:#fff;border-radius:6px;border:1px solid var(--gov-border)">
+            <span style="font-weight:700;color:var(--gov-blue-dark)">${htmlEscape(fmtRemunComp(r.competencia))}</span>
+            <span style="color:var(--color-text-muted)">${htmlEscape(r.cargo_origem || '—')}</span>
+            <span style="color:var(--color-text-muted)">Venc. base</span>
+            <strong>${fmtRemunMoeda(r.vencimento_base)}</strong>
+            <span style="color:var(--color-text-muted)">Proventos</span>
+            <strong>${fmtRemunMoeda(r.proventos)}</strong>
+            <span style="color:var(--color-text-muted)">Descontos</span>
+            <strong>${fmtRemunMoeda(r.descontos)}</strong>
+            <span style="color:var(--color-text-muted)">Líquido</span>
+            <strong style="color:#276749">${fmtRemunMoeda(r.liquido)}</strong>
+          </div>
+        `).join('')}
+      </div>`;
+  } catch (e) {
+    box.innerHTML = /does not exist|404/i.test(e.message || '')
+      ? 'Tabela ainda não criada — rode <code>sql/funcionario_remuneracoes.sql</code>.'
+      : htmlEscape(e.message || String(e));
+  }
+}
+
+async function renderRemuneracoes() {
+  const tbody = $('tbody-remuneracoes');
+  const kpis = $('remun-kpis');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
+  try {
+    const all = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await sb.from('v_remuneracoes_atuais')
+        .select('*')
+        .order('nome')
+        .order('competencia', { ascending: false })
+        .range(from, from + 999);
+      if (error) throw error;
+      if (data?.length) all.push(...data);
+      if (!data || data.length < 1000) break;
+    }
+
+    // Lotação SEMPRE do nosso sistema (RH), nunca a do GIAP
+    if (all.length) {
+      const ids = [...new Set(all.map((r) => r.funcionario_id).filter(Boolean))];
+      const mapLot = new Map();
+      for (let i = 0; i < ids.length; i += 200) {
+        const chunk = ids.slice(i, i + 200);
+        const { data: lots } = await sb.from('v_funcionarios_atual')
+          .select('funcionario_id, lotacao_nome, caminho_lotacao')
+          .in('funcionario_id', chunk);
+        for (const l of lots || []) mapLot.set(l.funcionario_id, l);
+      }
+      for (const r of all) {
+        const l = mapLot.get(r.funcionario_id);
+        r.lotacao_nome = l?.lotacao_nome || null;
+        r.caminho_lotacao = l?.caminho_lotacao || null;
+      }
+    }
+
+    window._remunCache = all;
+    if (!window._remunSort) window._remunSort = { col: 'nome', dir: 'asc' };
+    window._remunPage = 1;
+
+    const comps = [...new Set(all.map((r) => r.competencia).filter(Boolean))].sort((a, b) => b - a);
+    const sel = $('remun-comp');
+    if (sel) {
+      const atual = sel.value;
+      sel.innerHTML = '<option value="">Todas competências</option>' +
+        comps.map((c) => `<option value="${c}">${htmlEscape(fmtRemunComp(c))}</option>`).join('');
+      if (atual && comps.includes(Number(atual))) sel.value = atual;
+    }
+
+    const lots = [...new Set(all.map((r) => (r.lotacao_nome || '').trim()).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    const selLot = $('remun-lotacao');
+    if (selLot) {
+      const atualLot = selLot.value;
+      selLot.innerHTML = '<option value="">Todas as lotações</option>' +
+        lots.map((l) => `<option value="${htmlEscape(l)}">${htmlEscape(l)}</option>`).join('');
+      if (atualLot && lots.includes(atualLot)) selLot.value = atualLot;
+    }
+
+    const pessoas = new Set(all.map((r) => r.funcionario_id));
+    const ultima = comps[0];
+    const nUltima = ultima ? all.filter((r) => r.competencia === ultima).length : 0;
+    if (kpis) {
+      kpis.innerHTML = `
+        <div class="kpi-card"><div class="kpi-card-label">Registros</div><div class="kpi-card-value">${all.length}</div><div class="kpi-card-sub">máx. 2 por servidor</div></div>
+        <div class="kpi-card"><div class="kpi-card-label">Servidores</div><div class="kpi-card-value">${pessoas.size}</div><div class="kpi-card-sub">com salário GIAP</div></div>
+        <div class="kpi-card"><div class="kpi-card-label">Última competência</div><div class="kpi-card-value" style="font-size:22px">${htmlEscape(fmtRemunComp(ultima))}</div><div class="kpi-card-sub">${nUltima} linha(s)</div></div>`;
+    }
+    renderTabelaRemuneracoes();
+  } catch (e) {
+    const msg = e.message || String(e);
+    tbody.innerHTML = `<tr><td colspan="9" class="empty-state">${
+      /does not exist|404/i.test(msg)
+        ? 'Rode o SQL <strong>funcionario_remuneracoes.sql</strong> no Supabase e depois clique em Atualizar da folha.'
+        : htmlEscape(msg)
+    }</td></tr>`;
+    if (kpis) kpis.innerHTML = '';
+  }
+}
+
+window._remunPage = 1;
+window._remunPageSize = 15;
+
+window.sortRemuneracoes = function sortRemuneracoes(col) {
+  const s = window._remunSort || { col: 'nome', dir: 'asc' };
+  if (s.col === col) s.dir = s.dir === 'asc' ? 'desc' : 'asc';
+  else {
+    s.col = col;
+    s.dir = 'asc';
+  }
+  window._remunSort = s;
+  window._remunPage = 1;
+  renderTabelaRemuneracoes();
+};
+
+function atualizarIconesSortRemun() {
+  const s = window._remunSort || { col: 'nome', dir: 'asc' };
+  $$('#tabela-remuneracoes .sortable').forEach((th) => {
+    const icon = th.querySelector('.sort-icon');
+    if (!icon) return;
+    if (th.dataset.remunSort === s.col) {
+      icon.className = `ti ${s.dir === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} sort-icon active`;
+    } else {
+      icon.className = 'ti ti-arrows-sort sort-icon';
+    }
+  });
+}
+
+window.filtrarRemuneracoes = function filtrarRemuneracoes() {
+  window._remunPage = 1;
+  renderTabelaRemuneracoes();
+};
+
+window.limparFiltrosRemuneracoes = function limparFiltrosRemuneracoes() {
+  if ($('remun-busca')) $('remun-busca').value = '';
+  if ($('remun-lotacao')) $('remun-lotacao').value = '';
+  if ($('remun-comp')) $('remun-comp').value = '';
+  window._remunPage = 1;
+  renderTabelaRemuneracoes();
+};
+
+window.irPaginaRemuneracoes = function irPaginaRemuneracoes(p) {
+  window._remunPage = Math.max(1, Number(p) || 1);
+  renderTabelaRemuneracoes();
+};
+
+function renderPaginacaoRemuneracoes(filtradoTotal) {
+  const info = $('remun-page-info');
+  const controls = $('remun-page-controls');
+  if (!info || !controls) return;
+  const pageSize = window._remunPageSize || 15;
+  const totalPages = Math.max(1, Math.ceil(filtradoTotal / pageSize) || 1);
+  if (window._remunPage > totalPages) window._remunPage = totalPages;
+  const page = window._remunPage || 1;
+  const ini = filtradoTotal === 0 ? 0 : (page - 1) * pageSize + 1;
+  const fim = Math.min(page * pageSize, filtradoTotal);
+  info.textContent = filtradoTotal === 0
+    ? 'Nenhum registro'
+    : `Mostrando ${ini}-${fim} de ${filtradoTotal.toLocaleString('pt-BR')}`;
+
+  const btn = (label, p, dis, active = false) =>
+    `<button class="page-btn ${active ? 'active' : ''}" ${dis ? 'disabled' : ''} data-page="${p}">${label}</button>`;
+  let html = btn('«', page - 1, page === 1);
+  const start = Math.max(1, page - 2);
+  const end = Math.min(totalPages, start + 4);
+  for (let i = start; i <= end; i++) html += btn(i, i, false, i === page);
+  html += btn('»', page + 1, page === totalPages);
+  controls.innerHTML = html;
+  $$('#remun-page-controls .page-btn').forEach((b) => {
+    b.onclick = () => {
+      if (b.disabled) return;
+      irPaginaRemuneracoes(b.dataset.page);
+    };
+  });
+}
+
+window.renderTabelaRemuneracoes = function renderTabelaRemuneracoes() {
+  const tbody = $('tbody-remuneracoes');
+  if (!tbody) return;
+  const qNome = String($('remun-busca')?.value || '').toLowerCase().trim();
+  const lotToolbar = ($('remun-lotacao')?.value || '').trim();
+  const compFiltro = Number($('remun-comp')?.value || 0);
+  const s = window._remunSort || { col: 'nome', dir: 'asc' };
+  const pageSize = window._remunPageSize || 15;
+
+  let lista = [...(window._remunCache || [])];
+  if (compFiltro) lista = lista.filter((r) => Number(r.competencia) === compFiltro);
+  if (lotToolbar) lista = lista.filter((r) => (r.lotacao_nome || '').trim() === lotToolbar);
+  if (qNome) {
+    const parts = qNome.split(/\s+/).filter(Boolean);
+    lista = lista.filter((r) => {
+      const alvo = `${r.nome || ''} ${r.matricula_rh || ''}`.toLowerCase();
+      return parts.every((p) => alvo.includes(p));
+    });
+  }
+
+  const numCols = new Set(['competencia', 'vencimento_base', 'proventos', 'descontos', 'liquido']);
+  lista.sort((a, b) => {
+    let va;
+    let vb;
+    if (s.col === 'matricula') {
+      va = String(a.matricula_rh || a.matricula_giap || '');
+      vb = String(b.matricula_rh || b.matricula_giap || '');
+    } else {
+      va = a[s.col];
+      vb = b[s.col];
+    }
+    let cmp;
+    if (numCols.has(s.col)) {
+      cmp = (Number(va) || 0) - (Number(vb) || 0);
+    } else {
+      cmp = String(va || '').localeCompare(String(vb || ''), 'pt-BR', { sensitivity: 'base' });
+    }
+    return s.dir === 'asc' ? cmp : -cmp;
+  });
+
+  const filtradoTotal = lista.length;
+  const totalGeral = (window._remunCache || []).length;
+  const count = $('remun-count');
+  if (count) count.innerHTML = `<strong>${filtradoTotal}</strong> de ${totalGeral}`;
+
+  atualizarIconesSortRemun();
+  renderPaginacaoRemuneracoes(filtradoTotal);
+
+  if (!lista.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Nenhuma remuneração encontrada</td></tr>';
+    return;
+  }
+
+  const page = window._remunPage || 1;
+  const start = (page - 1) * pageSize;
+  const pagina = lista.slice(start, start + pageSize);
+
+  tbody.innerHTML = pagina.map((r) => `
+    <tr>
+      <td>${htmlEscape(r.matricula_rh || r.matricula_giap || '—')}</td>
+      <td><strong>${htmlEscape(r.nome || '—')}</strong></td>
+      <td title="${htmlEscape(r.caminho_lotacao || r.lotacao_nome || '')}">${htmlEscape(r.lotacao_nome || '—')}</td>
+      <td>${htmlEscape(r.competencia_fmt || fmtRemunComp(r.competencia))}</td>
+      <td style="text-align:right;white-space:nowrap">${fmtRemunMoeda(r.vencimento_base)}</td>
+      <td style="text-align:right;white-space:nowrap">${fmtRemunMoeda(r.proventos)}</td>
+      <td style="text-align:right;white-space:nowrap">${fmtRemunMoeda(r.descontos)}</td>
+      <td style="text-align:right;white-space:nowrap;font-weight:700;color:#276749">${fmtRemunMoeda(r.liquido)}</td>
+      <td style="font-size:12px">${htmlEscape(r.cargo_origem || '—')}</td>
+    </tr>
+  `).join('');
+};
 
 // ╔══════════════════════════════════════════════════════════════╗
 // ║              SEM LOTAÇÃO  /  EXONERADOS                       ║
@@ -3613,6 +3940,7 @@ function giapFolhaHtmlAcoes(r) {
 function giapFolhaSortValor(row, key) {
   if (key === 'ok') return row._ok ? 1 : 0;
   if (key === 'rh') return row._rhLabel || '';
+  if (key === 'funcao_rh') return String(row._rhFuncao || '').toLowerCase();
   if (key === 'correcao') return (row._correcao?.resumo || '').toLowerCase();
   if (key === 'matricula' || key === 'codigo_orgao' || key === 'cpf') {
     return String(row[key] ?? '');
@@ -3637,6 +3965,7 @@ function giapFolhaAplicarFiltro() {
         r.lotacao,
         r.codigo_orgao,
         r.cargo_origem,
+        r._rhFuncao,
         r.cpf,
         r._rhLabel,
         r._correcao?.resumo
@@ -3689,9 +4018,9 @@ function giapFolhaRenderPagina() {
   const slice = filtered.slice(start, start + pageSize);
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="12" class="empty-state">Nenhum registro em folha_pmsl${_giapFolha.competencia ? ` para ${_giapFolha.competencia}` : ''}. Use “Buscar e gravar folha”.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="13" class="empty-state">Nenhum registro em folha_pmsl${_giapFolha.competencia ? ` para ${_giapFolha.competencia}` : ''}. Use “Buscar e gravar folha”.</td></tr>`;
   } else if (!total) {
-    tbody.innerHTML = `<tr><td colspan="12" class="empty-state">Nenhum resultado para o filtro atual.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="13" class="empty-state">Nenhum resultado para o filtro atual.</td></tr>`;
   } else {
     tbody.innerHTML = slice.map((r) => {
       const badge = r._ok
@@ -3707,6 +4036,7 @@ function giapFolhaRenderPagina() {
         <td style="font-size:12px">${giapFolhaFmtDt(r.admissao)}</td>
         <td style="font-size:12px;${r.demissao ? 'color:var(--gov-orange,#c05621);font-weight:600' : ''}">${giapFolhaFmtDt(r.demissao)}</td>
         <td style="font-size:12px">${htmlEscape(r.cargo_origem || '—')}</td>
+        <td style="font-size:12px;color:var(--gov-blue-dark)">${htmlEscape(r._rhFuncao || '—')}</td>
         <td style="font-family:monospace;font-size:11px">${htmlEscape(r.cpf || '—')}</td>
         <td style="font-size:12px">${r._rhLabel}</td>
         <td style="text-align:center">${giapFolhaHtmlCorrecao(r)}</td>
@@ -3859,6 +4189,7 @@ window.giapPuxarNomeApi = async function giapPuxarNomeApi() {
       );
     } else {
       showToast(`OK: ${ins} gravado(s) · ${fil} filtrado(s) · ${enc} no portal.`, 'success');
+      await sincronizarRemuneracoesGiap({ competencia, silencioso: true });
     }
     await giapCarregarFolhaTabela();
     // Filtra pela matrícula (mais confiável que o nome digitado)
@@ -3900,9 +4231,9 @@ async function giapCarregarFolhaTabela() {
   const tbody = $('tbody-giap-folha');
   if (!tbody) return;
   const comp = Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
-  tbody.innerHTML = '<tr><td colspan="12" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="13" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
   try {
-    const [folha, funcs, cedencias] = await Promise.all([
+    const [folha, funcs, cedencias, funcoesRh] = await Promise.all([
       (async () => {
         const all = [];
         for (let from = 0; ; from += 1000) {
@@ -3938,6 +4269,22 @@ async function giapCarregarFolhaTabela() {
         } catch (_) {
           return [];
         }
+      })(),
+      (async () => {
+        try {
+          const all = [];
+          for (let from = 0; ; from += 1000) {
+            const { data, error } = await sb.from('v_funcionarios_atual')
+              .select('funcionario_id, funcao')
+              .range(from, from + 999);
+            if (error) throw error;
+            if (data?.length) all.push(...data);
+            if (!data || data.length < 1000) break;
+          }
+          return all;
+        } catch (_) {
+          return [];
+        }
       })()
     ]);
 
@@ -3947,6 +4294,13 @@ async function giapCarregarFolhaTabela() {
       if (c.funcionario_id) cedIds.add(c.funcionario_id);
       const mk = giapMatKey(c.matricula);
       if (mk) cedMats.add(mk);
+    }
+
+    const funcaoPorId = new Map();
+    for (const f of funcoesRh || []) {
+      if (f.funcionario_id != null) {
+        funcaoPorId.set(f.funcionario_id, (f.funcao || '').trim() || null);
+      }
     }
 
     const porMat = new Map();
@@ -3990,6 +4344,7 @@ async function giapCarregarFolhaTabela() {
 
       const ok = !!rh;
       if (ok) okCount++;
+      const rhFuncao = rh ? (funcaoPorId.get(rh.id) || null) : null;
       const row = {
         ...r,
         _ok: ok,
@@ -4000,6 +4355,7 @@ async function giapCarregarFolhaTabela() {
         _rhMatricula: rh?.matricula || null,
         _rhAdmissao: rh?.data_admissao || null,
         _rhCpf: rh?.cpf || null,
+        _rhFuncao: rhFuncao,
         _rhLabel: rh
           ? `${htmlEscape(rh.nome || '')}${rh.matricula ? ` · ${htmlEscape(String(rh.matricula))}` : ' · s/ mat.'}${rh.ativo === false ? ' · inativo' : ''}`
           : (folhaSemcas ? '—' : `<span style="color:#c05621;font-size:11px">Outra sec. (não cedido)</span>`)
@@ -4028,7 +4384,7 @@ async function giapCarregarFolhaTabela() {
     giapFolhaAplicarSort();
     giapFolhaRenderPagina();
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="12" class="empty-state">Erro: ${htmlEscape(e.message || e)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="13" class="empty-state">Erro: ${htmlEscape(e.message || e)}</td></tr>`;
   }
 }
 
@@ -4683,6 +5039,7 @@ window.giapPuxarCedidos = async function giapPuxarCedidos() {
     });
     if (st) st.textContent = msg;
     await giapCarregarFolhaTabela();
+    if (ok > 0) await sincronizarRemuneracoesGiap({ competencia, silencioso: true });
   } finally {
     _giapPuxarTodos.rodando = false;
     _giapPuxarTodos.parar = false;
@@ -4834,6 +5191,7 @@ window.giapPuxarTodosVasculha = async function giapPuxarTodosVasculha(opts = {})
     if (st) st.textContent = msg;
     await giapCarregarFolhaTabela();
     await giapCarregarFaltandoFolha();
+    if (ok > 0) await sincronizarRemuneracoesGiap({ competencia, silencioso: true });
   } finally {
     _giapPuxarTodos.rodando = false;
     _giapPuxarTodos.parar = false;
@@ -4990,6 +5348,7 @@ function giapIniciarPoll(jobId) {
         if (job.status === 'done') {
           showToast('Buscas da competência gravadas na folha.', 'success');
           if (job.competencia) await giapMarcarCompetenciaBuscada(job.competencia);
+          await sincronizarRemuneracoesGiap({ competencia: job.competencia, silencioso: true });
         }
         if (job.status === 'error') showToast(`Job GIAP falhou: ${job.erro || 'erro'}`, 'error');
         renderRelatorioApi();
