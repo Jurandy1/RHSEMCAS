@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
   
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/styles.css?v=20260719g">
 </head>
 <body>
 
@@ -79,7 +79,7 @@
     </div>
 
     <div class="sidebar-nav">
-      <div class="nav-group">Principal</div>
+      <div class="nav-group">Dia a dia</div>
       <a href="#painel" class="nav-item" data-route="painel">
         <i class="ti ti-layout-dashboard"></i> Painel
       </a>
@@ -93,7 +93,7 @@
         <i class="ti ti-sitemap"></i> Organograma
       </a>
 
-      <div class="nav-group">Gestão</div>
+      <div class="nav-group">Afastamentos</div>
       <a href="#licencas" class="nav-item" data-route="licencas">
         <i class="ti ti-activity"></i> Licenças
         <span id="badge-licencas" style="display:none;margin-left:auto;background:var(--gov-orange,#ed7b2f);color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;line-height:16px" title="Licenças próximas do vencimento"></span>
@@ -101,15 +101,10 @@
       <a href="#ferias" class="nav-item" data-route="ferias">
         <i class="ti ti-beach"></i> Férias
       </a>
+
+      <div class="nav-group">Movimentação</div>
       <a href="#cedidos" class="nav-item" data-route="cedidos">
         <i class="ti ti-arrows-left-right"></i> Cedidos/Recebidos
-      </a>
-      <a href="#folha-ponto" class="nav-item" data-route="folha-ponto">
-        <i class="ti ti-clock"></i> Folha de Ponto
-      </a>
-      <a href="#pendentes" class="nav-item" data-route="pendentes">
-        <i class="ti ti-user-exclamation"></i> Auditoria de Dados
-        <span id="badge-pendentes" style="display:none;margin-left:auto;background:var(--gov-red,#d9363e);color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;line-height:16px"></span>
       </a>
       <a href="#sem-lotacao" class="nav-item" data-route="sem-lotacao">
         <i class="ti ti-map-off"></i> Sem Lotação
@@ -119,22 +114,30 @@
         <i class="ti ti-user-off"></i> Exonerados
         <span id="badge-exonerados" style="display:none;margin-left:auto;background:#718096;color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;line-height:16px"></span>
       </a>
-      <a href="#relatorio-api" class="nav-item" data-route="relatorio-api">
-        <i class="ti ti-api"></i> Relatório API
-        <span id="badge-giap-revisao" style="display:none;margin-left:auto;background:var(--gov-orange,#ed8936);color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;line-height:16px"></span>
+      <a href="#lotacoes" class="nav-item" data-route="lotacoes">
+        <i class="ti ti-building"></i> Gestão de Lotações
+      </a>
+
+      <div class="nav-group">Folha e conferência</div>
+      <a href="#folha-ponto" class="nav-item" data-route="folha-ponto">
+        <i class="ti ti-clock"></i> Folha de Ponto
       </a>
       <a href="#remuneracoes" class="nav-item" data-route="remuneracoes">
         <i class="ti ti-currency-real"></i> Remunerações
       </a>
+      <a href="#relatorio-api" class="nav-item" data-route="relatorio-api">
+        <i class="ti ti-file-search"></i> Conferência GIAP
+        <span id="badge-giap-revisao" style="display:none;margin-left:auto;background:var(--gov-orange,#ed8936);color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;line-height:16px"></span>
+      </a>
+      <a href="#pendentes" class="nav-item" data-route="pendentes">
+        <i class="ti ti-user-exclamation"></i> Dados incompletos
+        <span id="badge-pendentes" style="display:none;margin-left:auto;background:var(--gov-red,#d9363e);color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;line-height:16px"></span>
+      </a>
       <a href="#logs" class="nav-item" data-route="logs">
-        <i class="ti ti-history"></i> Histórico de Ações
+        <i class="ti ti-history"></i> Histórico
       </a>
       <a href="#usuarios" class="nav-item hidden" data-route="usuarios" id="nav-usuarios">
         <i class="ti ti-user-cog"></i> Usuários do Sistema
-      </a>
-      <div style="border-top:1px solid var(--gov-border); margin:10px 16px"></div>
-      <a href="#lotacoes" class="nav-item" data-route="lotacoes">
-        <i class="ti ti-building"></i> Gestão de Lotações
       </a>
     </div>
 
@@ -173,6 +176,9 @@
                  autocomplete="off" aria-label="Busca global de servidores" role="combobox" aria-expanded="false" aria-controls="gs-results">
           <div id="gs-results" class="global-search-results" role="listbox" style="display:none"></div>
         </div>
+        <button type="button" class="tib" id="btn-modo-conforto" title="Aumentar texto e botões (leitura confortável)" aria-label="Modo leitura confortável" aria-pressed="false">
+          <i class="ti ti-text-size"></i>
+        </button>
         <span class="tbadge">São Luís — MA</span>
         <button class="tib" title="Notificações" aria-label="Notificações"><i class="ti ti-bell"></i></button>
       </div>
@@ -238,25 +244,50 @@
 
       <!-- ===== FUNCIONÁRIOS ===== -->
       <section id="view-funcionarios" class="view-section">
+        <p class="view-help">Busque e filtre o quadro ativo. Clique no nome ou em Ações para editar, transferir ou registrar afastamento.</p>
         <div class="toolbar-filters">
-          <input type="text" id="f-busca" placeholder="Buscar por nome..." style="flex:1;min-width:240px">
-          <select id="f-vinculo"><option value="">Todos os vínculos</option></select>
-          <div class="ms-wrap" id="f-funcao-wrap">
-            <button type="button" class="ms-btn" id="f-funcao-btn" aria-haspopup="listbox" aria-expanded="false">Funções</button>
-            <div class="ms-panel" id="f-funcao-panel" hidden>
-              <input type="search" class="ms-busca" id="f-funcao-busca" placeholder="Buscar função…" autocomplete="off">
-              <div class="ms-lista" id="f-funcao-lista"></div>
-              <div class="ms-acoes">
-                <button type="button" class="ms-link" id="f-funcao-limpar">Limpar</button>
-                <button type="button" class="ms-link" id="f-funcao-aplicar">Aplicar</button>
+          <div class="filter-field" style="flex:1;min-width:220px">
+            <label for="f-busca">Nome</label>
+            <input type="text" id="f-busca" placeholder="Buscar por nome…">
+          </div>
+          <div class="filter-field">
+            <label for="f-vinculo">Vínculo</label>
+            <select id="f-vinculo"><option value="">Todos os vínculos</option></select>
+          </div>
+          <div class="filter-field">
+            <label>Funções</label>
+            <div class="ms-wrap" id="f-funcao-wrap">
+              <button type="button" class="ms-btn" id="f-funcao-btn" aria-haspopup="listbox" aria-expanded="false">Funções</button>
+              <div class="ms-panel" id="f-funcao-panel" hidden>
+                <input type="search" class="ms-busca" id="f-funcao-busca" placeholder="Buscar função…" autocomplete="off">
+                <div class="ms-lista" id="f-funcao-lista"></div>
+                <div class="ms-acoes">
+                  <button type="button" class="ms-link" id="f-funcao-limpar">Limpar</button>
+                  <button type="button" class="ms-link" id="f-funcao-aplicar">Aplicar</button>
+                </div>
               </div>
             </div>
           </div>
-          <select id="f-lotacao"><option value="">Todas as lotações</option></select>
-          <select id="f-turno"><option value="">Todos os turnos</option></select>
-          <button id="btn-limpar" class="btn btn-outline" style="padding:0 12px" title="Limpar Filtros">Limpar</button>
-          <button id="btn-exportar-func" class="btn btn-outline" style="padding:0 12px" title="Baixar planilha do resultado filtrado">Baixar planilha</button>
-          <button class="btn-primary" style="padding:0 16px" onclick="abrirModalAddFuncionario()"><i class="ti ti-plus"></i> Adicionar Servidor</button>
+          <div class="filter-field">
+            <label for="f-lotacao">Lotação</label>
+            <select id="f-lotacao"><option value="">Todas as lotações</option></select>
+          </div>
+          <div class="filter-field">
+            <label for="f-turno">Turno</label>
+            <select id="f-turno"><option value="">Todos os turnos</option></select>
+          </div>
+          <div class="filter-field">
+            <label>&nbsp;</label>
+            <button id="btn-limpar" class="btn btn-outline" style="padding:8px 14px" title="Limpar Filtros">Limpar</button>
+          </div>
+          <div class="filter-field">
+            <label>&nbsp;</label>
+            <button id="btn-exportar-func" class="btn btn-outline" style="padding:8px 14px" title="Baixar planilha do resultado filtrado">Baixar planilha</button>
+          </div>
+          <div class="filter-field">
+            <label>&nbsp;</label>
+            <button class="btn-primary" style="padding:8px 16px" onclick="abrirModalAddFuncionario()"><i class="ti ti-plus"></i> Adicionar Servidor</button>
+          </div>
         </div>
         <div id="filter-tags" style="margin-bottom:12px"></div>
 
@@ -585,12 +616,12 @@
         <div id="ferias-aba-conteudo"><span class="spinner"></span> Carregando…</div>
       </section>
 
-      <!-- ===== PENDENTES (servidores da folha não casados) ===== -->
+      <!-- ===== DADOS INCOMPLETOS ===== -->
       <section id="view-pendentes" class="view-section">
-        <div class="row-label">Servidores Pendentes de Cadastro</div>
-        <div style="background:#FEF3C7;border-left:4px solid #F59E0B;padding:12px 16px;border-radius:4px;font-size:13px;margin-bottom:16px;color:#92400E">
+        <div class="row-label">Dados incompletos</div>
+        <div class="view-help" style="background:#FEF3C7;border-left:4px solid #F59E0B;padding:12px 16px;border-radius:4px;font-size:13px;margin-bottom:16px;color:#92400E">
           <i class="ti ti-alert-triangle"></i>
-          <strong>Como funciona:</strong> Esses servidores aparecem na folha de pagamento mas não foram encontrados na planilha de lotações. Pra cada um, você pode <strong>casar com um servidor existente</strong> (atualiza matrícula+admissão) ou <strong>criar novo cadastro</strong> escolhendo a lotação. Servidores não relevantes podem ser <strong>descartados</strong>.
+          <strong>O que fazer aqui:</strong> pessoas da folha que ainda não estão bem ligadas ao cadastro. Você pode <strong>vincular a um servidor já cadastrado</strong> (atualiza matrícula e admissão), <strong>criar cadastro novo</strong> ou <strong>descartar</strong> se não for da SEMCAS.
         </div>
         <div class="stats-grid" id="pendentes-kpis"></div>
         <div class="toolbar-filters" style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
@@ -622,13 +653,17 @@
             </thead>
             <tbody id="pend-tbody"><tr><td colspan="7" class="empty-state"><span class="spinner"></span> Carregando…</td></tr></tbody>
           </table>
+          <div class="pagination">
+            <div class="page-info" id="pend-page-info">—</div>
+            <div class="page-controls" id="pend-page-controls"></div>
+          </div>
         </div>
 
         <!-- Nova Seção: Auditoria de Dados -->
         <div style="margin-top: 40px;">
           <div class="dash-section-header">
             <div class="dash-icon" style="background:var(--gov-red)"><i class="ti ti-shield-search" style="color:#fff"></i></div>
-            <h2>Auditoria e Qualidade de Dados</h2>
+            <h2>Qualidade do cadastro</h2>
             <div class="dash-line"></div>
           </div>
           
@@ -748,12 +783,12 @@
         </div>
       </section>
 
-      <!-- ===== RELATÓRIO API GIAP ===== -->
+      <!-- ===== CONFERÊNCIA GIAP ===== -->
       <section id="view-relatorio-api" class="view-section">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:12px">
           <div>
-            <div class="row-label" style="margin:0"><i class="ti ti-api"></i> Relatório API GIAP</div>
-            <small style="color:var(--color-text-muted)">Grava a folha do mês no banco. Correções (matrícula, nome, admissão) e exoneração são <strong>manuais</strong> na coluna Ações. Ao abrir esta tela, registros que <strong>não são SEMCAS</strong> são removidos automaticamente; Cedidos/Recebidos podem ser puxados de novo depois.</small>
+            <div class="row-label" style="margin:0"><i class="ti ti-file-search"></i> Conferência GIAP</div>
+            <small class="view-help" style="color:var(--color-text-muted)">Compare a folha de pagamento com o cadastro do RH: corrija matrícula, nome ou admissão na coluna Ações. Só SEMCAS e Cedidos/Recebidos ficam na lista.</small>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             <span id="giap-comp-badge" style="font-size:12px;padding:4px 10px;border-radius:4px;background:#edf2f7;color:#4a5568"></span>
@@ -770,7 +805,7 @@
         </div>
 
         <div class="card" style="margin-bottom:16px;padding:16px">
-          <div class="row-label" style="margin:0 0 10px"><i class="ti ti-filter"></i> Opções de busca na API</div>
+          <div class="row-label" style="margin:0 0 10px"><i class="ti ti-filter"></i> Opções de busca na folha</div>
           <div style="display:flex;flex-wrap:wrap;gap:16px 24px">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
               <input type="checkbox" id="giap-opt-sem-matricula" checked>
@@ -986,8 +1021,8 @@
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:12px">
           <div>
             <div class="row-label" style="margin:0"><i class="ti ti-currency-real"></i> Remunerações</div>
-            <small style="color:var(--color-text-muted)">
-              Últimos <strong>2 salários</strong> por servidor (fonte GIAP). Ao puxar um mês novo, o mais antigo é removido automaticamente — facilita conferência quando o servidor questionar o valor.
+            <small class="view-help" style="color:var(--color-text-muted)">
+              O que fazer aqui: confira os <strong>2 últimos salários</strong> do servidor (folha GIAP). Quando entra um mês novo, o mais antigo sai sozinho.
             </small>
           </div>
           <button type="button" class="btn-secondary" onclick="sincronizarRemuneracoesGiap()" title="Atualiza a partir da folha GIAP já gravada">
@@ -996,14 +1031,26 @@
         </div>
         <div class="stats-grid" id="remun-kpis" style="margin-bottom:16px"></div>
         <div class="toolbar-filters" style="margin-bottom:12px">
-          <input type="text" id="remun-busca" class="form-control" placeholder="Pesquisar nome do servidor…" style="flex:1;min-width:240px" oninput="filtrarRemuneracoes()">
-          <select id="remun-lotacao" class="form-control" style="min-width:200px" onchange="filtrarRemuneracoes()">
-            <option value="">Todas as lotações</option>
-          </select>
-          <select id="remun-comp" class="form-control" style="min-width:140px" onchange="filtrarRemuneracoes()">
-            <option value="">Todas competências</option>
-          </select>
-          <button type="button" id="remun-limpar" class="btn btn-outline" style="padding:0 12px" title="Limpar filtros" onclick="limparFiltrosRemuneracoes()">Limpar</button>
+          <div class="filter-field" style="flex:1;min-width:220px">
+            <label for="remun-busca">Nome do servidor</label>
+            <input type="text" id="remun-busca" class="form-control" placeholder="Pesquisar nome…" oninput="filtrarRemuneracoes()">
+          </div>
+          <div class="filter-field">
+            <label for="remun-lotacao">Lotação</label>
+            <select id="remun-lotacao" class="form-control" style="min-width:200px" onchange="filtrarRemuneracoes()">
+              <option value="">Todas as lotações</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label for="remun-comp">Competência</label>
+            <select id="remun-comp" class="form-control" style="min-width:140px" onchange="filtrarRemuneracoes()">
+              <option value="">Todas competências</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label>&nbsp;</label>
+            <button type="button" id="remun-limpar" class="btn btn-outline" style="padding:8px 14px" title="Limpar filtros" onclick="limparFiltrosRemuneracoes()">Limpar</button>
+          </div>
           <span class="filter-result-count" id="remun-count"></span>
         </div>
         <div class="card">
@@ -1038,7 +1085,10 @@
       <section id="view-licencas" class="view-section">
         <div id="alerta-licencas-page" class="alerta-licenca-wrap" hidden></div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-          <div class="row-label" style="margin:0"><i class="ti ti-activity"></i> Controle de Licenças e Afastamentos</div>
+          <div>
+            <div class="row-label" style="margin:0"><i class="ti ti-activity"></i> Controle de Licenças e Afastamentos</div>
+            <small class="view-help">O que fazer aqui: veja quem está afastado e registre novas licenças. Use os filtros para achar por nome ou tipo.</small>
+          </div>
           <button class="btn-primary" onclick="abrirModalLicenca()"><i class="ti ti-plus"></i> Registrar Afastamento</button>
         </div>
         <div class="stats-grid" id="licencas-kpis" style="margin-bottom:20px;"></div>
@@ -1184,7 +1234,7 @@
     </a>
     <a href="#funcionarios" class="bottom-nav-item" data-route="funcionarios">
       <i class="ti ti-users"></i>
-      <span>Servidores</span>
+      <span>Funcionários</span>
     </a>
     <a href="#locais" class="bottom-nav-item" data-route="locais">
       <i class="ti ti-map-pin"></i>
@@ -1524,7 +1574,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20260719f"></script>
+  <script type="module" src="js/app.js?v=20260719g"></script>
 
 
 

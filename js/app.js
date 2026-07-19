@@ -81,7 +81,31 @@ function showApp(session) {
   $('auth-gate')?.classList.add('hidden');
   $('app-shell')?.classList.remove('hidden');
   atualizarUsuarioUI();
+  initModoConforto();
   bootApp();
+}
+
+/** Modo leitura confortável — texto/botões maiores (servidores mais velhos) */
+function initModoConforto() {
+  const KEY = 'rhsemcas_modo_conforto';
+  const btn = $('btn-modo-conforto');
+  const aplicar = (on) => {
+    document.body.classList.toggle('modo-conforto', !!on);
+    if (btn) {
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      btn.title = on
+        ? 'Desligar leitura confortável (texto maior)'
+        : 'Aumentar texto e botões (leitura confortável)';
+    }
+    try { localStorage.setItem(KEY, on ? '1' : '0'); } catch (_) { /* ok */ }
+  };
+  let on = false;
+  try { on = localStorage.getItem(KEY) === '1'; } catch (_) { /* ok */ }
+  aplicar(on);
+  if (btn && !btn._confortoBound) {
+    btn._confortoBound = true;
+    btn.addEventListener('click', () => aplicar(!document.body.classList.contains('modo-conforto')));
+  }
 }
 
 async function bootApp() {
@@ -765,7 +789,10 @@ if ($('gs-input')) {
 }
 
 // Invalida o cache da busca global após operações que alteram servidores.
-function gsInvalidarCache() { _gs.cache = null; }
+function gsInvalidarCache() {
+  _gs.cache = null;
+  if (typeof giapInvalidarMapaRh === 'function') giapInvalidarMapaRh();
+}
 
 function htmlEscape(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -871,7 +898,7 @@ const rotas = {
   'locais':       { titulo: 'Locais Operacionais',   bread: 'Locais',         render: renderLocais },
   'organograma':  { titulo: 'Organograma',           bread: 'Organograma',    render: renderOrganograma },
   'folha-ponto':  { titulo: 'Folha de Ponto',        bread: 'Folha de Ponto', render: renderFolhaPonto },
-  'logs':         { titulo: 'Histórico de Ações',     bread: 'Logs',           render: renderLogs },
+  'logs':         { titulo: 'Histórico',     bread: 'Histórico',           render: renderLogs },
   'usuarios':     { titulo: 'Usuários do Sistema',    bread: 'Usuários',       render: renderUsuarios }
 };
 
@@ -1387,7 +1414,6 @@ $('form-usuario')?.addEventListener('submit', async (e) => {
 async function renderFuncionarios() {
   state.page = 1;
   $('f-busca').value = state.filtros.busca || '';
-  invalidarCacheFiltros();
   await atualizarOpcoesFiltros();
   atualizarIconesSort();
   renderFilterTags();
@@ -1504,6 +1530,9 @@ async function buscarFuncionariosRpc({ paginar = true } = {}) {
   let offset = 0;
   let totalRpc = Infinity;
   const todos = [];
+  if (multiFunc && paginar && $('table-body')) {
+    $('table-body').innerHTML = `<tr><td colspan="8" class="empty-state"><span class="spinner"></span> Carregando várias funções…</td></tr>`;
+  }
   while (offset < totalRpc) {
     const params = {
       p_termo:      termo ? termo.split(/\s+/).join('%') : null,
@@ -1538,7 +1567,6 @@ async function buscarFuncionariosRpc({ paginar = true } = {}) {
 }
 
 async function carregarFuncionarios() {
-  gsInvalidarCache(); // mantém a busca global sincronizada após alterações
   $('table-body').innerHTML = `<tr><td colspan="8" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>`;
   const resultado = await buscarFuncionariosRpc({ paginar: true });
   if (!resultado) return;
@@ -3111,11 +3139,11 @@ function fpImprimirUnidade() {
 // ╚══════════════════════════════════════════════════════════════╝
 if (typeof rotas !== 'undefined') {
   rotas.ferias       = { titulo: 'Controle de Férias',     bread: 'Férias',       render: renderFerias };
-  rotas.pendentes    = { titulo: 'Servidores Pendentes',   bread: 'Pendentes',    render: renderPendentes };
+  rotas.pendentes    = { titulo: 'Dados incompletos',   bread: 'Dados incompletos',    render: renderPendentes };
   rotas.lotacoes     = { titulo: 'Gestão de Lotações',     bread: 'Lotações',     render: renderLotacoes };
   rotas['sem-lotacao'] = { titulo: 'Servidores sem Lotação', bread: 'Sem Lotação', render: renderSemLotacao };
   rotas.exonerados   = { titulo: 'Servidores Exonerados',  bread: 'Exonerados',   render: renderExonerados };
-  rotas['relatorio-api'] = { titulo: 'Relatório API GIAP', bread: 'Relatório API', render: renderRelatorioApi };
+  rotas['relatorio-api'] = { titulo: 'Conferência GIAP', bread: 'Conferência GIAP', render: renderRelatorioApi };
   rotas.remuneracoes = { titulo: 'Remunerações', bread: 'Remunerações', render: renderRemuneracoes };
 }
 
@@ -3123,6 +3151,8 @@ if (typeof rotas !== 'undefined') {
 // ║  REMUNERAÇÕES — últimos 2 salários GIAP por servidor         ║
 // ╚══════════════════════════════════════════════════════════════╝
 window._remunCache = [];
+window._remunCacheAt = 0;
+const REMUN_CACHE_TTL_MS = 5 * 60 * 1000;
 
 function fmtRemunMoeda(v) {
   if (v == null || v === '') return '—';
@@ -3149,6 +3179,8 @@ window.sincronizarRemuneracoesGiap = async function sincronizarRemuneracoesGiap(
     });
     if (error) throw error;
     const r = data || {};
+    window._remunCache = [];
+    window._remunCacheAt = 0;
     if (!silencioso) {
       if (r.ok === false) {
         showToast(r.erro || 'Não foi possível alimentar remunerações.', 'warning');
@@ -3160,7 +3192,7 @@ window.sincronizarRemuneracoesGiap = async function sincronizarRemuneracoesGiap(
         );
       }
     }
-    if (state.rotaAtual === 'remuneracoes') await renderRemuneracoes();
+    if (state.rotaAtual === 'remuneracoes') await renderRemuneracoes(true);
     return r;
   } catch (e) {
     const msg = e.message || String(e);
@@ -3216,10 +3248,22 @@ async function carregarRemuneracoesNoEdit(funcionarioId) {
   }
 }
 
-async function renderRemuneracoes() {
+async function renderRemuneracoes(forceReload = false) {
   const tbody = $('tbody-remuneracoes');
   const kpis = $('remun-kpis');
   if (!tbody) return;
+
+  const cacheOk = !forceReload
+    && Array.isArray(window._remunCache)
+    && window._remunCache.length > 0
+    && (Date.now() - (window._remunCacheAt || 0)) < REMUN_CACHE_TTL_MS;
+
+  if (cacheOk) {
+    remunPopularFiltrosEKpis(window._remunCache);
+    renderTabelaRemuneracoes();
+    return;
+  }
+
   tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
   try {
     const all = [];
@@ -3253,37 +3297,11 @@ async function renderRemuneracoes() {
     }
 
     window._remunCache = all;
+    window._remunCacheAt = Date.now();
     if (!window._remunSort) window._remunSort = { col: 'nome', dir: 'asc' };
     window._remunPage = 1;
 
-    const comps = [...new Set(all.map((r) => r.competencia).filter(Boolean))].sort((a, b) => b - a);
-    const sel = $('remun-comp');
-    if (sel) {
-      const atual = sel.value;
-      sel.innerHTML = '<option value="">Todas competências</option>' +
-        comps.map((c) => `<option value="${c}">${htmlEscape(fmtRemunComp(c))}</option>`).join('');
-      if (atual && comps.includes(Number(atual))) sel.value = atual;
-    }
-
-    const lots = [...new Set(all.map((r) => (r.lotacao_nome || '').trim()).filter(Boolean))]
-      .sort((a, b) => a.localeCompare(b, 'pt-BR'));
-    const selLot = $('remun-lotacao');
-    if (selLot) {
-      const atualLot = selLot.value;
-      selLot.innerHTML = '<option value="">Todas as lotações</option>' +
-        lots.map((l) => `<option value="${htmlEscape(l)}">${htmlEscape(l)}</option>`).join('');
-      if (atualLot && lots.includes(atualLot)) selLot.value = atualLot;
-    }
-
-    const pessoas = new Set(all.map((r) => r.funcionario_id));
-    const ultima = comps[0];
-    const nUltima = ultima ? all.filter((r) => r.competencia === ultima).length : 0;
-    if (kpis) {
-      kpis.innerHTML = `
-        <div class="kpi-card"><div class="kpi-card-label">Registros</div><div class="kpi-card-value">${all.length}</div><div class="kpi-card-sub">máx. 2 por servidor</div></div>
-        <div class="kpi-card"><div class="kpi-card-label">Servidores</div><div class="kpi-card-value">${pessoas.size}</div><div class="kpi-card-sub">com salário GIAP</div></div>
-        <div class="kpi-card"><div class="kpi-card-label">Última competência</div><div class="kpi-card-value" style="font-size:22px">${htmlEscape(fmtRemunComp(ultima))}</div><div class="kpi-card-sub">${nUltima} linha(s)</div></div>`;
-    }
+    remunPopularFiltrosEKpis(all);
     renderTabelaRemuneracoes();
   } catch (e) {
     const msg = e.message || String(e);
@@ -3293,6 +3311,38 @@ async function renderRemuneracoes() {
         : htmlEscape(msg)
     }</td></tr>`;
     if (kpis) kpis.innerHTML = '';
+  }
+}
+
+function remunPopularFiltrosEKpis(all) {
+  const kpis = $('remun-kpis');
+  const comps = [...new Set(all.map((r) => r.competencia).filter(Boolean))].sort((a, b) => b - a);
+  const sel = $('remun-comp');
+  if (sel) {
+    const atual = sel.value;
+    sel.innerHTML = '<option value="">Todas competências</option>' +
+      comps.map((c) => `<option value="${c}">${htmlEscape(fmtRemunComp(c))}</option>`).join('');
+    if (atual && comps.includes(Number(atual))) sel.value = atual;
+  }
+
+  const lots = [...new Set(all.map((r) => (r.lotacao_nome || '').trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const selLot = $('remun-lotacao');
+  if (selLot) {
+    const atualLot = selLot.value;
+    selLot.innerHTML = '<option value="">Todas as lotações</option>' +
+      lots.map((l) => `<option value="${htmlEscape(l)}">${htmlEscape(l)}</option>`).join('');
+    if (atualLot && lots.includes(atualLot)) selLot.value = atualLot;
+  }
+
+  const pessoas = new Set(all.map((r) => r.funcionario_id));
+  const ultima = comps[0];
+  const nUltima = ultima ? all.filter((r) => r.competencia === ultima).length : 0;
+  if (kpis) {
+    kpis.innerHTML = `
+      <div class="kpi-card"><div class="kpi-card-label">Registros</div><div class="kpi-card-value">${all.length}</div><div class="kpi-card-sub">máx. 2 por servidor</div></div>
+      <div class="kpi-card"><div class="kpi-card-label">Servidores</div><div class="kpi-card-value">${pessoas.size}</div><div class="kpi-card-sub">com salário GIAP</div></div>
+      <div class="kpi-card"><div class="kpi-card-label">Última competência</div><div class="kpi-card-value" style="font-size:22px">${htmlEscape(fmtRemunComp(ultima))}</div><div class="kpi-card-sub">${nUltima} linha(s)</div></div>`;
   }
 }
 
@@ -4227,13 +4277,76 @@ window.giapFolhaMudarPageSize = function giapFolhaMudarPageSize(v) {
   giapFolhaRenderPagina();
 };
 
+const _giapRhMaps = { at: 0, funcs: null, funcoesRh: null, cedencias: null };
+const GIAP_RH_TTL_MS = 5 * 60 * 1000;
+
+function giapInvalidarMapaRh() {
+  _giapRhMaps.at = 0;
+  _giapRhMaps.funcs = null;
+  _giapRhMaps.funcoesRh = null;
+  _giapRhMaps.cedencias = null;
+}
+
+async function giapGarantirMapaRh(force = false) {
+  const fresco = !force
+    && _giapRhMaps.funcs
+    && (Date.now() - _giapRhMaps.at) < GIAP_RH_TTL_MS;
+  if (fresco) return _giapRhMaps;
+
+  const [funcs, cedencias, funcoesRh] = await Promise.all([
+    (async () => {
+      const all = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error: e } = await sb.from('funcionarios')
+          .select('id, nome, matricula, data_admissao, cpf, ativo')
+          .range(from, from + 999);
+        if (e) throw e;
+        if (data?.length) all.push(...data);
+        if (!data || data.length < 1000) break;
+      }
+      return all;
+    })(),
+    (async () => {
+      try {
+        const { data } = await sb.from('v_cedencias_atuais')
+          .select('funcionario_id, matricula')
+          .limit(3000);
+        return data || [];
+      } catch (_) {
+        return [];
+      }
+    })(),
+    (async () => {
+      try {
+        const all = [];
+        for (let from = 0; ; from += 1000) {
+          const { data, error } = await sb.from('v_funcionarios_atual')
+            .select('funcionario_id, funcao')
+            .range(from, from + 999);
+          if (error) throw error;
+          if (data?.length) all.push(...data);
+          if (!data || data.length < 1000) break;
+        }
+        return all;
+      } catch (_) {
+        return [];
+      }
+    })()
+  ]);
+  _giapRhMaps.funcs = funcs;
+  _giapRhMaps.cedencias = cedencias;
+  _giapRhMaps.funcoesRh = funcoesRh;
+  _giapRhMaps.at = Date.now();
+  return _giapRhMaps;
+}
+
 async function giapCarregarFolhaTabela() {
   const tbody = $('tbody-giap-folha');
   if (!tbody) return;
   const comp = Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
   tbody.innerHTML = '<tr><td colspan="13" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
   try {
-    const [folha, funcs, cedencias, funcoesRh] = await Promise.all([
+    const [folha, rhMaps] = await Promise.all([
       (async () => {
         const all = [];
         for (let from = 0; ; from += 1000) {
@@ -4248,45 +4361,11 @@ async function giapCarregarFolhaTabela() {
         }
         return all;
       })(),
-      (async () => {
-        const all = [];
-        for (let from = 0; ; from += 1000) {
-          const { data, error: e } = await sb.from('funcionarios')
-            .select('id, nome, matricula, data_admissao, cpf, ativo')
-            .range(from, from + 999);
-          if (e) throw e;
-          if (data?.length) all.push(...data);
-          if (!data || data.length < 1000) break;
-        }
-        return all;
-      })(),
-      (async () => {
-        try {
-          const { data } = await sb.from('v_cedencias_atuais')
-            .select('funcionario_id, matricula')
-            .limit(3000);
-          return data || [];
-        } catch (_) {
-          return [];
-        }
-      })(),
-      (async () => {
-        try {
-          const all = [];
-          for (let from = 0; ; from += 1000) {
-            const { data, error } = await sb.from('v_funcionarios_atual')
-              .select('funcionario_id, funcao')
-              .range(from, from + 999);
-            if (error) throw error;
-            if (data?.length) all.push(...data);
-            if (!data || data.length < 1000) break;
-          }
-          return all;
-        } catch (_) {
-          return [];
-        }
-      })()
+      giapGarantirMapaRh(false)
     ]);
+    const funcs = rhMaps.funcs || [];
+    const cedencias = rhMaps.cedencias || [];
+    const funcoesRh = rhMaps.funcoesRh || [];
 
     const cedIds = new Set();
     const cedMats = new Set();
@@ -5706,7 +5785,9 @@ document.addEventListener('change', (e) => {
 // ╔══════════════════════════════════════════════════════════════╗
 // ║                       PENDENTES                               ║
 // ╚══════════════════════════════════════════════════════════════╝
-const statePend = { busca: '', status: 'pendente', ordem: 'alfabetica' };
+const statePend = { busca: '', status: 'pendente', ordem: 'alfabetica', page: 1, pageSize: 20 };
+window._pendRows = [];
+window._pendSugCache = null;
 
 async function renderPendentes() {
   const kpis = await handleErr(await sb.from('v_pendentes_kpis').select('*').single(), 'pend kpis');
@@ -5728,6 +5809,7 @@ async function renderPendentes() {
       badge.style.display = (kpis.pendentes || 0) > 0 ? '' : 'none';
     }
   }
+  statePend.page = 1;
   carregarPendentes();
   carregarAuditoria();
 }
@@ -5791,12 +5873,59 @@ async function carregarPendentes() {
     });
   }
 
+  window._pendRows = data;
+  window._pendSugCache = sugestoesCache;
+  if (!statePend.page) statePend.page = 1;
+  renderTabelaPendentes();
+}
+
+function renderPaginacaoPendentes(total) {
+  const info = $('pend-page-info');
+  const controls = $('pend-page-controls');
+  if (!info || !controls) return;
+  const pageSize = statePend.pageSize || 20;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1);
+  if (statePend.page > totalPages) statePend.page = totalPages;
+  const page = statePend.page || 1;
+  const ini = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const fim = Math.min(page * pageSize, total);
+  info.textContent = total === 0
+    ? 'Nenhum registro'
+    : `Mostrando ${ini}-${fim} de ${total.toLocaleString('pt-BR')}`;
+
+  const btn = (label, p, dis, active = false) =>
+    `<button class="page-btn ${active ? 'active' : ''}" ${dis ? 'disabled' : ''} data-page="${p}">${label}</button>`;
+  let html = btn('«', page - 1, page === 1);
+  const start = Math.max(1, page - 2);
+  const end = Math.min(totalPages, start + 4);
+  for (let i = start; i <= end; i++) html += btn(i, i, false, i === page);
+  html += btn('»', page + 1, page === totalPages);
+  controls.innerHTML = html;
+  $$('#pend-page-controls .page-btn').forEach((b) => {
+    b.onclick = () => {
+      if (b.disabled) return;
+      statePend.page = Number(b.dataset.page);
+      renderTabelaPendentes();
+    };
+  });
+}
+
+function renderTabelaPendentes() {
+  const data = window._pendRows || [];
+  const sugestoesCache = window._pendSugCache;
+  renderPaginacaoPendentes(data.length);
+
   if (data.length === 0) {
     $('pend-tbody').innerHTML = '<tr><td colspan="7" class="empty-state">Nenhum registro</td></tr>';
     return;
   }
-  $('pend-tbody').innerHTML = data.map(p => {
-    const sugs = sugestoesCache.get(p);
+
+  const pageSize = statePend.pageSize || 20;
+  const start = ((statePend.page || 1) - 1) * pageSize;
+  const pagina = data.slice(start, start + pageSize);
+
+  $('pend-tbody').innerHTML = pagina.map(p => {
+    const sugs = sugestoesCache?.get(p) || [];
     const sugHtml = sugs.length === 0
       ? (p.status === 'pendente'
           ? '<div style="font-size:12px;background:var(--gov-blue-light);color:var(--gov-blue-dark);padding:6px 8px;border-radius:4px"><i class="ti ti-user-plus"></i> Sem correspondência no sistema — cadastre como <strong>novo servidor</strong></div>'
@@ -5804,7 +5933,7 @@ async function carregarPendentes() {
       : sugs.map(s => `<div style="font-size:12px;padding:4px 0; border-bottom: 1px dashed #E5E7EB; margin-bottom: 2px;">
           <div style="display:flex; justify-content:space-between; align-items:center;">
             <span><strong>${(s.similarity*100).toFixed(0)}%</strong> · ${htmlEscape(s.nome)}</span>
-            ${p.status === 'pendente' ? `<button type="button" class="btn-link" style="font-size:11px" onclick="window.associarPendente(${p.id}, ${s.id})">associar →</button>` : ''}
+            ${p.status === 'pendente' ? `<button type="button" class="btn-link" style="font-size:11px" onclick="window.associarPendente(${p.id}, ${s.id})">vincular →</button>` : ''}
           </div>
           <div style="font-size: 11px; color: var(--color-text-sec); margin-top: 2px;">
             ${htmlEscape(s.funcao || 'Sem função')} | Lotação: ${htmlEscape(s.lotacao_nome || 'N/A')}
@@ -5812,7 +5941,7 @@ async function carregarPendentes() {
         </div>`).join('');
     const statusBadge = {
       'pendente':        '<span style="background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">PENDENTE</span>',
-      'casado':          '<span style="background:#D1FAE5;color:#065F46;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">CASADO</span>',
+      'casado':          '<span style="background:#D1FAE5;color:#065F46;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">VINCULADO</span>',
       'novo_cadastrado': '<span style="background:#DBEAFE;color:#1E40AF;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">NOVO</span>',
       'descartado':      '<span style="background:#E5E7EB;color:#4B5563;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">DESCARTADO</span>',
     }[p.status];
@@ -5904,11 +6033,11 @@ async function carregarAuditoria() {
 }
 
 document.addEventListener('input', debounce((e) => {
-  if (e.target.id === 'pend-busca') { statePend.busca = e.target.value.trim(); carregarPendentes(); }
+  if (e.target.id === 'pend-busca') { statePend.busca = e.target.value.trim(); statePend.page = 1; carregarPendentes(); }
 }, 300));
 document.addEventListener('change', (e) => {
-  if (e.target.id === 'pend-status-filtro') { statePend.status = e.target.value; carregarPendentes(); }
-  if (e.target.id === 'pend-ordem') { statePend.ordem = e.target.value; carregarPendentes(); }
+  if (e.target.id === 'pend-status-filtro') { statePend.status = e.target.value; statePend.page = 1; carregarPendentes(); }
+  if (e.target.id === 'pend-ordem') { statePend.ordem = e.target.value; statePend.page = 1; carregarPendentes(); }
 });
 
 window.associarPendente = async (pendId, funcId) => {

@@ -44,6 +44,72 @@
       flex-direction: column;
       height: 100vh;
       overflow: hidden;
+      font-size: 14px;
+    }
+
+    .view-help {
+      display: block;
+      margin: 0 0 14px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: var(--color-text-muted);
+      max-width: 72ch;
+    }
+
+    /* Modo leitura confortável — texto e botões maiores */
+    body.modo-conforto {
+      font-size: 16px;
+    }
+    body.modo-conforto .nav-item {
+      font-size: 15px;
+      padding-top: 11px;
+      padding-bottom: 11px;
+      min-height: 44px;
+    }
+    body.modo-conforto .nav-group {
+      font-size: 12px;
+    }
+    body.modo-conforto .topbar-title {
+      font-size: 20px;
+    }
+    body.modo-conforto .gov-table th,
+    body.modo-conforto .gov-table td {
+      font-size: 14px;
+      padding: 14px 16px;
+    }
+    body.modo-conforto .btn-primary,
+    body.modo-conforto .btn-secondary,
+    body.modo-conforto .btn,
+    body.modo-conforto .btn-outline {
+      min-height: 44px;
+      font-size: 15px;
+      padding-left: 16px;
+      padding-right: 16px;
+    }
+    body.modo-conforto .form-control,
+    body.modo-conforto .toolbar-filters input,
+    body.modo-conforto .toolbar-filters select,
+    body.modo-conforto .ms-btn {
+      min-height: 44px;
+      font-size: 15px;
+    }
+    body.modo-conforto .filter-field > label {
+      font-size: 12px;
+    }
+    body.modo-conforto .view-help {
+      font-size: 15px;
+    }
+    body.modo-conforto .page-btn {
+      min-width: 40px;
+      min-height: 40px;
+      font-size: 14px;
+    }
+    body.modo-conforto #btn-modo-conforto {
+      background: var(--gov-blue-light);
+      color: var(--gov-blue-primary);
+    }
+    body.modo-conforto #btn-modo-conforto[aria-pressed="true"] {
+      outline: 2px solid var(--gov-blue-primary);
     }
 
     .app {
