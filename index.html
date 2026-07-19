@@ -750,12 +750,15 @@
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:12px">
           <div>
             <div class="row-label" style="margin:0"><i class="ti ti-api"></i> Relatório API GIAP</div>
-            <small style="color:var(--color-text-muted)">Grava a folha do mês no banco. Correções (matrícula, nome, admissão) e exoneração são <strong>manuais</strong> na coluna Ações — demissão no GIAP não manda sozinho para Exonerados (pode voltar em outro cargo no mês seguinte).</small>
+            <small style="color:var(--color-text-muted)">Grava a folha do mês no banco. Correções (matrícula, nome, admissão) e exoneração são <strong>manuais</strong> na coluna Ações. Ao abrir esta tela, registros que <strong>não são SEMCAS</strong> são removidos automaticamente; Cedidos/Recebidos podem ser puxados de novo depois.</small>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             <span id="giap-comp-badge" style="font-size:12px;padding:4px 10px;border-radius:4px;background:#edf2f7;color:#4a5568"></span>
             <button type="button" class="btn-primary" id="giap-btn-run">
               <i class="ti ti-cloud-download"></i> Buscar e gravar folha
+            </button>
+            <button type="button" class="btn-secondary" id="giap-btn-puxar-cedidos" onclick="giapPuxarCedidos()">
+              <i class="ti ti-arrows-left-right"></i> Puxar Cedidos/Recebidos
             </button>
             <button type="button" class="btn-secondary" id="giap-btn-demissao" title="So detecta demissoes na folha; nao exonera automaticamente">
               <i class="ti ti-user-off"></i> Detectar demissões
@@ -831,6 +834,9 @@
               <button type="button" class="btn-primary" id="giap-btn-puxar-todos" onclick="giapPuxarTodosFaltando()" title="Puxa quem ainda falta e grava em Resultados">
                 <i class="ti ti-cloud-download"></i> Completar Resultados (1 a 1)
               </button>
+              <button type="button" class="btn-secondary" id="giap-btn-alimentar-cpf" onclick="giapAlimentarCpfsAlinhados()" title="Copia CPF do GIAP para o cadastro RH dos alinhados sem CPF">
+                <i class="ti ti-id"></i> Alimentar CPFs
+              </button>
               <button type="button" class="btn-secondary" id="giap-btn-parar-puxar" onclick="giapPararPuxarTodos()" style="display:none">
                 Parar
               </button>
@@ -840,7 +846,7 @@
           <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin:0 4px 10px">
             <div class="filter-field" style="flex:1;min-width:220px">
               <label for="giap-folha-busca">Buscar na lista / puxar na API</label>
-              <input type="text" id="giap-folha-busca" class="form-control" placeholder="Ex.: Jurandy Soares Santana Junior" oninput="giapFolhaFiltrarTexto(this.value)">
+              <input type="text" id="giap-folha-busca" class="form-control" placeholder="Nome completo — ou deixe vazio p/ Cedidos/Recebidos" oninput="giapFolhaFiltrarTexto(this.value)">
             </div>
             <div class="filter-field" style="min-width:200px">
               <label for="giap-folha-filtro-acao">Tipo de correção</label>
@@ -852,6 +858,7 @@
                 <option value="admissao">Corrigir admissão</option>
                 <option value="exoneracao">Demissão GIAP (→ Exonerados)</option>
                 <option value="alinhado">Já alinhado</option>
+                <option value="cpf">Preencher CPF</option>
                 <option value="sem_vinculo">Sem vínculo no RH</option>
               </select>
             </div>
@@ -862,12 +869,13 @@
                 <option value="todas">Todas (inclui SEMOSP etc.)</option>
               </select>
             </div>
-            <button type="button" class="btn-primary" id="giap-btn-puxar-nome" onclick="giapPuxarNomeApi()" style="white-space:nowrap">
+            <button type="button" class="btn-primary" id="giap-btn-puxar-nome" onclick="giapPuxarNomeApi()" style="white-space:nowrap" title="Com nome: puxa essa pessoa. Campo vazio: puxa todos os Cedidos/Recebidos">
               <i class="ti ti-cloud-download"></i> Puxar na API
             </button>
           </div>
           <small style="display:block;margin:0 4px 10px;color:var(--color-text-muted)">
-            Campos da API. Em <strong>Ações</strong> aparece o tipo de correção necessária. Use o filtro à direita. Clique no cabeçalho para ordenar.
+            <strong>Puxar na API</strong> com o campo vazio = busca automática em Cedidos/Recebidos.
+            Com nome digitado = puxa só essa pessoa. Em <strong>Ações</strong> aparece o tipo de correção (maiúsculas do GIAP não contam como erro de nome).
           </small>
           <div class="table-container" style="overflow-x:auto">
             <table class="gov-table" id="table-giap-folha">
@@ -911,16 +919,39 @@
 
         <div class="card" id="giap-card-fila-resultados" style="margin-top:16px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;padding:0 4px">
-            <div class="row-label" style="margin:0"><i class="ti ti-list-check"></i> Fila → Resultados</div>
-            <span class="filter-result-count" id="giap-faltando-count"></span>
+            <div class="row-label" style="margin:0"><i class="ti ti-list-check"></i> Vasculha — RH fora dos Resultados</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <span class="filter-result-count" id="giap-faltando-count"></span>
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--color-text-muted)" title="Máx. por lote (Render free ~8)">
+                Lote
+                <select id="giap-vasculha-lote" class="form-control" style="width:auto;padding:4px 8px;font-size:12px">
+                  <option value="5">5</option>
+                  <option value="8" selected>8</option>
+                  <option value="10">10</option>
+                </select>
+              </label>
+              <button type="button" class="btn-primary" id="giap-btn-vasculha-puxar-todos" onclick="giapPuxarTodosVasculha()" title="Puxa a fila em lotes (respeita o limite do Render)">
+                <i class="ti ti-cloud-download"></i> Puxar todos
+              </button>
+              <button type="button" class="btn-secondary" id="giap-btn-vasculha-parar" onclick="giapPararPuxarTodos()" style="display:none">
+                Parar
+              </button>
+              <button type="button" class="btn-secondary" id="giap-btn-vasculhar" onclick="giapVasculharFaltantes()" title="Recarrega a comparação RH × folha GIAP">
+                <i class="ti ti-search"></i> Vasculhar
+              </button>
+              <button type="button" class="btn-secondary" onclick="giapExportarFaltantesCsv()" title="Baixa CSV de quem falta">
+                <i class="ti ti-download"></i> CSV
+              </button>
+            </div>
           </div>
+          <div id="giap-faltando-resumo" style="display:none;margin:0 4px 10px;padding:10px 12px;background:#fffaf0;border:1px solid #fbd38d;border-radius:6px;font-size:13px;color:#744210"></div>
+          <div id="giap-vasculha-status" style="display:none;margin:0 4px 10px;padding:8px 12px;background:#ebf8ff;border-radius:6px;font-size:13px;color:#2b6cb0"></div>
           <small style="display:block;margin:0 4px 10px;color:var(--color-text-muted)">
-            Lista só quem está <strong>sem matrícula</strong> e ainda não entrou em Resultados.
-            Quem já tem matrícula no RH entra via <strong>Completar Resultados</strong> ou <strong>Buscar e gravar folha</strong> (não polui esta fila).
+            Compara <strong>Funcionários</strong> com a folha GIAP. <strong>Puxar todos</strong> busca 1 a 1 em lotes (padrão 8) com pausa, para não derrubar o Render. Use <strong>Parar</strong> a qualquer momento.
           </small>
           <label style="display:flex;align-items:center;gap:8px;margin:0 4px 10px;cursor:pointer;font-size:13px">
-            <input type="checkbox" id="giap-fila-com-matricula" onchange="giapCarregarFaltandoFolha()">
-            Mostrar também quem <strong>já tem matrícula</strong> mas ainda não está nos Resultados
+            <input type="checkbox" id="giap-fila-com-matricula" checked onchange="giapCarregarFaltandoFolha()">
+            Incluir quem <strong>já tem matrícula</strong> (ex.: Jurandy) mas ainda não entrou nos Resultados
           </label>
           <div class="table-container" style="overflow-x:auto">
             <table class="gov-table">
@@ -1148,6 +1179,18 @@
         </div>
         <div style="grid-column:1/-1;padding-top:12px;margin-top:4px;border-top:1px solid var(--gov-border)">
           <strong style="font-size:13px;color:var(--gov-blue-dark)">Lotação Inicial</strong>
+        </div>
+        <div class="form-group full-width">
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:13px;margin-bottom:8px">
+            <input type="checkbox" id="add-outra-secretaria" onchange="addToggleOutraSecretaria()" style="margin-top:3px">
+            <span><strong>Vem de outra secretaria</strong> (Recebido)<br>
+              <small style="color:var(--color-text-muted);font-weight:400">Cadastra também em Cedidos/Recebidos automaticamente.</small>
+            </span>
+          </label>
+        </div>
+        <div class="form-group full-width" id="add-orgao-origem-wrap" style="display:none">
+          <label class="form-label">Órgão de origem *</label>
+          <input type="text" class="form-control" id="add-orgao-origem" placeholder="Ex: SEMUS, SETUR, COLISEU, SEMSA">
         </div>
         <div class="form-group full-width">
           <label class="form-label">Lotação *</label>
@@ -1417,7 +1460,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20260718h"></script>
+  <script type="module" src="js/app.js?v=20260719a"></script>
 
 
 
@@ -1697,14 +1740,22 @@
         </div>
         <div class="form-group">
           <label class="form-label">Tipo de Movimentação *</label>
-          <select id="cedido-tipo" class="form-control">
+          <select id="cedido-tipo" class="form-control" onchange="cedidoAtualizarCamposTipo()">
             <option value="CEDIDO">CEDIDO (Saiu da SEMCAS)</option>
             <option value="RECEBIDO">RECEBIDO (Veio para a SEMCAS)</option>
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">Órgão Origem/Destino *</label>
-          <input type="text" id="cedido-orgao" class="form-control" placeholder="Ex: SEMUS, SEMGOV, MINISTÉRIO PÚBLICO">
+          <label class="form-label" id="cedido-orgao-label">Órgão Origem/Destino *</label>
+          <input type="text" id="cedido-orgao" class="form-control" placeholder="Ex: SEMUS, SEMGOV, SETUR, COLISEU">
+          <small id="cedido-orgao-hint" style="color:var(--color-text-muted);font-size:11px">Para onde o servidor foi (CEDIDO) ou de onde veio (RECEBIDO).</small>
+        </div>
+        <div class="form-group full-width" id="cedido-lotacao-wrap">
+          <label class="form-label" id="cedido-lotacao-label">Lotação no organograma SEMCAS</label>
+          <select id="cedido-lotacao" class="form-control">
+            <option value="">Selecione a lotação…</option>
+          </select>
+          <small style="color:var(--color-text-muted);font-size:11px">RECEBIDO: unidade SEMCAS onde fica. CEDIDO: opcional (ex.: SERVIDORES CEDIDOS).</small>
         </div>
         <div class="form-group full-width">
           <label class="form-label">Observações / Detalhes (Opcional)</label>
