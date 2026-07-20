@@ -101,7 +101,7 @@ WHERE COALESCE(f.ativo, true) = false
 GRANT SELECT ON public.v_exonerados TO authenticated;
 REVOKE ALL ON public.v_exonerados FROM anon;
 
--- Servidores ativos sem lotação ativa
+-- Servidores ativos sem lotação ativa (com última função/lotação do histórico)
 CREATE OR REPLACE VIEW public.v_servidores_sem_lotacao AS
 SELECT
   f.id AS funcionario_id,
@@ -113,14 +113,32 @@ SELECT
   f.simbologia,
   f.data_admissao,
   f.observacao,
-  f.ativo
+  f.ativo,
+  fl.funcao AS ultima_funcao,
+  fl.funcao AS ultimo_cargo,
+  l.nome AS ultima_lotacao,
+  v.categoria AS ultimo_vinculo,
+  fl.data_fim AS sem_lotacao_desde,
+  fl.data_inicio AS ultima_lotacao_inicio,
+  fl.observacao AS ultima_lotacao_obs
 FROM public.funcionarios f
+LEFT JOIN LATERAL (
+  SELECT fl2.*
+  FROM public.funcionario_lotacao fl2
+  WHERE fl2.funcionario_id = f.id
+  ORDER BY
+    COALESCE(fl2.data_fim, fl2.data_inicio) DESC NULLS LAST,
+    fl2.id DESC
+  LIMIT 1
+) fl ON true
+LEFT JOIN public.lotacoes l ON l.id = fl.lotacao_id
+LEFT JOIN public.vinculos v ON v.id = fl.vinculo_id
 WHERE COALESCE(f.ativo, true) = true
   AND NOT EXISTS (
     SELECT 1
-    FROM public.funcionario_lotacao fl
-    WHERE fl.funcionario_id = f.id
-      AND fl.ativo = true
+    FROM public.funcionario_lotacao flx
+    WHERE flx.funcionario_id = f.id
+      AND flx.ativo = true
   );
 
 GRANT SELECT ON public.v_servidores_sem_lotacao TO authenticated;

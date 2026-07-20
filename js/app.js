@@ -2551,7 +2551,7 @@ $('btn-confirmar-trf').onclick = async () => {
       data_inicio: $('trf-data').value || new Date().toISOString().slice(0, 10),
       ativo: true,
       observacao: motivo || (veioDeSemLotacao
-        ? 'Alocação inicial (servidor sem lotação)'
+        ? `Alocado em ${( $('trf-data').value || new Date().toISOString().slice(0, 10) ).split('-').reverse().join('/')} a partir de Sem Lotação`
         : 'Definição de lotação original (servidor em licença)')
     }]);
     error = r.error;
@@ -2620,12 +2620,25 @@ window.verHistorico = async (id) => {
   $('hist-content').innerHTML = `
     <h4 style="color:var(--gov-blue-dark);margin-bottom:14px">${htmlEscape(nome)}</h4>
     <ul class="timeline">
-      ${data.map(h => `
+      ${(() => {
+        const temAtiva = data.some((h) => h.lotacao_ativa);
+        const ultima = data[0];
+        let extra = '';
+        if (!temAtiva && ultima?.data_fim) {
+          const desde = new Date(ultima.data_fim + 'T00:00:00').toLocaleDateString('pt-BR');
+          extra = `<li class="inactive" style="border-left-color:var(--gov-orange)">
+            <div class="periodo"><strong>ATUAL</strong> · desde ${desde}</div>
+            <div class="lot-nome" style="color:var(--gov-orange)"><i class="ti ti-map-off"></i> Sem Lotação</div>
+            <div class="meta">Aguardando alocação · última lotação: ${htmlEscape(ultima.lotacao_nome || '—')}</div>
+          </li>`;
+        }
+        return extra + data.map(h => `
         <li class="${h.lotacao_ativa ? '' : 'inactive'}">
           <div class="periodo">
             ${new Date(h.data_inicio + 'T00:00:00').toLocaleDateString('pt-BR')} —
             ${h.data_fim ? new Date(h.data_fim + 'T00:00:00').toLocaleDateString('pt-BR') : '<strong>ATUAL</strong>'}
             · ${Math.max(0, h.dias_na_lotacao)} dias
+            ${h.data_fim && !h.lotacao_ativa ? ` · <span style="color:var(--gov-orange)">saiu em ${new Date(h.data_fim + 'T00:00:00').toLocaleDateString('pt-BR')}</span>` : ''}
           </div>
           <div class="lot-nome">
             ${htmlEscape(h.lotacao_nome)}
@@ -2633,7 +2646,8 @@ window.verHistorico = async (id) => {
           </div>
           <div class="meta">${htmlEscape(h.funcao || '—')} · ${htmlEscape(h.turno || '—')}</div>
           ${h.observacao ? `<div class="meta" style="font-style:italic">${htmlEscape(h.observacao)}</div>` : ''}
-        </li>`).join('')}
+        </li>`).join('');
+      })()}
     </ul>`;
 };
 
@@ -3521,17 +3535,55 @@ async function atualizarBadgesSemLotacaoExonerados() {
 
 async function renderSemLotacao() {
   const tbody = $('tbody-sem-lotacao');
-  if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
+  if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
 
   const { data, error } = await sb.from('v_servidores_sem_lotacao')
-    .select('funcionario_id, nome, matricula, cpf, simbologia, data_admissao, email, telefone')
+    .select('funcionario_id, nome, matricula, cpf, simbologia, data_admissao, email, telefone, ultima_funcao, ultimo_cargo, ultima_lotacao, sem_lotacao_desde')
     .order('nome');
 
   if (error) {
-    if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Erro: ${htmlEscape(error.message)}. Rode sql/exonerados_e_sem_lotacao.sql no Supabase.</td></tr>`;
-    return;
+    // View antiga sem colunas novas — tenta select básico e enriquece
+    const fallback = await sb.from('v_servidores_sem_lotacao')
+      .select('funcionario_id, nome, matricula, cpf, simbologia, data_admissao, email, telefone')
+      .order('nome');
+    if (fallback.error) {
+      if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="empty-state">Erro: ${htmlEscape(fallback.error.message)}. Rode sql/atualizar_v_servidores_sem_lotacao.sql no Supabase.</td></tr>`;
+      return;
+    }
+    await enriquecerSemLotacaoComHistorico(fallback.data || []);
+    return pintarTabelaSemLotacao(fallback.data || []);
   }
 
+  pintarTabelaSemLotacao(data || []);
+}
+
+async function enriquecerSemLotacaoComHistorico(lista) {
+  const ids = lista.map((f) => f.funcionario_id).filter(Boolean);
+  if (!ids.length) return;
+  const { data: lots } = await sb.from('funcionario_lotacao')
+    .select('funcionario_id, funcao, lotacao_id, data_fim, data_inicio, ativo')
+    .in('funcionario_id', ids)
+    .order('data_inicio', { ascending: false });
+  const lotNomes = Object.fromEntries((state.lotacoes || []).map((l) => [l.id, l.nome]));
+  const porFunc = new Map();
+  for (const fl of lots || []) {
+    if (porFunc.has(fl.funcionario_id)) continue;
+    if (fl.ativo) continue;
+    porFunc.set(fl.funcionario_id, fl);
+  }
+  for (const f of lista) {
+    const fl = porFunc.get(f.funcionario_id);
+    if (!fl) continue;
+    f.ultima_funcao = fl.funcao || null;
+    f.ultimo_cargo = fl.funcao || null;
+    f.ultima_lotacao = lotNomes[fl.lotacao_id] || null;
+    f.sem_lotacao_desde = fl.data_fim || null;
+  }
+}
+
+function pintarTabelaSemLotacao(data) {
+  const tbody = $('tbody-sem-lotacao');
+  if (!tbody) return;
   let lista = data || [];
   window._semLotacaoCache = lista;
   const termo = ($('semlot-busca')?.value || '').trim().toLowerCase();
@@ -3539,7 +3591,9 @@ async function renderSemLotacao() {
     lista = lista.filter(f =>
       (f.nome || '').toLowerCase().includes(termo) ||
       String(f.matricula || '').toLowerCase().includes(termo) ||
-      String(f.cpf || '').includes(termo)
+      String(f.cpf || '').includes(termo) ||
+      (f.ultima_funcao || '').toLowerCase().includes(termo) ||
+      (f.ultima_lotacao || '').toLowerCase().includes(termo)
     );
   }
 
@@ -3547,7 +3601,7 @@ async function renderSemLotacao() {
   atualizarBadgesSemLotacaoExonerados();
 
   if (!lista.length) {
-    if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="empty-state" style="color:var(--gov-green);font-weight:600">Nenhum servidor sem lotação.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state" style="color:var(--gov-green);font-weight:600">Nenhum servidor sem lotação.</td></tr>';
     return;
   }
 
@@ -3556,16 +3610,18 @@ async function renderSemLotacao() {
     <tr>
       <td style="font-family:monospace;font-size:12px">${htmlEscape(f.matricula || '—')}</td>
       <td style="font-weight:600;color:var(--gov-blue-dark)">${htmlEscape(f.nome || '—')}</td>
+      <td style="font-size:12px">${htmlEscape(f.ultima_funcao || f.ultimo_cargo || '—')}</td>
+      <td style="font-size:12px" title="Lotação de onde o servidor saiu">${htmlEscape(f.ultima_lotacao || '—')}</td>
+      <td style="font-size:12px;font-weight:600;color:var(--gov-orange)">${fmtDt(f.sem_lotacao_desde)}</td>
       <td style="font-size:12px">${htmlEscape(f.cpf || '—')}</td>
       <td>${htmlEscape(f.simbologia || '—')}</td>
       <td style="font-size:12px">${fmtDt(f.data_admissao)}</td>
-      <td style="font-size:12px;color:var(--color-text-sec)">
-        <div>${htmlEscape(f.email || '—')}</div>
-        <div>${htmlEscape(f.telefone || '')}</div>
-      </td>
       <td style="text-align:center">
         <button class="btn-primary" style="padding:6px 10px;font-size:12px" onclick="alocarServidorSemLotacao(${f.funcionario_id})">
           <i class="ti ti-map-pin"></i> Alocar
+        </button>
+        <button class="btn-icon" style="margin-left:4px" title="Ver histórico" onclick="verHistorico(${f.funcionario_id})">
+          <i class="ti ti-history"></i>
         </button>
       </td>
     </tr>
@@ -6665,7 +6721,9 @@ function renderTabelaLicencas(lista) {
               ? `<button class="btn-primary" style="padding:6px 10px;font-size:12px" onclick="definirLotacaoLicenca(${l.funcionario_id})" title="RH: informar a lotação original do servidor">
                    <i class="ti ti-building"></i> Definir lotação
                  </button>`
-              : ''}
+              : `<button class="btn-secondary" style="padding:6px 10px;font-size:12px" onclick="enviarLicencaParaSemLotacao(${l.funcionario_id}, ${l.licenca_id || 'null'})" title="Remove a lotação atual; o servidor vai para Sem Lotação e o histórico guarda de onde veio">
+                   <i class="ti ti-map-off"></i> Sem Lotação
+                 </button>`}
             ${l.licenca_id
               ? `<button class="btn-icon" onclick="abrirEditarTipoLicenca(${l.licenca_id})" title="Editar esta licença">
                    <i class="ti ti-edit"></i> Editar
@@ -6673,6 +6731,9 @@ function renderTabelaLicencas(lista) {
               : ''}
             <button class="btn-icon" onclick="retornarAtiva(${l.licenca_id || 'null'}, ${l.funcionario_id})" title="Encerrar e Retornar à Ativa">
               <i class="ti ti-arrow-back-up"></i> Retornar à Ativa
+            </button>
+            <button class="btn-icon" onclick="verHistorico(${l.funcionario_id})" title="Ver histórico de lotações">
+              <i class="ti ti-history"></i> Histórico
             </button>
           </div>
         </td>
@@ -6683,6 +6744,66 @@ function renderTabelaLicencas(lista) {
 window.definirLotacaoLicenca = async (funcionario_id) => {
   // Usa a mesma árvore da Gestão de Lotações e permite servidor sem lotação ativa
   await abrirTransferencia(funcionario_id, { fromLicencas: true });
+};
+
+/** Remove lotação ativa → servidor vai para Sem Lotação; histórico guarda de onde veio e a data. */
+window.enviarLicencaParaSemLotacao = async (funcionario_id, licenca_id) => {
+  const lic = (window._licencasCache || []).find((l) => Number(l.funcionario_id) === Number(funcionario_id));
+  const nome = lic?.nome || 'Servidor(a)';
+  const lotNome = lic?.lotacao_nome || 'lotação atual';
+  if (!confirm(
+    `Enviar “${nome}” para Sem Lotação?\n\n` +
+    `A lotação “${lotNome}” será encerrada e ficará no histórico com a data de hoje.\n` +
+    `A licença/afastamento continua registrada.`
+  )) return;
+
+  try {
+    const { data: atuais, error: e1 } = await sb.from('funcionario_lotacao')
+      .select('id, lotacao_id, funcao, observacao, data_inicio')
+      .eq('funcionario_id', funcionario_id)
+      .eq('ativo', true);
+    if (e1) throw e1;
+    if (!atuais?.length) {
+      showToast('Este servidor já está sem lotação ativa.', 'info');
+      atualizarBadgesSemLotacaoExonerados();
+      return;
+    }
+
+    const hoje = new Date().toISOString().slice(0, 10);
+    const lotMap = Object.fromEntries((state.lotacoes || []).map((l) => [l.id, l.nome]));
+
+    for (const fl of atuais) {
+      const deOnde = lotMap[fl.lotacao_id] || 'lotação';
+      const obsBase = (fl.observacao || '').trim();
+      const obsNova = [
+        obsBase,
+        `Encerrado em ${hoje.split('-').reverse().join('/')}: enviado para Sem Lotação (via Licenças). Origem: ${deOnde}.`
+      ].filter(Boolean).join(' | ');
+
+      const { error } = await sb.from('funcionario_lotacao').update({
+        ativo: false,
+        data_fim: hoje,
+        observacao: obsNova
+      }).eq('id', fl.id);
+      if (error) throw error;
+    }
+
+    await registrarLog('ENVIO PARA SEM LOTAÇÃO', funcionario_id, nome, {
+      licenca_id: licenca_id || null,
+      lotacao_anterior: lotNome,
+      data: hoje,
+      origem: 'licencas'
+    });
+
+    showToast(`${nome} foi para Sem Lotação. O histórico guarda de onde veio.`, 'success');
+    gsInvalidarCache();
+    invalidarCacheFiltros();
+    atualizarBadgesSemLotacaoExonerados();
+    if (state.rotaAtual === 'licencas') carregarTabelaLicencas();
+    if (state.rotaAtual === 'sem-lotacao') renderSemLotacao();
+  } catch (e) {
+    showToast(e.message || String(e), 'error');
+  }
 };
 
 $('lic-search')?.addEventListener('input', debounce(() => {

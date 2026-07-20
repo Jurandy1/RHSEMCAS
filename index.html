@@ -719,7 +719,7 @@
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
           <div>
             <div class="row-label" style="margin:0"><i class="ti ti-map-off"></i> Servidores sem Lotação</div>
-            <small style="color:var(--color-text-muted)">Ativos no cadastro, mas sem lotação atual — aloque para regularizar</small>
+            <small style="color:var(--color-text-muted)">Ativos sem lotação atual — mostra cargo/função e de onde veio. Use Alocar para regularizar.</small>
           </div>
         </div>
         <div class="toolbar-filters" style="margin-bottom:12px">
@@ -733,15 +733,17 @@
                 <tr>
                   <th>Matrícula</th>
                   <th>Nome</th>
+                  <th>Cargo / Função</th>
+                  <th>Última lotação</th>
+                  <th>Sem lotação desde</th>
                   <th>CPF</th>
                   <th>Simbologia</th>
                   <th>Admissão</th>
-                  <th>E-mail / Telefone</th>
                   <th style="text-align:center">Ações</th>
                 </tr>
               </thead>
               <tbody id="tbody-sem-lotacao">
-                <tr><td colspan="7" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>
+                <tr><td colspan="9" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>
               </tbody>
             </table>
           </div>
@@ -1574,7 +1576,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20260719g"></script>
+  <script type="module" src="js/app.js?v=20260720a"></script>
 
 
 
