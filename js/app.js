@@ -3537,12 +3537,12 @@ async function renderSemLotacao() {
   const tbody = $('tbody-sem-lotacao');
   if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
 
+  let lista = [];
   const { data, error } = await sb.from('v_servidores_sem_lotacao')
     .select('funcionario_id, nome, matricula, cpf, simbologia, data_admissao, email, telefone, ultima_funcao, ultimo_cargo, ultima_lotacao, sem_lotacao_desde')
     .order('nome');
 
   if (error) {
-    // View antiga sem colunas novas — tenta select básico e enriquece
     const fallback = await sb.from('v_servidores_sem_lotacao')
       .select('funcionario_id, nome, matricula, cpf, simbologia, data_admissao, email, telefone')
       .order('nome');
@@ -3550,11 +3550,14 @@ async function renderSemLotacao() {
       if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="empty-state">Erro: ${htmlEscape(fallback.error.message)}. Rode sql/atualizar_v_servidores_sem_lotacao.sql no Supabase.</td></tr>`;
       return;
     }
-    await enriquecerSemLotacaoComHistorico(fallback.data || []);
-    return pintarTabelaSemLotacao(fallback.data || []);
+    lista = fallback.data || [];
+    await enriquecerSemLotacaoComHistorico(lista);
+  } else {
+    lista = data || [];
   }
 
-  pintarTabelaSemLotacao(data || []);
+  await enriquecerSemLotacaoComGiap(lista);
+  pintarTabelaSemLotacao(lista);
 }
 
 async function enriquecerSemLotacaoComHistorico(lista) {
@@ -3574,11 +3577,110 @@ async function enriquecerSemLotacaoComHistorico(lista) {
   for (const f of lista) {
     const fl = porFunc.get(f.funcionario_id);
     if (!fl) continue;
-    f.ultima_funcao = fl.funcao || null;
-    f.ultimo_cargo = fl.funcao || null;
-    f.ultima_lotacao = lotNomes[fl.lotacao_id] || null;
-    f.sem_lotacao_desde = fl.data_fim || null;
+    f.ultima_funcao = f.ultima_funcao || fl.funcao || null;
+    f.ultimo_cargo = f.ultimo_cargo || fl.funcao || null;
+    f.ultima_lotacao = f.ultima_lotacao || lotNomes[fl.lotacao_id] || null;
+    f.sem_lotacao_desde = f.sem_lotacao_desde || fl.data_fim || null;
   }
+}
+
+/** Quando o RH não tem função/lotação, usa cargo e lotação da folha GIAP (mesma fonte do relatório). */
+async function enriquecerSemLotacaoComGiap(lista) {
+  const precisa = (lista || []).filter(
+    (f) => !(f.ultima_funcao || f.ultimo_cargo) || !f.ultima_lotacao
+  );
+  if (!precisa.length) return;
+
+  // 1) Remunerações já gravadas no RH (por funcionario_id)
+  const ids = [...new Set(precisa.map((f) => f.funcionario_id).filter(Boolean))];
+  try {
+    for (let i = 0; i < ids.length; i += 200) {
+      const chunk = ids.slice(i, i + 200);
+      const { data: rem } = await sb.from('funcionario_remuneracoes')
+        .select('funcionario_id, cargo_origem, lotacao_giap, competencia')
+        .in('funcionario_id', chunk)
+        .order('competencia', { ascending: false });
+      const visto = new Set();
+      for (const r of rem || []) {
+        if (visto.has(r.funcionario_id)) continue;
+        visto.add(r.funcionario_id);
+        const f = lista.find((x) => x.funcionario_id === r.funcionario_id);
+        if (!f) continue;
+        if (!(f.ultima_funcao || f.ultimo_cargo) && r.cargo_origem) {
+          f.ultimo_cargo = r.cargo_origem;
+          f.ultima_funcao = r.cargo_origem;
+          f._cargoFonte = 'giap';
+        }
+        if (!f.ultima_lotacao && r.lotacao_giap) {
+          f.ultima_lotacao = r.lotacao_giap;
+          f._lotFonte = 'giap';
+        }
+      }
+    }
+  } catch (_) { /* tabela pode não existir */ }
+
+  // 2) Folha GIAP por matrícula (quem ainda falta)
+  const ainda = lista.filter((f) => !(f.ultima_funcao || f.ultimo_cargo) || !f.ultima_lotacao);
+  if (!ainda.length) return;
+
+  const mats = [...new Set(
+    ainda.map((f) => String(f.matricula || '').trim()).filter(Boolean)
+  )];
+  if (!mats.length) return;
+
+  let comp = Number($('giap-cfg-comp')?.value || 0);
+  if (!comp && typeof giapCompetenciaPadrao === 'function') {
+    comp = giapCompetenciaPadrao();
+  }
+  if (!comp) {
+    try {
+      const { data: maxRow } = await sb.from('folha_pmsl')
+        .select('competencia')
+        .order('competencia', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      comp = Number(maxRow?.competencia || 0);
+    } catch (_) { return; }
+  }
+  if (!comp) return;
+
+  try {
+    const allFolha = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await sb.from('folha_pmsl')
+        .select('matricula, cargo_origem, lotacao, competencia')
+        .eq('competencia', comp)
+        .range(from, from + 999);
+      if (error) throw error;
+      if (data?.length) allFolha.push(...data);
+      if (!data || data.length < 1000) break;
+    }
+
+    const matKey = (m) => {
+      if (typeof giapMatKey === 'function') return giapMatKey(m);
+      return String(m || '').replace(/\D/g, '').replace(/^0+/, '') || null;
+    };
+    const porMat = new Map();
+    for (const r of allFolha) {
+      const k = matKey(r.matricula);
+      if (k && !porMat.has(k)) porMat.set(k, r);
+    }
+
+    for (const f of ainda) {
+      const k = matKey(f.matricula);
+      const r = k ? porMat.get(k) : null;
+      if (!r) continue;
+      if (!(f.ultima_funcao || f.ultimo_cargo) && r.cargo_origem) {
+        f.ultimo_cargo = r.cargo_origem;
+        f.ultima_funcao = r.cargo_origem;
+        f._cargoFonte = 'giap';
+      }
+      if (!f.ultima_lotacao && r.lotacao) {
+        f.ultima_lotacao = r.lotacao;
+        f._lotFonte = 'giap';
+      }
+    }
+  } catch (_) { /* ok */ }
 }
 
 function pintarTabelaSemLotacao(data) {
@@ -3593,6 +3695,7 @@ function pintarTabelaSemLotacao(data) {
       String(f.matricula || '').toLowerCase().includes(termo) ||
       String(f.cpf || '').includes(termo) ||
       (f.ultima_funcao || '').toLowerCase().includes(termo) ||
+      (f.ultimo_cargo || '').toLowerCase().includes(termo) ||
       (f.ultima_lotacao || '').toLowerCase().includes(termo)
     );
   }
@@ -3606,12 +3709,31 @@ function pintarTabelaSemLotacao(data) {
   }
 
   const fmtDt = (s) => s ? new Date(s + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+  const cargoLbl = (f) => {
+    const c = f.ultima_funcao || f.ultimo_cargo || '';
+    if (!c) return '—';
+    const tip = f._cargoFonte === 'giap' ? ' title="Cargo da folha GIAP (sem função no RH)"' : '';
+    const tag = f._cargoFonte === 'giap'
+      ? ` <span style="font-size:10px;color:var(--color-text-muted)">(GIAP)</span>`
+      : '';
+    return `<span${tip}>${htmlEscape(c)}${tag}</span>`;
+  };
+  const lotLbl = (f) => {
+    const l = f.ultima_lotacao || '';
+    if (!l) return '—';
+    const tip = f._lotFonte === 'giap' ? ' title="Lotação da folha GIAP"' : ' title="Lotação de onde o servidor saiu"';
+    const tag = f._lotFonte === 'giap'
+      ? ` <span style="font-size:10px;color:var(--color-text-muted)">(GIAP)</span>`
+      : '';
+    return `<span${tip}>${htmlEscape(l)}${tag}</span>`;
+  };
+
   tbody.innerHTML = lista.map(f => `
     <tr>
       <td style="font-family:monospace;font-size:12px">${htmlEscape(f.matricula || '—')}</td>
       <td style="font-weight:600;color:var(--gov-blue-dark)">${htmlEscape(f.nome || '—')}</td>
-      <td style="font-size:12px">${htmlEscape(f.ultima_funcao || f.ultimo_cargo || '—')}</td>
-      <td style="font-size:12px" title="Lotação de onde o servidor saiu">${htmlEscape(f.ultima_lotacao || '—')}</td>
+      <td style="font-size:12px">${cargoLbl(f)}</td>
+      <td style="font-size:12px">${lotLbl(f)}</td>
       <td style="font-size:12px;font-weight:600;color:var(--gov-orange)">${fmtDt(f.sem_lotacao_desde)}</td>
       <td style="font-size:12px">${htmlEscape(f.cpf || '—')}</td>
       <td>${htmlEscape(f.simbologia || '—')}</td>
