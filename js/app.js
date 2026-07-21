@@ -1411,7 +1411,23 @@ $('form-usuario')?.addEventListener('submit', async (e) => {
 // ╔══════════════════════════════════════════════════════════════╗
 // ║                       FUNCIONÁRIOS                            ║
 // ╚══════════════════════════════════════════════════════════════╝
-async function renderFuncionarios() {
+async function renderFuncionarios(resto = []) {
+  // Link vindo da Conferência GIAP: abre Funcionários já filtrado.
+  if (resto[0] === 'busca' && resto[1]) {
+    let nomeBusca = '';
+    try {
+      nomeBusca = decodeURIComponent(resto.slice(1).join('/'));
+    } catch (_) {
+      nomeBusca = resto.slice(1).join(' ');
+    }
+    state.filtros = {
+      busca: nomeBusca,
+      vinculo_id: null,
+      lotacao_id: null,
+      funcoes: [],
+      turno_id: null
+    };
+  }
   state.page = 1;
   $('f-busca').value = state.filtros.busca || '';
   await atualizarOpcoesFiltros();
@@ -3756,18 +3772,19 @@ window.alocarServidorSemLotacao = async (funcionarioId) => {
 
 async function renderExonerados() {
   const tbody = $('tbody-exonerados');
-  if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
+  if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
 
   const { data, error } = await sb.from('v_exonerados')
     .select('funcionario_id, nome, matricula, data_exoneracao, funcao, lotacao_nome, vinculo, simbologia, data_admissao')
     .order('data_exoneracao', { ascending: false });
 
   if (error) {
-    if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="empty-state">Erro: ${htmlEscape(error.message)}. Rode sql/exonerados_e_sem_lotacao.sql no Supabase.</td></tr>`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="empty-state">Erro: ${htmlEscape(error.message)}. Rode sql/exonerados_e_sem_lotacao.sql no Supabase.</td></tr>`;
     return;
   }
 
   let lista = data || [];
+  window._exoneradosCache = lista;
   const termo = ($('exo-busca')?.value || '').trim().toLowerCase();
   if (termo) {
     lista = lista.filter(f =>
@@ -3780,7 +3797,7 @@ async function renderExonerados() {
   atualizarBadgesSemLotacaoExonerados();
 
   if (!lista.length) {
-    if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Nenhum servidor exonerado.</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Nenhum servidor exonerado.</td></tr>';
     return;
   }
 
@@ -3795,9 +3812,68 @@ async function renderExonerados() {
       <td>${htmlEscape(f.vinculo || '—')}</td>
       <td>${htmlEscape(f.simbologia || '—')}</td>
       <td style="font-size:12px">${fmtDt(f.data_admissao)}</td>
+      <td style="text-align:center">
+        <button
+          type="button"
+          class="btn-primary"
+          style="padding:6px 10px;font-size:12px"
+          onclick="reativarExonerado(${Number(f.funcionario_id)})"
+          title="Reativar e devolver à última lotação"
+        >
+          <i class="ti ti-user-check"></i> Reativar
+        </button>
+      </td>
     </tr>
   `).join('');
 }
+
+window.reativarExonerado = async function reativarExonerado(funcionarioId) {
+  const servidor = (window._exoneradosCache || [])
+    .find((f) => Number(f.funcionario_id) === Number(funcionarioId));
+  const nome = servidor?.nome || 'Servidor(a)';
+  const ultimaLotacao = servidor?.lotacao_nome || '';
+  const destino = ultimaLotacao || 'Sem Lotação';
+  if (!confirm(
+    `CONFIRMAR REATIVAÇÃO\n\n` +
+    `Deseja realmente desfazer a exoneração de “${nome}”?\n\n` +
+    `O servidor voltará ao quadro ativo em:\n${destino}\n\n` +
+    'Clique em OK somente se deseja confirmar esta ação.'
+  )) return;
+
+  try {
+    const hoje = new Date().toISOString().slice(0, 10);
+    const { data, error } = await sb.rpc('fn_reativar_funcionario', {
+      p_funcionario_id: Number(funcionarioId),
+      p_data_reativacao: hoje
+    });
+    if (error) throw error;
+
+    await registrarLog('EXONERAÇÃO DESFEITA / REATIVAÇÃO', Number(funcionarioId), nome, {
+      data_reativacao: hoje,
+      lotacao_restaurada: ultimaLotacao || null,
+      confirmada: true,
+      sem_lotacao: !!data?.sem_lotacao
+    });
+
+    gsInvalidarCache();
+    invalidarCacheFiltros();
+    showToast(
+      data?.sem_lotacao
+        ? `${nome} foi reativado, mas não tinha lotação anterior e foi para Sem Lotação.`
+        : `Exoneração desfeita. ${nome} voltou para ${ultimaLotacao}.`,
+      data?.sem_lotacao ? 'warning' : 'success'
+    );
+    await renderExonerados();
+    atualizarBadgesSemLotacaoExonerados();
+  } catch (e) {
+    const msg = e.message || String(e);
+    if (/fn_reativar_funcionario|schema cache|does not exist|404/i.test(msg)) {
+      showToast('Rode sql/reativar_servidor_exonerado.sql no Supabase primeiro.', 'warning');
+    } else {
+      showToast(msg, 'error');
+    }
+  }
+};
 
 document.addEventListener('input', debounce((e) => {
   if (e.target.id === 'semlot-busca') renderSemLotacao();
@@ -4255,10 +4331,21 @@ function giapFolhaRenderPagina() {
         ? '<span style="background:var(--gov-green,#2f855a);color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">OK</span>'
         : '<span style="background:#cbd5e0;color:#4a5568;padding:2px 8px;border-radius:4px;font-size:11px">—</span>';
       const mat = r.matricula != null ? String(r.matricula).trim() : '';
+      const nomeExibido = giapNomeTitulo(r.funcionario) || r.funcionario || '—';
+      const nomeRh = r._rhNome || nomeExibido;
+      const nomeHtml = r._rhId
+        ? `<a
+             href="index.html#funcionarios/busca/${htmlEscape(encodeURIComponent(nomeRh))}"
+             target="_blank"
+             rel="noopener"
+             title="Abrir este servidor em Funcionários"
+             style="color:var(--gov-blue-primary);text-decoration:underline;text-underline-offset:2px"
+           >${htmlEscape(nomeExibido)}</a>`
+        : htmlEscape(nomeExibido);
       return `<tr>
         <td style="text-align:center">${badge}</td>
         <td style="font-family:monospace;font-size:12px">${htmlEscape(mat || '—')}</td>
-        <td style="font-weight:600">${htmlEscape(giapNomeTitulo(r.funcionario) || r.funcionario || '—')}</td>
+        <td style="font-weight:600">${nomeHtml}</td>
         <td>${htmlEscape(r.lotacao || '—')}</td>
         <td>${htmlEscape(r.codigo_orgao != null ? String(r.codigo_orgao) : '—')}</td>
         <td style="font-size:12px">${giapFolhaFmtDt(r.admissao)}</td>
