@@ -2053,6 +2053,7 @@ $('btn-confirmar-remover')?.addEventListener('click', async () => {
 });
 
 window.abrirModalAddFuncionario = () => {
+  window._addFuncionarioOrigemGiap = false;
   $('add-nome').value = '';
   $('add-cpf').value = '';
   $('add-matricula').value = '';
@@ -2075,6 +2076,45 @@ window.abrirModalAddFuncionario = () => {
   openModal('modal-add-funcionario');
   setTimeout(() => $('add-nome').focus(), 100);
 };
+
+async function buscarFuncionarioDuplicado({ nome, cpf, matricula }) {
+  const nomeBusca = String(nome || '').trim();
+  const cpfBusca = String(cpf || '').trim();
+  const matBusca = String(matricula || '').trim();
+  const consultas = [];
+
+  if (matBusca) {
+    consultas.push(sb.from('funcionarios')
+      .select('id, nome, cpf, matricula, ativo')
+      .eq('matricula', matBusca)
+      .limit(5));
+  }
+  if (cpfBusca) {
+    consultas.push(sb.from('funcionarios')
+      .select('id, nome, cpf, matricula, ativo')
+      .eq('cpf', cpfBusca)
+      .limit(5));
+  }
+  if (nomeBusca) {
+    consultas.push(sb.from('funcionarios')
+      .select('id, nome, cpf, matricula, ativo')
+      .ilike('nome', sanitizarTermoFiltro(nomeBusca))
+      .limit(5));
+  }
+
+  const resultados = await Promise.all(consultas);
+  const encontrados = new Map();
+  for (const resultado of resultados) {
+    if (resultado.error) throw resultado.error;
+    for (const f of resultado.data || []) encontrados.set(f.id, f);
+  }
+
+  return [...encontrados.values()].find((f) =>
+    (matBusca && giapMatKey(f.matricula) === giapMatKey(matBusca))
+    || (cpfBusca && soDigitos(f.cpf) === soDigitos(cpfBusca))
+    || (nomeBusca && giapNormNome(f.nome) === giapNormNome(nomeBusca))
+  ) || null;
+}
 
 window.addToggleOutraSecretaria = function addToggleOutraSecretaria() {
   const on = !!$('add-outra-secretaria')?.checked;
@@ -2101,25 +2141,25 @@ $('btn-salvar-add').onclick = async () => {
   const cpfVal = $('add-cpf').value.trim();
   const matVal = $('add-matricula').value.trim();
   
-  if (cpfVal || matVal) {
-    let query = sb.from('funcionarios').select('id, nome, cpf, matricula, ativo');
-    if (cpfVal && matVal) {
-      query = query.or(`cpf.eq."${sanitizarTermoFiltro(cpfVal)}",matricula.eq."${sanitizarTermoFiltro(matVal)}"`);
-    } else if (cpfVal) {
-      query = query.eq('cpf', cpfVal);
-    } else {
-      query = query.eq('matricula', matVal);
+  try {
+    const d = await buscarFuncionarioDuplicado({
+      nome,
+      cpf: cpfVal,
+      matricula: matVal
+    });
+    if (d) {
+      const identificador = matVal && giapMatKey(d.matricula) === giapMatKey(matVal)
+        ? 'matrícula'
+        : (giapNormNome(d.nome) === giapNormNome(nome) ? 'nome' : 'CPF');
+      return showToast(
+        d.ativo === false
+          ? `${d.nome} já está cadastrado com o mesmo ${identificador}, mas está INATIVO.`
+          : `${d.nome} já está cadastrado com o mesmo ${identificador}.`,
+        'error'
+      );
     }
-    
-    const { data: dups } = await query;
-    if (dups && dups.length > 0) {
-      const d = dups[0];
-      if (d.ativo === false) {
-        return showToast(`O servidor ${d.nome} já possui este CPF/Matrícula, mas está INATIVO.`, 'error');
-      } else {
-        return showToast(`Já existe um servidor com esse CPF ou Matrícula: ${d.nome}`, 'error');
-      }
-    }
+  } catch (e) {
+    return showToast('Não foi possível verificar duplicidade: ' + (e.message || e), 'error');
   }
 
   const btn = $('btn-salvar-add');
@@ -2198,6 +2238,11 @@ $('btn-salvar-add').onclick = async () => {
   );
   closeModal('modal-add-funcionario');
   carregarFuncionarios();
+  if (window._addFuncionarioOrigemGiap) {
+    giapInvalidarMapaRh();
+    await giapCarregarFolhaTabela();
+    window._addFuncionarioOrigemGiap = false;
+  }
 };
 
 window.abrirEdicao = async (id) => {
@@ -4061,6 +4106,10 @@ function giapFolhaFindRow(mat) {
   return _giapFolha.rows.find((r) => String(r.matricula ?? '').trim() === key) || null;
 }
 
+function giapFolhaFindRowByKey(rowKey) {
+  return _giapFolha.rows.find((r) => r._rowKey === String(rowKey || '')) || null;
+}
+
 /** Compara grafia real (ignora MAIÚSCULA do GIAP, acentos, JR/Júnior). */
 function giapNomeMesmaGrafia(giapNome, rhNome) {
   if (!giapNome || !rhNome) return true;
@@ -4217,7 +4266,8 @@ function giapFolhaHtmlCorrecao(r) {
 function giapFolhaHtmlAcoes(r) {
   const c = r._correcao || giapFolhaDetectarCorrecoes(r);
   if (c.sem_vinculo) {
-    return '<span style="font-size:11px;color:var(--color-text-muted)">—</span>';
+    const rowKey = JSON.stringify(r._rowKey || '');
+    return `<button type="button" class="btn-primary" style="padding:4px 8px;font-size:11px;white-space:nowrap" title="Verificar matrícula e nome antes de abrir o cadastro" onclick='giapAdicionarServidor(${rowKey})'><i class="ti ti-user-plus"></i> Adicionar servidor</button>`;
   }
   const matKey = JSON.stringify(c.matG || String(r.matricula ?? '').trim());
   const btns = [];
@@ -4660,7 +4710,7 @@ async function giapCarregarFolhaTabela() {
     }
 
     let okCount = 0;
-    const rows = (folha || []).map((r) => {
+    const rows = (folha || []).map((r, index) => {
       const mat = r.matricula != null ? String(r.matricula).trim() : '';
       const matKey = giapMatKey(mat);
       const folhaSemcas = giapEhFolhaSemcas(r);
@@ -4695,6 +4745,7 @@ async function giapCarregarFolhaTabela() {
       const rhFuncao = rh ? (funcaoPorId.get(rh.id) || null) : null;
       const row = {
         ...r,
+        _rowKey: `${comp}:${matKey || 'sem-mat'}:${giapNormNome(r.funcionario)}:${index}`,
         _ok: ok,
         _folhaSemcas: folhaSemcas,
         _outraSecretaria: !folhaSemcas,
@@ -4735,6 +4786,42 @@ async function giapCarregarFolhaTabela() {
     tbody.innerHTML = `<tr><td colspan="13" class="empty-state">Erro: ${htmlEscape(e.message || e)}</td></tr>`;
   }
 }
+
+window.giapAdicionarServidor = async function giapAdicionarServidor(rowKey) {
+  const r = giapFolhaFindRowByKey(rowKey);
+  if (!r) return showToast('Registro GIAP não encontrado. Atualize a página e tente novamente.', 'error');
+
+  const nome = giapNomeTitulo(r.funcionario) || String(r.funcionario || '').trim();
+  const matricula = String(r.matricula || '').trim();
+  if (!nome) return showToast('O registro GIAP não possui nome para cadastrar.', 'warning');
+
+  try {
+    const duplicado = await buscarFuncionarioDuplicado({
+      nome,
+      matricula,
+      cpf: String(r.cpf || '').trim()
+    });
+    if (duplicado) {
+      giapInvalidarMapaRh();
+      await giapCarregarFolhaTabela();
+      return showToast(
+        `${duplicado.nome} já existe no sistema${duplicado.matricula ? ` (matrícula ${duplicado.matricula})` : ''}${duplicado.ativo === false ? ' e está inativo' : ''}. Cadastro não aberto.`,
+        'warning'
+      );
+    }
+
+    abrirModalAddFuncionario();
+    window._addFuncionarioOrigemGiap = true;
+    $('add-nome').value = nome;
+    $('add-matricula').value = matricula;
+    $('add-cpf').value = String(r.cpf || '').trim();
+    $('add-admissao').value = giapDataISO(r.admissao);
+    $('add-funcao').value = String(r.cargo_origem || '').trim();
+    showToast('Dados do GIAP preenchidos. Informe Lotação e Vínculo para concluir.', 'info');
+  } catch (e) {
+    showToast('Erro ao verificar matrícula e nome: ' + (e.message || e), 'error');
+  }
+};
 
 async function giapMarcarCompetenciaBuscada(comp) {
   const c = Number(comp);
