@@ -3867,10 +3867,14 @@ window.reativarExonerado = async function reativarExonerado(funcionarioId) {
     atualizarBadgesSemLotacaoExonerados();
   } catch (e) {
     const msg = e.message || String(e);
-    if (/fn_reativar_funcionario|schema cache|does not exist|404/i.test(msg)) {
-      showToast('Rode sql/reativar_servidor_exonerado.sql no Supabase primeiro.', 'warning');
+    const detalhes = [e.details, e.hint, e.code].filter(Boolean).join(' | ');
+    if (/schema cache|does not exist|PGRST202|404/i.test(`${msg} ${detalhes}`)) {
+      showToast(
+        `Função não encontrada no Supabase. Rode sql/reativar_servidor_exonerado.sql e tente de novo. (${msg})`,
+        'warning'
+      );
     } else {
-      showToast(msg, 'error');
+      showToast(detalhes ? `${msg} — ${detalhes}` : msg, 'error');
     }
   }
 };

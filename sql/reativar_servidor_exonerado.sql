@@ -3,6 +3,24 @@
 -- Cole no Supabase → SQL Editor → Run
 -- =====================================================================
 
+-- Remove qualquer versão antiga (assinaturas diferentes causam ambiguidade
+-- no PostgREST e o app acusa "função não encontrada").
+DO $cleanup$
+DECLARE
+  r record;
+BEGIN
+  FOR r IN
+    SELECT p.oid::regprocedure AS assinatura
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'fn_reativar_funcionario'
+  LOOP
+    EXECUTE format('DROP FUNCTION %s', r.assinatura);
+  END LOOP;
+END
+$cleanup$;
+
 CREATE OR REPLACE FUNCTION public.fn_reativar_funcionario(
   p_funcionario_id bigint,
   p_data_reativacao date DEFAULT CURRENT_DATE
@@ -84,3 +102,6 @@ $$;
 
 REVOKE ALL ON FUNCTION public.fn_reativar_funcionario(bigint, date) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.fn_reativar_funcionario(bigint, date) TO authenticated;
+
+-- Força o PostgREST a recarregar o cache de schema imediatamente
+NOTIFY pgrst, 'reload schema';
