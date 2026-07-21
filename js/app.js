@@ -147,6 +147,7 @@ async function carregarPerfilUsuario() {
 
   const coordenadora = state.perfilUsuario?.perfil === 'coordenador' && state.perfilUsuario?.ativo !== false;
   $('nav-usuarios')?.classList.toggle('hidden', !coordenadora);
+  $('nav-relatorio-api')?.classList.toggle('hidden', !coordenadora);
   $('btn-editar-meu-nome')?.classList.toggle('hidden', !coordenadora);
 
   if (state.perfilUsuario?.nome) {
@@ -906,9 +907,14 @@ function navigate() {
   if (!state.authenticated) return;
   const hash = (location.hash || '#painel').slice(1);
   const [rota, ...resto] = hash.split('/');
-  if (rota === 'usuarios' && state.perfilUsuario?.perfil !== 'coordenador') {
+  if (rota === 'usuarios' && !usuarioEhCoordenador()) {
     location.hash = '#painel';
     showToast('Apenas a coordenadora pode gerenciar usuários.', 'warning');
+    return;
+  }
+  if (rota === 'relatorio-api' && !usuarioEhCoordenador()) {
+    location.hash = '#painel';
+    showToast('Apenas a coordenadora pode acessar a Conferência GIAP.', 'warning');
     return;
   }
   const def = rotas[rota] || rotas['painel'];
@@ -5107,6 +5113,10 @@ async function giapLimparFolhaNaoSemcas() {
 window.giapLimparFolhaNaoSemcas = giapLimparFolhaNaoSemcas;
 
 async function renderRelatorioApi() {
+  if (!usuarioEhCoordenador()) {
+    location.hash = '#painel';
+    return;
+  }
   giapBindBotoes();
 
   const nLimpou = await giapLimparFolhaNaoSemcas();
