@@ -3940,6 +3940,8 @@ document.addEventListener('input', debounce((e) => {
 // ╚══════════════════════════════════════════════════════════════╝
 let _giapPollTimer = null;
 let _giapJobId = null;
+/** Continua “Buscar e gravar folha” em lotes até não restar ninguém pendente. */
+let _giapAutoContinuarFolha = false;
 
 /**
  * Competência YYYYMM alvo.
@@ -4090,10 +4092,12 @@ function giapNomeTitulo(s) {
 }
 
 function giapFiltrosBusca() {
+  // Padrão: puxar TODOS que faltam (com e sem matrícula).
+  // Opções só priorizam ou restringem — não é preciso marcar nada.
   return {
     soSemMatricula: !!$('giap-opt-sem-matricula')?.checked,
     soSemAdmissao: !!$('giap-opt-sem-admissao')?.checked,
-    incluirComMatricula: !!$('giap-opt-com-matricula')?.checked
+    incluirComMatricula: true
   };
 }
 
@@ -5796,6 +5800,17 @@ window.giapCarregarFaltandoFolha = async function giapCarregarFaltandoFolha() {
   }
 }
 
+function giapSetPararFolhaVisible(show) {
+  const btn = $('giap-btn-parar-folha');
+  if (btn) btn.style.display = show ? '' : 'none';
+}
+
+window.giapPararBuscaFolha = function giapPararBuscaFolha() {
+  _giapAutoContinuarFolha = false;
+  giapSetPararFolhaVisible(false);
+  showToast('Parando após o lote atual. Não inicia próximo lote.', 'info');
+};
+
 function giapIniciarPoll(jobId) {
   if (_giapPollTimer) clearInterval(_giapPollTimer);
   const iniciadoEm = Date.now();
@@ -5812,6 +5827,8 @@ function giapIniciarPoll(jobId) {
       if (Date.now() - iniciadoEm > MAX_POLL_MS) {
         clearInterval(_giapPollTimer);
         _giapPollTimer = null;
+        _giapAutoContinuarFolha = false;
+        giapSetPararFolhaVisible(false);
         showToast('Job ainda em andamento no servidor, ou o Render reiniciou. Atualize a página.', 'info');
         return;
       }
@@ -5822,25 +5839,63 @@ function giapIniciarPoll(jobId) {
         clearInterval(_giapPollTimer);
         _giapPollTimer = null;
         if (job.status === 'done') {
-          showToast('Buscas da competência gravadas na folha.', 'success');
-          if (job.competencia) await giapMarcarCompetenciaBuscada(job.competencia);
+          const pendentes = Number(job.resumo?.sync?.buscas_nome_pendentes || 0);
+          const nesteLote = Number(job.resumo?.sync?.buscas_nome || 0);
+          if (job.competencia && pendentes === 0) {
+            await giapMarcarCompetenciaBuscada(job.competencia);
+          }
           await sincronizarRemuneracoesGiap({ competencia: job.competencia, silencioso: true });
+
+          if (_giapAutoContinuarFolha && pendentes > 0) {
+            showToast(
+              `Lote ok (${nesteLote} nome(s)). Ainda faltam ~${pendentes}. Continuando…`,
+              'info'
+            );
+            setTimeout(() => {
+              if (_giapAutoContinuarFolha) giapRodarCiclo({ continuar: true });
+            }, 2500);
+            return;
+          }
+
+          _giapAutoContinuarFolha = false;
+          giapSetPararFolhaVisible(false);
+          showToast(
+            pendentes > 0
+              ? `Lote concluído. Ainda faltam ~${pendentes} — clique de novo em Buscar e gravar folha.`
+              : 'Buscas da competência gravadas na folha.',
+            pendentes > 0 ? 'info' : 'success'
+          );
         }
-        if (job.status === 'error') showToast(`Job GIAP falhou: ${job.erro || 'erro'}`, 'error');
+        if (job.status === 'error') {
+          _giapAutoContinuarFolha = false;
+          giapSetPararFolhaVisible(false);
+          showToast(`Job GIAP falhou: ${job.erro || 'erro'}`, 'error');
+        }
+        if (job.status === 'cancelled') {
+          _giapAutoContinuarFolha = false;
+          giapSetPararFolhaVisible(false);
+        }
         renderRelatorioApi();
       }
     } catch (_) { /* ignore */ }
   }, 2000);
 }
 
-window.giapRodarCiclo = async function giapRodarCiclo() {
+window.giapRodarCiclo = async function giapRodarCiclo(opts = {}) {
   const btn = $('giap-btn-run');
   if (btn) btn.disabled = true;
   try {
+    if (!opts.continuar) _giapAutoContinuarFolha = true;
+    giapSetPararFolhaVisible(true);
     const competencia = Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
     const filtros = giapFiltrosBusca();
     giapProgressoLocal(`Iniciando busca da competência ${competencia}…`, 'chamando_api');
-    showToast(`Buscando e gravando folha ${competencia}…`, 'info');
+    showToast(
+      opts.continuar
+        ? `Próximo lote da folha ${competencia}…`
+        : `Buscando folha ${competencia} (continua em lotes até completar)…`,
+      'info'
+    );
     const data = await giapProxy('start_job', {
       tipo: 'sync_orgao',
       competencia,
@@ -5854,6 +5909,8 @@ window.giapRodarCiclo = async function giapRodarCiclo() {
     giapIniciarPoll(job.id);
   } catch (e) {
     console.error('[GIAP] Buscar e gravar:', e);
+    _giapAutoContinuarFolha = false;
+    giapSetPararFolhaVisible(false);
     giapPintarProgresso({
       id: null,
       progresso_pct: 0,

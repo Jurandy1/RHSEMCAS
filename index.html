@@ -798,6 +798,9 @@
             <button type="button" class="btn-primary" id="giap-btn-run">
               <i class="ti ti-cloud-download"></i> Buscar e gravar folha
             </button>
+            <button type="button" class="btn-secondary" id="giap-btn-parar-folha" onclick="giapPararBuscaFolha()" style="display:none" title="Interrompe a sequência automática de lotes">
+              Parar lotes
+            </button>
             <button type="button" class="btn-secondary" id="giap-btn-puxar-cedidos" onclick="giapPuxarCedidos()">
               <i class="ti ti-arrows-left-right"></i> Puxar Cedidos/Recebidos
             </button>
@@ -818,15 +821,13 @@
               <input type="checkbox" id="giap-opt-sem-admissao">
               Só quem está <strong>sem data de admissão</strong>
             </label>
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-              <input type="checkbox" id="giap-opt-com-matricula" checked>
-              Incluir quem já tem matrícula mas <strong>ainda não está na folha</strong>
-            </label>
           </div>
           <small style="display:block;margin-top:10px;color:var(--color-text-muted)">
-            Quem já tem matrícula no RH (ex.: seu nome) também precisa ser puxado se ainda não apareceu na tabela.
-            Exceto Terceirizado e PROCAD. Use <strong>Puxar na API</strong> abaixo para buscar um nome na hora.
-            <br>Plano free do Render (~512MB): cada clique processa ~8 nomes. Se der OOM, clique de novo — quem já entrou na folha é pulado.
+            <strong>Não precisa marcar nada para puxar todos.</strong>
+            O padrão já busca <em>todo mundo</em> do RH que ainda não está na folha (com ou sem matrícula),
+            exceto Terceirizado e PROCAD. As opções acima só priorizam ou restringem.
+            <br>Plano free do Render (~512MB): cada lote processa ~8 nomes. Ao clicar em
+            <strong>Buscar e gravar folha</strong>, o sistema <strong>continua sozinho</strong> nos próximos lotes até completar (use <strong>Parar lotes</strong> para interromper).
           </small>
         </div>
 
@@ -1582,7 +1583,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20260726a"></script>
+  <script type="module" src="js/app.js?v=20260726b"></script>
 
 
 
