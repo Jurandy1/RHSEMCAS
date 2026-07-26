@@ -855,16 +855,21 @@
               Ativar verificação automática
             </label>
             <div class="filter-field">
-              <label for="giap-cfg-dia">Dia do mês</label>
-              <input type="number" id="giap-cfg-dia" class="form-control" min="1" max="28" value="27" style="width:80px">
+              <label for="giap-cfg-dia">Início da verificação (dia)</label>
+              <input type="number" id="giap-cfg-dia" class="form-control" min="1" max="31" value="20" style="width:80px">
             </div>
             <div class="filter-field">
               <label for="giap-cfg-comp">Competência alvo (YYYYMM)</label>
-              <input type="number" id="giap-cfg-comp" class="form-control" placeholder="ex: 202606" style="width:120px">
+              <input type="number" id="giap-cfg-comp" class="form-control" placeholder="ex: 202607" style="width:120px">
             </div>
             <button type="button" class="btn-secondary" onclick="giapSalvarConfig()"><i class="ti ti-device-floppy"></i> Salvar</button>
           </div>
-          <small style="display:block;margin-top:10px;color:var(--color-text-muted)">No dia configurado (padrão 27), o Railway chama a API se o automático estiver ligado. Competência padrão = mês anterior à data da execução.</small>
+          <small style="display:block;margin-top:10px;color:var(--color-text-muted)">
+            Com o automático ligado, <strong>a partir do dia configurado até o fim do mês</strong> (padrão 20–31)
+            o serviço tenta a <strong>competência do mês corrente</strong> todos os dias até a folha nova aparecer
+            (ex.: em julho → <code>202607</code>). Antes do dia 20, a competência sugerida continua sendo o mês anterior.
+            O campo de competência é atualizado sozinho ao abrir esta tela.
+          </small>
         </div>
 
         <div class="card">
@@ -1577,7 +1582,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20260721b"></script>
+  <script type="module" src="js/app.js?v=20260726a"></script>
 
 
 

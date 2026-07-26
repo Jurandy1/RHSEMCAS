@@ -3941,12 +3941,39 @@ document.addEventListener('input', debounce((e) => {
 let _giapPollTimer = null;
 let _giapJobId = null;
 
-function giapCompetenciaPadrao() {
-  const d = new Date();
+/**
+ * Competência YYYYMM alvo.
+ * Dias 1–19: mês anterior. Dias 20–31: mês corrente (folha costuma sair no fim do mês).
+ * Ex.: em 26/07/2026 → 202607.
+ */
+function giapCompetenciaPadrao(refDate = new Date()) {
+  const d = refDate instanceof Date ? refDate : new Date();
+  const dia = d.getDate();
   let y = d.getFullYear();
-  let m = d.getMonth(); // 0 = jan → competência mês anterior
-  if (m === 0) { m = 12; y -= 1; }
+  let m = d.getMonth() + 1; // 1–12
+  if (dia < 20) {
+    m -= 1;
+    if (m < 1) {
+      m = 12;
+      y -= 1;
+    }
+  }
   return y * 100 + m;
+}
+
+/** Escolhe a competência mais recente entre a sugerida e o que já existe em folha_pmsl. */
+async function giapResolverCompetencia() {
+  const sugerida = giapCompetenciaPadrao();
+  let maxFolha = 0;
+  try {
+    const { data } = await sb.from('folha_pmsl')
+      .select('competencia')
+      .order('competencia', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    maxFolha = Number(data?.competencia || 0);
+  } catch (_) { /* ok */ }
+  return Math.max(sugerida, maxFolha || 0);
 }
 
 async function giapProxy(acao, extra = {}) {
@@ -5165,9 +5192,13 @@ async function renderRelatorioApi() {
   try {
     const { data: cfg } = await sb.from('giap_config').select('*').eq('id', 1).maybeSingle();
     if ($('giap-cfg-auto')) $('giap-cfg-auto').checked = !!cfg?.automatico;
-    if ($('giap-cfg-dia')) $('giap-cfg-dia').value = cfg?.dia_mes ?? 27;
-    if ($('giap-cfg-comp') && !$('giap-cfg-comp').value) {
-      $('giap-cfg-comp').value = giapCompetenciaPadrao();
+    if ($('giap-cfg-dia')) $('giap-cfg-dia').value = cfg?.dia_mes ?? 20;
+    const compResolvida = await giapResolverCompetencia();
+    if ($('giap-cfg-comp')) {
+      // Sempre atualiza para a competência vigente (não fica presa no mês antigo)
+      $('giap-cfg-comp').value = compResolvida;
+      $('giap-cfg-comp').title =
+        'Atualizada automaticamente: dias 20–31 = mês corrente; antes disso = mês anterior. Pode alterar manualmente se precisar.';
     }
     giapPintarBadgeCompetencia(cfg);
   } catch (_) { /* ok */ }
@@ -5875,7 +5906,7 @@ window.giapBuscarDemissoes = async function giapBuscarDemissoes() {
 window.giapSalvarConfig = async function giapSalvarConfig() {
   try {
     const automatico = !!$('giap-cfg-auto')?.checked;
-    const dia_mes = Math.min(28, Math.max(1, Number($('giap-cfg-dia')?.value || 27)));
+    const dia_mes = Math.min(31, Math.max(1, Number($('giap-cfg-dia')?.value || 20)));
     const { data: sess } = await sb.auth.getSession();
     const { error } = await sb.from('giap_config').upsert({
       id: 1,
@@ -5885,7 +5916,13 @@ window.giapSalvarConfig = async function giapSalvarConfig() {
       updated_by: sess?.session?.user?.id || null
     });
     if (error) throw error;
-    showToast('Configuração salva.', 'success');
+    if ($('giap-cfg-dia')) $('giap-cfg-dia').value = dia_mes;
+    showToast(
+      automatico
+        ? `Automático ligado: a partir do dia ${dia_mes} o sistema tenta a competência do mês até a folha sair.`
+        : 'Configuração salva.',
+      'success'
+    );
   } catch (e) {
     showToast(e.message || String(e), 'error');
   }
