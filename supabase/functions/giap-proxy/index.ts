@@ -74,6 +74,20 @@ Deno.serve(async (req) => {
       return json(data, 202)
     }
 
+    if (acao === 'parar_cadeia') {
+      const r = await fetch(`${giapUrl}/jobs/parar-cadeia`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': giapKey,
+        },
+        body: JSON.stringify({}),
+      })
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) return json({ error: data.error || `GIAP HTTP ${r.status}` }, r.status)
+      return json(data)
+    }
+
     if (acao === 'job_status') {
       const id = body.jobId
       if (!id) return json({ error: 'jobId obrigatório' }, 400)

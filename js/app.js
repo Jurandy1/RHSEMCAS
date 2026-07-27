@@ -4092,12 +4092,12 @@ function giapNomeTitulo(s) {
 }
 
 function giapFiltrosBusca() {
-  // Padrão: puxar TODOS que faltam (com e sem matrícula).
-  // Opções só priorizam ou restringem — não é preciso marcar nada.
+  // Padrão: puxar TODOS que faltam (com e sem matrícula) e continuar no servidor.
   return {
     soSemMatricula: !!$('giap-opt-sem-matricula')?.checked,
     soSemAdmissao: !!$('giap-opt-sem-admissao')?.checked,
-    incluirComMatricula: true
+    incluirComMatricula: true,
+    continuarAteCompletar: true
   };
 }
 
@@ -5805,17 +5805,40 @@ function giapSetPararFolhaVisible(show) {
   if (btn) btn.style.display = show ? '' : 'none';
 }
 
-window.giapPararBuscaFolha = function giapPararBuscaFolha() {
+window.giapPararBuscaFolha = async function giapPararBuscaFolha() {
   _giapAutoContinuarFolha = false;
   giapSetPararFolhaVisible(false);
-  showToast('Parando após o lote atual. Não inicia próximo lote.', 'info');
+  try {
+    await giapProxy('parar_cadeia', {});
+    showToast('Parado: o lote atual termina e o servidor não inicia o próximo.', 'info');
+  } catch (e) {
+    showToast('Aviso: não confirmou o stop no servidor. ' + (e.message || e), 'warning');
+  }
 };
+
+async function giapAcompanharProximoJobServidor(competencia) {
+  try {
+    const { data: jobs } = await sb.from('giap_jobs')
+      .select('*')
+      .eq('competencia', Number(competencia))
+      .in('status', ['pending', 'running'])
+      .order('id', { ascending: false })
+      .limit(1);
+    const prox = jobs?.[0];
+    if (prox?.id) {
+      _giapJobId = prox.id;
+      giapPintarProgresso(prox);
+      giapIniciarPoll(prox.id);
+      return true;
+    }
+  } catch (_) { /* ok */ }
+  return false;
+}
 
 function giapIniciarPoll(jobId) {
   if (_giapPollTimer) clearInterval(_giapPollTimer);
   const iniciadoEm = Date.now();
   const MAX_POLL_MS = 50 * 60 * 1000; // 50 min
-  // 1ª leitura imediata (não espera 2,5s)
   (async () => {
     try {
       const { data: job } = await sb.from('giap_jobs').select('*').eq('id', jobId).maybeSingle();
@@ -5827,9 +5850,8 @@ function giapIniciarPoll(jobId) {
       if (Date.now() - iniciadoEm > MAX_POLL_MS) {
         clearInterval(_giapPollTimer);
         _giapPollTimer = null;
-        _giapAutoContinuarFolha = false;
         giapSetPararFolhaVisible(false);
-        showToast('Job ainda em andamento no servidor, ou o Render reiniciou. Atualize a página.', 'info');
+        showToast('Acompanhe pelo progresso ao reabrir a página — o servidor pode continuar sozinho.', 'info');
         return;
       }
       const { data: job } = await sb.from('giap_jobs').select('*').eq('id', jobId).maybeSingle();
@@ -5841,19 +5863,25 @@ function giapIniciarPoll(jobId) {
         if (job.status === 'done') {
           const pendentes = Number(job.resumo?.sync?.buscas_nome_pendentes || 0);
           const nesteLote = Number(job.resumo?.sync?.buscas_nome || 0);
+          const servidorContinua = !!job.resumo?.continuara || pendentes > 0;
           if (job.competencia && pendentes === 0) {
             await giapMarcarCompetenciaBuscada(job.competencia);
           }
           await sincronizarRemuneracoesGiap({ competencia: job.competencia, silencioso: true });
 
-          if (_giapAutoContinuarFolha && pendentes > 0) {
+          if (servidorContinua && pendentes > 0 && _giapAutoContinuarFolha) {
             showToast(
-              `Lote ok (${nesteLote} nome(s)). Ainda faltam ~${pendentes}. Continuando…`,
+              `Lote ok (${nesteLote}). Faltam ~${pendentes}. Servidor continua em 2º plano — pode fechar o navegador.`,
               'info'
             );
-            setTimeout(() => {
-              if (_giapAutoContinuarFolha) giapRodarCiclo({ continuar: true });
-            }, 2500);
+            // Espera o Render agendar o próximo (~10s) e acompanha se a aba ainda estiver aberta
+            setTimeout(async () => {
+              const ok = await giapAcompanharProximoJobServidor(job.competencia);
+              if (!ok) {
+                giapSetPararFolhaVisible(false);
+                renderRelatorioApi();
+              }
+            }, 12000);
             return;
           }
 
@@ -5861,7 +5889,7 @@ function giapIniciarPoll(jobId) {
           giapSetPararFolhaVisible(false);
           showToast(
             pendentes > 0
-              ? `Lote concluído. Ainda faltam ~${pendentes} — clique de novo em Buscar e gravar folha.`
+              ? `Lote concluído. Ainda faltam ~${pendentes}. Se o servidor não seguiu, clique de novo em Buscar e gravar folha.`
               : 'Buscas da competência gravadas na folha.',
             pendentes > 0 ? 'info' : 'success'
           );
@@ -5885,15 +5913,13 @@ window.giapRodarCiclo = async function giapRodarCiclo(opts = {}) {
   const btn = $('giap-btn-run');
   if (btn) btn.disabled = true;
   try {
-    if (!opts.continuar) _giapAutoContinuarFolha = true;
+    _giapAutoContinuarFolha = true;
     giapSetPararFolhaVisible(true);
     const competencia = Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
     const filtros = giapFiltrosBusca();
     giapProgressoLocal(`Iniciando busca da competência ${competencia}…`, 'chamando_api');
     showToast(
-      opts.continuar
-        ? `Próximo lote da folha ${competencia}…`
-        : `Buscando folha ${competencia} (continua em lotes até completar)…`,
+      `Buscando folha ${competencia} em 2º plano no servidor. Pode fechar o navegador — os lotes continuam sozinhos.`,
       'info'
     );
     const data = await giapProxy('start_job', {
