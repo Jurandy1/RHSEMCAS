@@ -5552,7 +5552,7 @@ window.giapPuxarTodosVasculha = async function giapPuxarTodosVasculha(opts = {})
     return showToast('Ninguém pendente na Vasculha para puxar.', 'info');
   }
 
-  const loteSize = Math.max(1, Math.min(15, Number($('giap-vasculha-lote')?.value || 8)));
+  const loteSize = Math.max(1, Math.min(8, Number($('giap-vasculha-lote')?.value || 3)));
   const totalGeral = fila.length;
   const nLotes = Math.ceil(totalGeral / loteSize);
   const okConfirm = confirm(
