@@ -4092,11 +4092,8 @@ function giapNomeTitulo(s) {
 }
 
 function giapFiltrosBusca() {
-  // Padrão: puxar TODOS que faltam (com e sem matrícula) e continuar no servidor.
+  // Sempre todos os servidores do RH que ainda faltam na folha.
   return {
-    soSemMatricula: !!$('giap-opt-sem-matricula')?.checked,
-    soSemAdmissao: !!$('giap-opt-sem-admissao')?.checked,
-    incluirComMatricula: true,
     continuarAteCompletar: true
   };
 }
