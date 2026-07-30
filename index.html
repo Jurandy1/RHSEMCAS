@@ -973,22 +973,26 @@
             <div class="row-label" style="margin:0"><i class="ti ti-list-check"></i> Vasculha — RH fora dos Resultados</div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <span class="filter-result-count" id="giap-faltando-count"></span>
-              <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--color-text-muted)" title="Máx. por lote (Render free ~3 para evitar OOM)">
-                Lote
-                <select id="giap-vasculha-lote" class="form-control" style="width:auto;padding:4px 8px;font-size:12px">
-                  <option value="3" selected>3</option>
-                  <option value="5">5</option>
-                  <option value="8">8</option>
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--color-text-muted)" title="Até onde a API desce se não achar no mês atual">
+                Até
+                <select id="giap-rastreio-meses" class="form-control" style="width:auto;padding:4px 8px;font-size:12px">
+                  <option value="202601" selected>jan/2026</option>
+                  <option value="3">3 meses</option>
+                  <option value="6">6 meses</option>
+                  <option value="12">12 meses</option>
                 </select>
               </label>
-              <button type="button" class="btn-primary" id="giap-btn-vasculha-puxar-todos" onclick="giapPuxarTodosVasculha()" title="Puxa a fila em lotes (respeita o limite do Render)">
-                <i class="ti ti-cloud-download"></i> Puxar todos
+              <button type="button" class="btn-primary" id="giap-btn-vasculha-puxar-todos" onclick="giapPuxarFaltantesCascata()" title="Puxa na API só quem ainda não foi rastreado: mês atual → mais antigo até o limite">
+                <i class="ti ti-cloud-download"></i> Puxar faltantes
               </button>
               <button type="button" class="btn-secondary" id="giap-btn-vasculha-parar" onclick="giapPararPuxarTodos()" style="display:none">
                 Parar
               </button>
               <button type="button" class="btn-secondary" id="giap-btn-vasculhar" onclick="giapVasculharFaltantes()" title="Recarrega a comparação RH × folha GIAP">
-                <i class="ti ti-search"></i> Vasculhar
+                <i class="ti ti-search"></i> Atualizar lista
+              </button>
+              <button type="button" class="btn-secondary" id="giap-btn-exonerar-sugeridos" onclick="giapExonerarSugeridosRastreio()" title="Exonerar quem a API marcou com demissão" style="display:none">
+                <i class="ti ti-user-off"></i> Exonerar sugeridos
               </button>
               <button type="button" class="btn-secondary" onclick="giapExportarFaltantesCsv()" title="Baixa CSV de quem falta">
                 <i class="ti ti-download"></i> CSV
@@ -998,7 +1002,7 @@
           <div id="giap-faltando-resumo" style="display:none;margin:0 4px 10px;padding:10px 12px;background:#fffaf0;border:1px solid #fbd38d;border-radius:6px;font-size:13px;color:#744210"></div>
           <div id="giap-vasculha-status" style="display:none;margin:0 4px 10px;padding:8px 12px;background:#ebf8ff;border-radius:6px;font-size:13px;color:#2b6cb0"></div>
           <small style="display:block;margin:0 4px 10px;color:var(--color-text-muted)">
-            Compara <strong>Funcionários</strong> com a folha GIAP. <strong>Puxar todos</strong> busca 1 a 1 em lotes (padrão 8) com pausa, para não derrubar o Render. Use <strong>Parar</strong> a qualquer momento.
+            <strong>Puxar faltantes</strong> consulta a API GIAP só para quem ainda não foi rastreado: tenta o mês atual; se não achar, desce automaticamente mês a mês (padrão até jan/2026). Se achar demissão, sugere exoneração. Use <strong>Parar</strong> a qualquer momento.
           </small>
           <label style="display:flex;align-items:center;gap:8px;margin:0 4px 10px;cursor:pointer;font-size:13px">
             <input type="checkbox" id="giap-fila-com-matricula" checked onchange="giapCarregarFaltandoFolha()">
@@ -1012,11 +1016,14 @@
                   <th>Nome (RH)</th>
                   <th>Vínculo</th>
                   <th>Admissão RH</th>
+                  <th>Última folha</th>
+                  <th>Demissão GIAP</th>
+                  <th>Status saída</th>
                   <th style="text-align:center">Ação</th>
                 </tr>
               </thead>
               <tbody id="tbody-giap-faltando">
-                <tr><td colspan="5" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>
+                <tr><td colspan="8" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>
               </tbody>
             </table>
           </div>
@@ -1648,7 +1655,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20260729a"></script>
+  <script type="module" src="js/app.js?v=20260730d"></script>
 
 
 

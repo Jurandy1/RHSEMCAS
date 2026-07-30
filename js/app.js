@@ -5390,8 +5390,145 @@ const _giapFaltando = {
   pageSize: 25,
   totalFora: 0,
   semMatricula: 0,
-  comMatricula: 0
+  comMatricula: 0,
+  rastreioFeito: false,
+  rastreioComps: [],
+  rastreioStats: { demitidos: 0, sumiu: 0, semHistorico: 0 }
 };
+
+/** Soma/subtrai meses em competência YYYYMM. */
+function giapCompShift(comp, deltaMonths) {
+  let y = Math.floor(Number(comp) / 100);
+  let m = Number(comp) % 100;
+  if (!y || m < 1 || m > 12) return Number(comp) || 0;
+  m += Number(deltaMonths) || 0;
+  while (m <= 0) {
+    m += 12;
+    y -= 1;
+  }
+  while (m > 12) {
+    m -= 12;
+    y += 1;
+  }
+  return y * 100 + m;
+}
+
+function giapListaCompsAnteriores(compAtual, nMeses) {
+  const out = [];
+  const n = Math.max(1, Math.min(24, Number(nMeses) || 6));
+  for (let i = 1; i <= n; i++) out.push(giapCompShift(compAtual, -i));
+  return out;
+}
+
+/** Competências anteriores até um piso (ex.: 202601 = início de 2026). */
+function giapListaCompsAte(compAtual, compMin = 202601) {
+  const out = [];
+  const min = Number(compMin) || 202601;
+  let c = giapCompShift(Number(compAtual), -1);
+  let guard = 0;
+  while (c >= min && guard < 36) {
+    out.push(c);
+    c = giapCompShift(c, -1);
+    guard++;
+  }
+  return out;
+}
+
+/**
+ * Cascata: competência atual + meses mais antigos até o piso.
+ * Ex.: 202607 → [202607, 202606, …, 202601]
+ */
+function giapListaCompsCascata(compAtual, compMin = 202601) {
+  const atual = Number(compAtual);
+  const anteriores = giapListaCompsAte(atual, compMin);
+  if (!atual) return anteriores;
+  return [atual, ...anteriores.filter((c) => c !== atual)];
+}
+
+/** Lê o seletor: YYYYMM = cascata até aquela competência; número = N meses anteriores (+ atual). */
+function giapCompsRastreioSelecionadas(compAtual) {
+  const raw = ($('giap-rastreio-meses')?.value || '202601').trim();
+  if (/^\d{6}$/.test(raw)) {
+    return giapListaCompsCascata(compAtual, Number(raw));
+  }
+  const n = Number(raw) || 6;
+  return [Number(compAtual), ...giapListaCompsAnteriores(compAtual, n)];
+}
+
+/**
+ * Puxa na API competência a competência. Se não achar, tenta a mais antiga automaticamente.
+ * Para no primeiro mês em que o portal gravar/filtrar o servidor.
+ */
+async function giapSyncNomeCascata({ nome, matricula, comps, onStep }) {
+  const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+  let ultimoErro = null;
+  let tentativas = 0;
+
+  for (let i = 0; i < comps.length; i++) {
+    if (_giapPuxarTodos.parar) {
+      return { encontrada: false, parado: true, tentativas, ultimoErro, competencia: null, hit: null, data: null };
+    }
+    const comp = comps[i];
+    tentativas++;
+    if (typeof onStep === 'function') {
+      onStep({
+        comp,
+        indiceComp: i,
+        totalComps: comps.length,
+        tentativas,
+        msg: i === 0
+          ? `API ${comp} (atual)`
+          : `Não achou — tentando mais antigo ${comp} (${i + 1}/${comps.length})`
+      });
+    }
+    try {
+      const data = await giapProxy('sync_nome', {
+        nomeServidor: nome,
+        competencia: comp,
+        matricula: matricula || undefined
+      });
+      const fil = Number(data.registros_filtrados || 0);
+      const ins = Number(data.registros_inseridos || 0);
+      if (ins > 0 || fil > 0) {
+        const hit = await giapLerFolhaPessoaComp(comp, matricula, nome);
+        return {
+          encontrada: true,
+          parado: false,
+          tentativas,
+          ultimoErro: null,
+          competencia: comp,
+          hit: hit || { competencia: comp, demissao: null, funcionario: nome, matricula },
+          data
+        };
+      }
+    } catch (e) {
+      ultimoErro = e.message || String(e);
+      console.warn('[GIAP] cascata', nome, comp, ultimoErro);
+      await pause(2500);
+    }
+    await pause(700);
+  }
+
+  return {
+    encontrada: false,
+    parado: false,
+    tentativas,
+    ultimoErro,
+    competencia: null,
+    hit: null,
+    data: null
+  };
+}
+
+function giapRastreioStatusMeta(st) {
+  const map = {
+    candidato_exo: { label: 'Demissão no GIAP → sugerir exoneração', color: 'var(--gov-red,#c53030)' },
+    sumiu: { label: 'Estava na folha e sumiu (sem demissão)', color: 'var(--gov-orange,#c05621)' },
+    sem_historico: { label: 'Sem histórico nos meses buscados', color: 'var(--color-text-muted,#718096)' },
+    nao_rastreado: { label: '—', color: 'var(--color-text-muted,#a0aec0)' }
+  };
+  return map[st] || map.nao_rastreado;
+}
 
 function giapMatKey(m) {
   if (m == null || m === '') return '';
@@ -5453,7 +5590,7 @@ function giapFaltandoRender() {
   const slice = rows.slice(start, start + pageSize);
 
   const comp = _giapFolha.competencia || Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
-  const { semMatricula, comMatricula, totalFora } = _giapFaltando;
+  const { semMatricula, comMatricula, totalFora, rastreioFeito, rastreioStats, rastreioComps } = _giapFaltando;
   if ($('giap-faltando-count')) {
     $('giap-faltando-count').textContent =
       `${rows.length} faltando · competência ${comp}`;
@@ -5465,10 +5602,21 @@ function giapFaltandoRender() {
       resumo.style.background = '#fffaf0';
       resumo.style.borderColor = '#fbd38d';
       resumo.style.color = '#744210';
-      resumo.innerHTML =
+      let html =
         `<strong>${totalFora} servidor(es)</strong> do RH ainda fora dos Resultados ` +
         `(<strong>${semMatricula}</strong> sem matrícula · <strong>${comMatricula}</strong> com matrícula). ` +
         `Competência <strong>${comp}</strong>.`;
+      if (rastreioFeito) {
+        html +=
+          `<br><span style="margin-top:4px;display:inline-block">Rastreio (${(rastreioComps || []).join(', ') || '—'}): ` +
+          `<strong>${rastreioStats.demitidos || 0}</strong> com demissão GIAP · ` +
+          `<strong>${rastreioStats.sumiu || 0}</strong> sumiram sem demissão · ` +
+          `<strong>${rastreioStats.semHistorico || 0}</strong> sem histórico local.</span>`;
+      } else {
+        html +=
+          ` Use <strong>Puxar faltantes</strong> para consultar a API (mês atual → mais antigo).`;
+      }
+      resumo.innerHTML = html;
     } else {
       resumo.style.display = '';
       resumo.style.background = '#f0fff4';
@@ -5477,12 +5625,20 @@ function giapFaltandoRender() {
       resumo.innerHTML = `Ninguém faltando na competência <strong>${comp}</strong> — todo o RH elegível já está na folha.`;
     }
   }
+  const btnExo = $('giap-btn-exonerar-sugeridos');
+  if (btnExo) {
+    const n = rastreioStats?.demitidos || 0;
+    btnExo.style.display = rastreioFeito && n > 0 ? '' : 'none';
+    btnExo.innerHTML = n > 0
+      ? `<i class="ti ti-user-off"></i> Exonerar sugeridos (${n})`
+      : `<i class="ti ti-user-off"></i> Exonerar sugeridos`;
+  }
   if ($('giap-faltando-page')) {
     $('giap-faltando-page').textContent = `${p} / ${pages}`;
   }
 
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty-state" style="color:var(--gov-green);font-weight:600">Ninguém faltando: todo o RH elegível já está na folha sync.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state" style="color:var(--gov-green);font-weight:600">Ninguém faltando: todo o RH elegível já está na folha sync.</td></tr>';
     return;
   }
 
@@ -5499,15 +5655,29 @@ function giapFaltandoRender() {
   tbody.innerHTML = slice.map((r) => {
     const nomeJs = JSON.stringify(r.nome || '');
     const matJs = JSON.stringify(r.matricula || '');
+    const tr = r._rastreio || {};
+    const st = giapRastreioStatusMeta(tr.status || 'nao_rastreado');
+    const ultima = tr.competencia ? String(tr.competencia) : '—';
+    const dem = tr.demissao ? giapFolhaFmtDt(tr.demissao) : '—';
+    let acoes =
+      `<button type="button" class="btn-secondary" style="padding:4px 8px;font-size:12px;margin:1px"
+        onclick='giapPuxarNomeDireto(${nomeJs}, ${matJs})'>Puxar</button>`;
+    if (tr.status === 'candidato_exo' && r.id) {
+      acoes +=
+        `<button type="button" class="btn-primary" style="padding:4px 8px;font-size:12px;margin:1px;background:var(--gov-red)"
+          onclick="giapExonerarPorRastreio(${Number(r.id)})" title="Exonerar com base na demissão encontrada no GIAP">
+          Exonerar
+        </button>`;
+    }
     return `<tr>
       <td style="font-family:monospace;font-size:12px">${htmlEscape(r.matricula || '—')}</td>
       <td style="font-weight:600">${htmlEscape(r.nome || '—')}</td>
       <td>${htmlEscape(r.vinculo || '—')}</td>
       <td style="font-size:12px">${fmt(r.data_admissao)}</td>
-      <td style="text-align:center">
-        <button type="button" class="btn-secondary" style="padding:4px 8px;font-size:12px"
-          onclick='giapPuxarNomeDireto(${nomeJs}, ${matJs})'>Puxar</button>
-      </td>
+      <td style="font-family:monospace;font-size:12px">${htmlEscape(ultima)}</td>
+      <td style="font-size:12px;${tr.demissao ? 'color:var(--gov-red);font-weight:600' : ''}">${htmlEscape(dem)}</td>
+      <td style="font-size:12px;color:${st.color};font-weight:600;max-width:220px">${htmlEscape(st.label)}</td>
+      <td style="text-align:center;white-space:nowrap">${acoes}</td>
     </tr>`;
   }).join('');
 }
@@ -5528,16 +5698,381 @@ window.giapVasculharFaltantes = async function giapVasculharFaltantes() {
   if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
+/** Após sync_nome, lê a linha gravada em folha_pmsl (resultado real da API). */
+async function giapLerFolhaPessoaComp(comp, matricula, nome) {
+  const mk = giapMatKey(matricula);
+  const nn = giapNormNome(nome);
+  const sel = 'matricula, funcionario, funcionario_norm, demissao, competencia';
+
+  if (matricula) {
+    const matRaw = String(matricula).trim();
+    const { data, error } = await sb.from('folha_pmsl')
+      .select(sel)
+      .eq('competencia', Number(comp))
+      .eq('matricula', matRaw)
+      .limit(10);
+    if (error) throw error;
+    const hit = (data || []).find((f) => giapMatKey(f.matricula) === mk) || data?.[0];
+    if (hit) return hit;
+  }
+
+  const tokens = nn.split(/\s+/).filter(Boolean);
+  if (tokens.length >= 2) {
+    const { data, error } = await sb.from('folha_pmsl')
+      .select(sel)
+      .eq('competencia', Number(comp))
+      .ilike('funcionario', `%${tokens[0]}%${tokens[tokens.length - 1]}%`)
+      .limit(50);
+    if (error) throw error;
+    const exact = (data || []).find((f) => (f.funcionario_norm || giapNormNome(f.funcionario)) === nn);
+    if (exact) return exact;
+    const soft = (data || []).find((f) => giapNomesCompativeis(nome, f.funcionario));
+    if (soft) return soft;
+  }
+  return null;
+}
+
+/**
+ * Um botão só: puxa na API quem ainda não foi rastreado.
+ * Tenta o mês atual; se não achar, desce automaticamente mês a mês até o limite (padrão jan/2026).
+ */
+window.giapPuxarFaltantesCascata = async function giapPuxarFaltantesCascata() {
+  if (_giapPuxarTodos.rodando) {
+    return showToast('Já há um puxar em andamento. Use Parar se quiser interromper.', 'info');
+  }
+
+  const st = $('giap-vasculha-status');
+  const btn = $('giap-btn-vasculha-puxar-todos');
+  const btnParar = $('giap-btn-vasculha-parar') || $('giap-btn-parar-puxar');
+  const btnTopoParar = $('giap-btn-parar-puxar');
+
+  try {
+    if (!_giapFaltando.rows?.length) {
+      await giapCarregarFaltandoFolha();
+    }
+
+    // Só quem ainda não foi localizado na API (não rastreados / sem histórico)
+    const jaLocalizado = (r) => {
+      const s = r._rastreio?.status;
+      return s === 'candidato_exo' || s === 'sumiu';
+    };
+    let faltando = (_giapFaltando.rows || []).filter((r) => {
+      if ((r.nome || '').trim().split(/\s+/).length < 2) return false;
+      return !jaLocalizado(r);
+    });
+
+    if (!faltando.length) {
+      return showToast(
+        'Ninguém pendente: todos os faltantes já foram rastreados na API (ou a lista está vazia).',
+        'info'
+      );
+    }
+
+    const compAtual = Number(
+      _giapFolha.competencia || $('giap-cfg-comp')?.value || giapCompetenciaPadrao()
+    );
+    const comps = giapCompsRastreioSelecionadas(compAtual);
+    if (!comps.length) {
+      return showToast(`Sem competências para buscar (atual ${compAtual}).`, 'info');
+    }
+
+    const okConfirm = confirm(
+      `Puxar ${faltando.length} faltante(s) ainda não rastreados?\n\n` +
+      `• API GIAP 1 a 1\n` +
+      `• Ordem: ${comps[0]} → … → ${comps[comps.length - 1]}\n` +
+      `• Se não achar no mês, tenta o mais antigo automaticamente\n` +
+      `• Use Parar a qualquer momento\n\n` +
+      `Continuar?`
+    );
+    if (!okConfirm) return;
+
+    _giapPuxarTodos.rodando = true;
+    _giapPuxarTodos.parar = false;
+    if (btn) btn.disabled = true;
+    if (btnParar) btnParar.style.display = '';
+    if (btnTopoParar) btnTopoParar.style.display = '';
+    if (st) {
+      st.style.display = '';
+      st.textContent = 'Iniciando puxar faltantes…';
+    }
+
+    let demitidos = 0;
+    let sumiu = 0;
+    let naAtual = 0;
+    let semHistorico = 0;
+    let errosApi = 0;
+    let processados = 0;
+    const total = faltando.length;
+    const todosRows = _giapFaltando.rows || [];
+
+    const aplicarSortStats = () => {
+      const ordem = { candidato_exo: 0, sumiu: 1, sem_historico: 2, nao_rastreado: 3 };
+      todosRows.sort((a, b) => {
+        const sa = ordem[a._rastreio?.status] ?? 9;
+        const sb = ordem[b._rastreio?.status] ?? 9;
+        if (sa !== sb) return sa - sb;
+        return String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR');
+      });
+      _giapFaltando.rows = todosRows;
+      _giapFaltando.rastreioFeito = true;
+      _giapFaltando.rastreioComps = comps;
+      _giapFaltando.rastreioStats = { demitidos, sumiu, semHistorico };
+      giapFaltandoRender();
+    };
+
+    for (let i = 0; i < faltando.length; i++) {
+      if (_giapPuxarTodos.parar) break;
+      const r = faltando[i];
+      const nome = String(r.nome || '').trim();
+      const mat = r.matricula ? String(r.matricula).trim() : '';
+
+      const res = await giapSyncNomeCascata({
+        nome,
+        matricula: mat,
+        comps,
+        onStep: ({ comp, msg }) => {
+          const pct = Math.round(((processados + 0.5) / total) * 100);
+          giapPintarProgresso({
+            id: null,
+            progresso_pct: Math.min(99, pct),
+            status: 'running',
+            competencia: comp,
+            meta: `Puxar faltantes ${i + 1}/${total}`,
+            etapa: `${nome} · ${msg}`,
+            resumo: {
+              etapa: `faltantes_${i + 1}/${total}`,
+              nome,
+              competencia: comp,
+              na_atual: naAtual,
+              demitidos,
+              sumiu,
+              sem_historico: semHistorico,
+              erros: errosApi
+            }
+          });
+          if (st) {
+            st.textContent =
+              `${i + 1}/${total} · ${msg} · ${nome}` +
+              ` · na atual ${naAtual} · demissão ${demitidos} · sumiu ${sumiu} · sem hist. ${semHistorico}` +
+              (errosApi ? ` · erro ${errosApi}` : '');
+          }
+        }
+      });
+
+      processados++;
+      if (res.ultimoErro && !res.encontrada) errosApi++;
+
+      if (res.encontrada && res.hit) {
+        const hit = res.hit;
+        const naCompAtual = Number(res.competencia) === Number(compAtual);
+        if (hit.demissao) {
+          r._rastreio = {
+            status: 'candidato_exo',
+            competencia: hit.competencia || res.competencia,
+            demissao: hit.demissao,
+            funcionario: hit.funcionario,
+            matricula_giap: hit.matricula,
+            fonte: 'api'
+          };
+          demitidos++;
+        } else if (naCompAtual) {
+          // Achou na competência atual → sai da fila de faltantes
+          r._rastreio = {
+            status: 'sumiu',
+            competencia: res.competencia,
+            demissao: null,
+            funcionario: hit.funcionario || nome,
+            matricula_giap: hit.matricula,
+            fonte: 'api',
+            na_competencia_atual: true
+          };
+          naAtual++;
+          // Remove da lista visual (já entrou / vai entrar nos Resultados)
+          const idx = todosRows.indexOf(r);
+          if (idx >= 0) todosRows.splice(idx, 1);
+        } else {
+          r._rastreio = {
+            status: 'sumiu',
+            competencia: hit.competencia || res.competencia,
+            demissao: null,
+            funcionario: hit.funcionario,
+            matricula_giap: hit.matricula,
+            fonte: 'api'
+          };
+          sumiu++;
+        }
+      } else {
+        r._rastreio = {
+          status: 'sem_historico',
+          competencia: null,
+          demissao: null,
+          funcionario: null,
+          fonte: 'api',
+          erro: res.ultimoErro || null
+        };
+        semHistorico++;
+      }
+
+      if ((i + 1) % 2 === 0 || i === faltando.length - 1) {
+        aplicarSortStats();
+      }
+    }
+
+    _giapFaltando.page = 1;
+    aplicarSortStats();
+    await giapCarregarFolhaTabela().catch(() => {});
+
+    const parado = _giapPuxarTodos.parar;
+    const msg =
+      (parado ? 'Parado. ' : '') +
+      `Puxar faltantes: ${naAtual} na competência atual · ${demitidos} com demissão · ` +
+      `${sumiu} em mês antigo sem demissão · ${semHistorico} sem histórico` +
+      (errosApi ? ` · ${errosApi} erro(s)` : '') +
+      ` (${processados}/${total}).`;
+    if (st) st.textContent = msg;
+    showToast(msg, demitidos ? 'warning' : 'success');
+    giapPintarProgresso({
+      id: null,
+      progresso_pct: 100,
+      status: parado ? 'cancelled' : 'done',
+      competencia: compAtual,
+      meta: 'Puxar faltantes (cascata API)',
+      resumo: { naAtual, demitidos, sumiu, semHistorico, errosApi, processados, total, comps, parado }
+    });
+    await registrarLog('GIAP — PUXAR FALTANTES CASCATA', null, 'Vasculha', {
+      competencia_atual: compAtual,
+      comps,
+      total,
+      processados,
+      na_atual: naAtual,
+      demitidos,
+      sumiu,
+      sem_historico: semHistorico,
+      erros_api: errosApi,
+      parado
+    });
+  } catch (e) {
+    console.error('[GIAP] puxar faltantes', e);
+    showToast(e.message || String(e), 'error');
+    if (st) st.textContent = 'Erro: ' + (e.message || e);
+  } finally {
+    _giapPuxarTodos.rodando = false;
+    _giapPuxarTodos.parar = false;
+    if (btn) btn.disabled = false;
+    if (btnParar) btnParar.style.display = 'none';
+    if (btnTopoParar) btnTopoParar.style.display = 'none';
+  }
+};
+
+// Aliases: botões/fluxos antigos apontam para o mesmo botão único
+window.giapRastrearSaidasAnteriores = window.giapPuxarFaltantesCascata;
+window.giapPuxarTodosVasculha = async function giapPuxarTodosVasculha() {
+  return window.giapPuxarFaltantesCascata();
+};
+window.giapPuxarTodosFaltando = async function giapPuxarTodosFaltando() {
+  return window.giapPuxarFaltantesCascata();
+};
+
+window.giapExonerarPorRastreio = async function giapExonerarPorRastreio(rhId) {
+  const r = (_giapFaltando.rows || []).find((x) => Number(x.id) === Number(rhId));
+  if (!r) return showToast('Servidor não encontrado na Vasculha.', 'error');
+  const tr = r._rastreio;
+  if (!tr || tr.status !== 'candidato_exo') {
+    return showToast('Só é possível exonerar quem o rastreio marcou com demissão no GIAP.', 'warning');
+  }
+  const dataExo = giapDataISO(tr.demissao) || new Date().toISOString().slice(0, 10);
+  const ok = confirm(
+    `Exonerar “${r.nome}”?\n\n` +
+    `Última folha GIAP: ${tr.competencia}\n` +
+    `Demissão GIAP: ${giapFolhaFmtDt(tr.demissao)}\n` +
+    `Data da saída no RH: ${giapFolhaFmtDt(dataExo)}\n\n` +
+    `Vai para Exonerados e Demitidos (tipo Exoneração).`
+  );
+  if (!ok) return;
+  try {
+    const { error } = await sb.rpc('fn_exonerar_funcionario', {
+      p_funcionario_id: Number(rhId),
+      p_data_exoneracao: dataExo,
+      p_motivo: `Rastreio GIAP — última folha ${tr.competencia} com demissão`,
+      p_tipo_saida: 'EXONERACAO'
+    });
+    if (error) throw error;
+    await registrarLog('GIAP — EXONERAÇÃO POR RASTREIO', Number(rhId), r.nome, {
+      data_exoneracao: dataExo,
+      competencia_giap: tr.competencia,
+      demissao_giap: tr.demissao
+    });
+    showToast(`${r.nome} enviado para Exonerados.`, 'success');
+    atualizarBadgesSemLotacaoExonerados();
+    await giapCarregarFaltandoFolha();
+  } catch (e) {
+    showToast(e.message || String(e), 'error');
+  }
+};
+
+window.giapExonerarSugeridosRastreio = async function giapExonerarSugeridosRastreio() {
+  const lista = (_giapFaltando.rows || []).filter((r) => r._rastreio?.status === 'candidato_exo' && r.id);
+  if (!lista.length) return showToast('Nenhum sugerido com demissão GIAP.', 'info');
+  if (!confirm(
+    `Exonerar ${lista.length} servidor(es) marcados com demissão no GIAP?\n\n` +
+    `Cada um sai do quadro ativo com a data de demissão encontrada.\n` +
+    `Confira a lista antes — esta ação afeta o RH.`
+  )) return;
+
+  const st = $('giap-vasculha-status');
+  let ok = 0;
+  let erro = 0;
+  if (st) {
+    st.style.display = '';
+    st.textContent = `Exonerando sugeridos 0/${lista.length}…`;
+  }
+
+  for (let i = 0; i < lista.length; i++) {
+    const r = lista[i];
+    const tr = r._rastreio;
+    const dataExo = giapDataISO(tr.demissao) || new Date().toISOString().slice(0, 10);
+    if (st) st.textContent = `Exonerando ${i + 1}/${lista.length} · ${r.nome}`;
+    try {
+      const { error } = await sb.rpc('fn_exonerar_funcionario', {
+        p_funcionario_id: Number(r.id),
+        p_data_exoneracao: dataExo,
+        p_motivo: `Rastreio GIAP (lote) — última folha ${tr.competencia} com demissão`,
+        p_tipo_saida: 'EXONERACAO'
+      });
+      if (error) throw error;
+      await registrarLog('GIAP — EXONERAÇÃO POR RASTREIO (LOTE)', Number(r.id), r.nome, {
+        data_exoneracao: dataExo,
+        competencia_giap: tr.competencia,
+        demissao_giap: tr.demissao
+      });
+      ok++;
+    } catch (e) {
+      erro++;
+      console.warn('[GIAP] exonerar sugerido', r.nome, e.message || e);
+    }
+  }
+
+  atualizarBadgesSemLotacaoExonerados();
+  await giapCarregarFaltandoFolha();
+  const msg = `Exoneração em lote: ${ok} ok · ${erro} erro(s) de ${lista.length}.`;
+  if (st) st.textContent = msg;
+  showToast(msg, erro ? 'warning' : 'success');
+};
+
 window.giapExportarFaltantesCsv = function giapExportarFaltantesCsv() {
   const rows = _giapFaltando.rows || [];
   if (!rows.length) return showToast('Nada para exportar — rode Vasculhar faltantes.', 'info');
   const comp = _giapFolha.competencia || Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
   const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const lines = [
-    'matricula,nome,vinculo,data_admissao,competencia',
-    ...rows.map((r) =>
-      [r.matricula, r.nome, r.vinculo, r.data_admissao, comp].map(esc).join(',')
-    )
+    'matricula,nome,vinculo,data_admissao,competencia_atual,ultima_folha,demissao_giap,status_saida',
+    ...rows.map((r) => {
+      const tr = r._rastreio || {};
+      const st = giapRastreioStatusMeta(tr.status || 'nao_rastreado').label;
+      return [r.matricula, r.nome, r.vinculo, r.data_admissao, comp, tr.competencia || '', tr.demissao || '', st]
+        .map(esc)
+        .join(',');
+    })
   ];
   const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
@@ -5676,164 +6211,11 @@ window.giapPuxarCedidos = async function giapPuxarCedidos() {
   }
 };
 
-window.giapPuxarTodosFaltando = async function giapPuxarTodosFaltando() {
-  return window.giapPuxarTodosVasculha({ origem: 'completar' });
-};
-
-/**
- * Puxa a Vasculha (RH fora dos Resultados) em lotes — respeita limite do Render free.
- * @param {{ origem?: string }} [opts]
- */
-window.giapPuxarTodosVasculha = async function giapPuxarTodosVasculha(opts = {}) {
-  if (_giapPuxarTodos.rodando) {
-    return showToast('Já está puxando. Use Parar se quiser interromper.', 'info');
-  }
-
-  const cb = $('giap-fila-com-matricula');
-  if (cb) cb.checked = true;
-  await giapCarregarFaltandoFolha();
-
-  let fila = (_giapFaltando.rows || []).filter(
-    (r) => (r.nome || '').trim().split(/\s+/).length >= 2
-  );
-  if (!fila.length) {
-    return showToast('Ninguém pendente na Vasculha para puxar.', 'info');
-  }
-
-  const loteSize = Math.max(1, Math.min(8, Number($('giap-vasculha-lote')?.value || 3)));
-  const totalGeral = fila.length;
-  const nLotes = Math.ceil(totalGeral / loteSize);
-  const okConfirm = confirm(
-    `Puxar ${totalGeral} servidor(es) da Vasculha?\n\n` +
-    `• Lotes de ${loteSize} (≈ ${nLotes} lote(s))\n` +
-    `• 1 a 1 com pausa — evita derrubar o Render\n` +
-    `• Use Parar a qualquer momento\n\n` +
-    `Continuar?`
-  );
-  if (!okConfirm) return;
-
-  _giapPuxarTodos.rodando = true;
-  _giapPuxarTodos.parar = false;
-
-  const btn = $('giap-btn-vasculha-puxar-todos') || $('giap-btn-puxar-todos');
-  const btnParar = $('giap-btn-vasculha-parar') || $('giap-btn-parar-puxar');
-  const btnTopoParar = $('giap-btn-parar-puxar');
-  const st = $('giap-vasculha-status') || $('giap-puxar-todos-status');
-  if (btn) btn.disabled = true;
-  if (btnParar) btnParar.style.display = '';
-  if (btnTopoParar) btnTopoParar.style.display = '';
-  if (st) {
-    st.style.display = '';
-    st.textContent = 'Iniciando…';
-  }
-
-  const competencia = Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
-  let ok = 0;
-  let vazio = 0;
-  let erro = 0;
-  let processados = 0;
-
-  const pause = (ms) => new Promise((r) => setTimeout(r, ms));
-
-  try {
-    for (let i = 0; i < fila.length; i++) {
-      if (_giapPuxarTodos.parar) break;
-
-      // Pausa maior entre lotes (deixa o Chrome no Render respirar)
-      if (i > 0 && i % loteSize === 0) {
-        if (st) {
-          st.textContent =
-            `Pausa entre lotes… ${i}/${totalGeral} · ok ${ok} · vazio ${vazio} · erro ${erro}`;
-        }
-        await pause(5000);
-        if (_giapPuxarTodos.parar) break;
-      }
-
-      const item = fila[i];
-      const nome = String(item.nome || '').trim();
-      const mat = item.matricula ? String(item.matricula).trim() : '';
-      processados = i + 1;
-      const loteAtual = Math.floor(i / loteSize) + 1;
-      const pct = Math.round((i / totalGeral) * 100);
-
-      giapPintarProgresso({
-        id: null,
-        progresso_pct: pct,
-        status: 'running',
-        competencia,
-        meta: `Vasculha lote ${loteAtual}/${nLotes} · ${processados}/${totalGeral}`,
-        etapa: nome,
-        resumo: { ok, vazio, erro, lote: loteAtual, origem: opts.origem || 'vasculha' }
-      });
-      if (st) {
-        st.textContent =
-          `Lote ${loteAtual}/${nLotes} · ${processados}/${totalGeral} · ${nome}` +
-          (mat ? ` (${mat})` : '') +
-          ` · ok ${ok} · vazio ${vazio} · erro ${erro}`;
-      }
-
-      try {
-        const data = await giapProxy('sync_nome', {
-          nomeServidor: nome,
-          competencia,
-          matricula: mat || undefined
-        });
-        if (
-          (data.registros_inseridos || 0) === 0 &&
-          (data.registros_filtrados || 0) === 0
-        ) {
-          vazio++;
-        } else {
-          ok++;
-          _giapFaltando.rows = _giapFaltando.rows.filter((r) => {
-            if (mat && giapMatKey(r.matricula) === giapMatKey(mat)) return false;
-            return giapNormNome(r.nome) !== giapNormNome(nome);
-          });
-          giapFaltandoRender();
-        }
-      } catch (e) {
-        erro++;
-        console.warn('[GIAP] vasculha puxar', nome, e.message || e);
-        await pause(3500);
-      }
-
-      if (processados % 4 === 0 || processados === totalGeral) {
-        await giapCarregarFolhaTabela();
-      }
-      // Pausa entre nomes (Chrome free tier)
-      await pause(1500);
-    }
-
-    const msg = _giapPuxarTodos.parar
-      ? `Parado. ok ${ok}, vazio ${vazio}, erro ${erro} de ${processados}/${totalGeral}.`
-      : `Concluído. ok ${ok}, vazio ${vazio}, erro ${erro} de ${totalGeral}.`;
-    showToast(msg, erro ? 'info' : 'success');
-    giapPintarProgresso({
-      id: null,
-      progresso_pct: 100,
-      status: _giapPuxarTodos.parar ? 'cancelled' : 'done',
-      competencia,
-      meta: 'Puxar Vasculha',
-      resumo: { ok, vazio, erro, total: totalGeral, processados, parado: _giapPuxarTodos.parar }
-    });
-    if (st) st.textContent = msg;
-    await giapCarregarFolhaTabela();
-    await giapCarregarFaltandoFolha();
-    if (ok > 0) await sincronizarRemuneracoesGiap({ competencia, silencioso: true });
-  } finally {
-    _giapPuxarTodos.rodando = false;
-    _giapPuxarTodos.parar = false;
-    if (btn) btn.disabled = false;
-    if (btnParar) btnParar.style.display = 'none';
-    if (btnTopoParar) btnTopoParar.style.display = 'none';
-  }
-};
-
 window.giapCarregarFaltandoFolha = async function giapCarregarFaltandoFolha() {
   const tbody = $('tbody-giap-faltando');
   if (!tbody) return;
   const comp = Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
-  tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><span class="spinner"></span> Vasculhando RH × folha…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><span class="spinner"></span> Vasculhando RH × folha…</td></tr>';
   try {
     // Carrega TODO o RH elegível (sem limite 2000 — senão gente some da vasculha)
     let rhRows = [];
@@ -5927,24 +6309,54 @@ window.giapCarregarFaltandoFolha = async function giapCarregarFaltandoFolha() {
 
     const faltando = (mostrarComMat ? fora : semMat).slice();
 
+    // Preserva status de puxar/rastreio anterior (por id / matrícula / nome)
+    const prevById = new Map();
+    const prevByMat = new Map();
+    const prevByNome = new Map();
+    for (const old of _giapFaltando.rows || []) {
+      if (!old._rastreio) continue;
+      if (old.id != null) prevById.set(Number(old.id), old._rastreio);
+      const mk = giapMatKey(old.matricula);
+      if (mk) prevByMat.set(mk, old._rastreio);
+      const nn = giapNormNome(old.nome);
+      if (nn) prevByNome.set(nn, old._rastreio);
+    }
+    for (const r of faltando) {
+      const tr =
+        (r.id != null && prevById.get(Number(r.id))) ||
+        (giapMatKey(r.matricula) && prevByMat.get(giapMatKey(r.matricula))) ||
+        prevByNome.get(giapNormNome(r.nome));
+      if (tr) r._rastreio = tr;
+    }
+
     faltando.sort((a, b) => {
+      const ordem = { candidato_exo: 0, sumiu: 1, sem_historico: 2, nao_rastreado: 3 };
+      const sa = ordem[a._rastreio?.status] ?? 9;
+      const sb = ordem[b._rastreio?.status] ?? 9;
+      if (sa !== sb) return sa - sb;
       const am = giapTemMatricula(a.matricula) ? 1 : 0;
       const bm = giapTemMatricula(b.matricula) ? 1 : 0;
       if (am !== bm) return am - bm;
       return String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR');
     });
 
+    const demitidos = faltando.filter((r) => r._rastreio?.status === 'candidato_exo').length;
+    const sumiu = faltando.filter((r) => r._rastreio?.status === 'sumiu').length;
+    const semHistorico = faltando.filter((r) => r._rastreio?.status === 'sem_historico').length;
+
     _giapFaltando.rows = faltando;
     _giapFaltando.totalFora = fora.length;
     _giapFaltando.semMatricula = semMat.length;
     _giapFaltando.comMatricula = comMat.length;
     _giapFaltando.page = 1;
+    _giapFaltando.rastreioFeito = demitidos + sumiu + semHistorico > 0;
+    _giapFaltando.rastreioStats = { demitidos, sumiu, semHistorico };
     giapFaltandoRender();
 
     const card = $('giap-card-fila-resultados');
     if (card) card.style.display = '';
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="5" class="empty-state">Erro: ${htmlEscape(e.message || e)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="empty-state">Erro: ${htmlEscape(e.message || e)}</td></tr>`;
   }
 }
 
