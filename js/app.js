@@ -6091,42 +6091,58 @@ window.audPagina = function audPagina(delta) {
 };
 
 async function audCarregarAlvos(escopo, compRef) {
+  // Preferir a view (tem GRANT para authenticated) — evita 42501 em funcionarios
   const all = [];
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await sb.from('funcionarios')
-      .select('id, nome, matricula, data_admissao, ativo')
-      .eq('ativo', true)
-      .order('nome')
-      .range(from, from + 999);
-    if (error) throw error;
-    if (data?.length) all.push(...data);
-    if (!data || data.length < 1000) break;
-  }
-  let alvos = all.filter((r) => (r.nome || '').trim().split(/\s+/).length >= 2);
-  // Exclui terceirizado/procad/estagi se tiver vínculo na view
-  try {
-    const vinMap = new Map();
+  const viewProbe = await sb.from('v_funcionarios_atual').select('funcionario_id').limit(1);
+  if (!viewProbe.error) {
     for (let from = 0; ; from += 1000) {
-      const { data } = await sb.from('v_funcionarios_atual')
-        .select('funcionario_id, vinculo')
+      const { data, error } = await sb.from('v_funcionarios_atual')
+        .select('funcionario_id, nome, matricula, vinculo')
+        .order('nome')
         .range(from, from + 999);
-      for (const r of data || []) vinMap.set(Number(r.funcionario_id), r.vinculo);
+      if (error) throw error;
+      if (data?.length) {
+        all.push(...data.map((r) => ({
+          id: r.funcionario_id,
+          nome: r.nome,
+          matricula: r.matricula,
+          vinculo: r.vinculo
+        })));
+      }
       if (!data || data.length < 1000) break;
     }
-    alvos = alvos.filter((r) => !giapFaltandoExcluido(vinMap.get(Number(r.id))));
-  } catch (_) { /* ok */ }
-
-  if (escopo !== 'nao_identificados') {
-    return alvos.map((r) => ({
-      id: r.id,
-      nome: r.nome,
-      matricula: r.matricula,
-      status: 'pendente',
-      competencia: null,
-      demissao: null,
-      fonte: null
-    }));
+  } else {
+    const { data: sess } = await sb.auth.getSession();
+    if (!sess?.session) throw new Error('Sessão expirada. Faça login novamente.');
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await sb.from('funcionarios')
+        .select('id, nome, matricula')
+        .eq('ativo', true)
+        .order('nome')
+        .range(from, from + 999);
+      if (error) throw error;
+      if (data?.length) all.push(...data.map((r) => ({ ...r, vinculo: null })));
+      if (!data || data.length < 1000) break;
+    }
   }
+
+  let alvos = all.filter((r) => {
+    if ((r.nome || '').trim().split(/\s+/).length < 2) return false;
+    if (giapFaltandoExcluido(r.vinculo)) return false;
+    return true;
+  });
+
+  const mapRow = (r) => ({
+    id: r.id,
+    nome: r.nome,
+    matricula: r.matricula,
+    status: 'pendente',
+    competencia: null,
+    demissao: null,
+    fonte: null
+  });
+
+  if (escopo !== 'nao_identificados') return alvos.map(mapRow);
 
   const mats = new Set();
   const nomes = new Set();
@@ -6151,15 +6167,50 @@ async function audCarregarAlvos(escopo, compRef) {
       if (nomes.has(giapNormNome(r.nome))) return false;
       return true;
     })
-    .map((r) => ({
-      id: r.id,
-      nome: r.nome,
-      matricula: r.matricula,
-      status: 'pendente',
-      competencia: null,
-      demissao: null,
-      fonte: null
-    }));
+    .map(mapRow);
+}
+
+async function audContagemFolha(comp) {
+  const { count, error } = await sb.from('folha_pmsl')
+    .select('id', { count: 'exact', head: true })
+    .eq('competencia', Number(comp));
+  if (error) throw error;
+  return count || 0;
+}
+
+/** Espera job GIAP terminar (sem abrir Chrome no browser — só poll). */
+async function audAguardarJob(jobId, comp, basePct, spanPct) {
+  const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+  while (!_audSaidas.parar) {
+    const job = await giapProxy('job_status', { jobId });
+    const jp = Number(job.progresso_pct || 0);
+    audProgresso(
+      basePct + (jp / 100) * spanPct,
+      `Folha ${comp} · job #${jobId} · ${job.status || '—'} · ${jp}%`
+    );
+    if (job.status === 'done') return job;
+    if (job.status === 'error') throw new Error(job.erro || `Job ${jobId} falhou`);
+    if (job.status === 'cancelled') throw new Error(`Job ${jobId} cancelado`);
+    await pause(3000);
+  }
+  throw new Error('Parado pelo usuário');
+}
+
+/**
+ * Baixa a folha SEMCAS inteira da competência (1 job = centenas de nomes).
+ * Muito mais eficiente que sync_nome 1 a 1.
+ */
+async function audBaixarFolhaCompetencia(comp, basePct, spanPct) {
+  const data = await giapProxy('start_job', {
+    tipo: 'sync_orgao',
+    competencia: Number(comp),
+    dryRun: false,
+    filtros: { continuarAteCompletar: true }
+  });
+  const job = data.job;
+  if (!job?.id) throw new Error(`Não iniciou job para ${comp}`);
+  _audSaidas.scrapes += 1;
+  return audAguardarJob(job.id, comp, basePct, spanPct);
 }
 
 /** Índice local folha_pmsl nas competências (1 competência por vez — leve na memória). */
@@ -6230,7 +6281,7 @@ window.renderGiapAuditoriaSaidas = async function renderGiapAuditoriaSaidas() {
 window.audPararRastreio = function audPararRastreio() {
   _audSaidas.parar = true;
   _giapPuxarTodos.parar = true;
-  audProgresso(null, 'Parando após a consulta atual…');
+  audProgresso(null, 'Parando após a competência atual…');
 };
 
 window.audIniciarRastreio = async function audIniciarRastreio() {
@@ -6251,8 +6302,8 @@ window.audIniciarRastreio = async function audIniciarRastreio() {
     `Iniciar auditoria de saídas?\n\n` +
     `• Escopo: ${escopo === 'todos_ativos' ? 'todos ativos' : 'só não identificados'}\n` +
     `• Intervalo: ${comps[0]} → ${comps[comps.length - 1]} (${comps.length} competências)\n` +
-    `• Modo: ${fase}\n` +
-    `• API 1 a 1 com pausa (protege memória do Render)\n\n` +
+    `• Estratégia: baixar a folha SEMCAS por MÊS (1 job = muitos servidores) e cruzar todos de uma vez\n` +
+    `• Não usa busca 1 a 1 (muito mais rápido e leve no Render)\n\n` +
     `Continuar?`
   );
   if (!ok) return;
@@ -6266,6 +6317,10 @@ window.audIniciarRastreio = async function audIniciarRastreio() {
   if ($('aud-btn-iniciar')) $('aud-btn-iniciar').disabled = true;
   if ($('aud-btn-parar')) $('aud-btn-parar').style.display = '';
 
+  const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+  /** Mínimo de linhas para considerar a competência “já baixada”. */
+  const MIN_LINHAS_COMP = 30;
+
   try {
     audProgresso(2, 'Carregando alvos do RH…');
     const alvos = await audCarregarAlvos(escopo, compRef);
@@ -6278,93 +6333,95 @@ window.audIniciarRastreio = async function audIniciarRastreio() {
       return;
     }
 
-    // Fase banco: indexa competência a competência (mais recente primeiro)
-    const byMat = new Map();
-    const byNome = new Map();
-    if (fase !== 'forcar_api') {
-      for (let ci = 0; ci < comps.length; ci++) {
+    // 1) Decide quais competências precisam de download em lote
+    const compsBaixar = [];
+    if (fase !== 'so_banco') {
+      audProgresso(5, 'Verificando quais competências já estão no banco…');
+      for (let i = 0; i < comps.length; i++) {
         if (_audSaidas.parar) break;
-        const comp = comps[ci];
-        audProgresso(5 + (ci / comps.length) * 35, `Banco local · competência ${comp} (${ci + 1}/${comps.length})…`);
-        await audIndexarCompLocal(comp, byMat, byNome);
+        const comp = comps[i];
+        const n = await audContagemFolha(comp);
+        const precisa = fase === 'forcar_api' || n < MIN_LINHAS_COMP;
+        if (precisa) compsBaixar.push(comp);
+        audProgresso(
+          5 + ((i + 1) / comps.length) * 10,
+          `Checando ${comp}: ${n} linha(s)${precisa ? ' → baixar' : ' · ok'}`
+        );
       }
-      for (const r of alvos) {
-        const hit = audMatchLocal(r, byMat, byNome);
-        if (hit) audAplicarHit(r, hit, 'banco');
-        else if (fase === 'so_banco') audAplicarHit(r, null, 'banco');
-      }
-      audAtualizarKpis();
-      audRenderTabela();
     }
 
-    if (fase === 'so_banco' || _audSaidas.parar) {
-      const msg = _audSaidas.parar ? 'Parado na fase banco.' : 'Auditoria só-banco concluída.';
-      audProgresso(100, msg);
-      showToast(msg, 'success');
+    // 2) Baixa folha por competência (1 job por mês — cobre todos os nomes)
+    if (compsBaixar.length && !_audSaidas.parar) {
+      showToast(
+        `Baixando ${compsBaixar.length} competência(s) em lote no servidor. Isso cobre todos os alvos de uma vez.`,
+        'info'
+      );
+      for (let i = 0; i < compsBaixar.length; i++) {
+        if (_audSaidas.parar) break;
+        const comp = compsBaixar[i];
+        const base = 15 + (i / compsBaixar.length) * 55;
+        const span = 55 / compsBaixar.length;
+        try {
+          await audBaixarFolhaCompetencia(comp, base, span);
+          // Pausa entre competências para o Chrome do Render liberar RAM
+          if (i < compsBaixar.length - 1 && !_audSaidas.parar) {
+            audProgresso(base + span, `Pausa entre competências (Render)…`);
+            await pause(8000);
+          }
+        } catch (e) {
+          if (_audSaidas.parar) break;
+          console.warn('[AUD] falha ao baixar', comp, e);
+          showToast(`Competência ${comp}: ${e.message || e} — seguindo…`, 'warning');
+          await pause(3000);
+        }
+      }
+    }
+
+    if (_audSaidas.parar) {
+      audProgresso(100, 'Parado.');
+      showToast('Auditoria interrompida.', 'info');
       return;
     }
 
-    // Fase API: só quem ainda precisa (sem demissão / sem histórico)
-    const filaApi = alvos.filter((r) => {
-      if (r.status === 'candidato_exo') return false;
-      if (fase === 'inteligente' && r.status === 'sumiu') return false;
-      if (fase === 'forcar_api') return true;
-      return r.status === 'pendente' || r.status === 'sem_historico';
-    });
-
-    const totalApi = filaApi.length;
-    audProgresso(40, `API: ${totalApi} servidor(es) a consultar…`);
-
-    for (let i = 0; i < filaApi.length; i++) {
-      if (_audSaidas.parar || _giapPuxarTodos.parar) break;
-      const r = filaApi[i];
-      // Se já tem aparição sem demissão e modo inteligente, não força API
-      if (fase === 'inteligente' && r.status === 'sumiu') continue;
-
-      const pct = 40 + ((i + 1) / Math.max(1, totalApi)) * 55;
-      audProgresso(pct, `API ${i + 1}/${totalApi} · ${r.nome}`);
-
-      const res = await giapSyncNomeCascata({
-        nome: String(r.nome || '').trim(),
-        matricula: r.matricula ? String(r.matricula).trim() : '',
-        comps: comps,
-        onStep: ({ msg }) => {
-          audProgresso(pct, `API ${i + 1}/${totalApi} · ${msg} · ${r.nome}`);
-        }
-      });
-      _audSaidas.scrapes += res.tentativas || 0;
-
-      if (res.encontrada && res.hit) {
-        audAplicarHit(r, {
-          competencia: res.competencia || res.hit.competencia,
-          demissao: res.hit.demissao || null,
-          funcionario: res.hit.funcionario,
-          matricula: res.hit.matricula
-        }, 'api');
-      } else if (r.status === 'pendente') {
-        audAplicarHit(r, null, 'api');
-      }
-
-      if ((i + 1) % 2 === 0 || i === filaApi.length - 1) {
-        // Ordena: demissão primeiro
-        alvos.sort((a, b) => {
-          const ord = { candidato_exo: 0, sumiu: 1, sem_historico: 2, pendente: 3 };
-          return (ord[a.status] ?? 9) - (ord[b.status] ?? 9) ||
-            String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR');
-        });
-        audAtualizarKpis();
-        audRenderTabela();
-      }
+    // 3) Cruzamento local de TODOS os alvos × todas as competências
+    audProgresso(75, 'Cruzando RH × folhas baixadas…');
+    const byMat = new Map();
+    const byNome = new Map();
+    for (let ci = 0; ci < comps.length; ci++) {
+      if (_audSaidas.parar) break;
+      const comp = comps[ci];
+      audProgresso(75 + (ci / comps.length) * 20, `Indexando banco · ${comp}…`);
+      await audIndexarCompLocal(comp, byMat, byNome);
     }
 
-    const parado = _audSaidas.parar || _giapPuxarTodos.parar;
+    for (const r of alvos) {
+      const hit = audMatchLocal(r, byMat, byNome);
+      audAplicarHit(r, hit, hit ? (compsBaixar.includes(Number(hit.competencia)) ? 'folha+api' : 'banco') : 'banco');
+    }
+
+    alvos.sort((a, b) => {
+      const ord = { candidato_exo: 0, sumiu: 1, sem_historico: 2, pendente: 3 };
+      return (ord[a.status] ?? 9) - (ord[b.status] ?? 9) ||
+        String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR');
+    });
+    _audSaidas.rows = alvos;
+    audAtualizarKpis();
+    audRenderTabela();
+
     const msg =
-      (parado ? 'Parado. ' : 'Concluído. ') +
-      `${_audSaidas.stats.dem} com demissão · ${_audSaidas.stats.sumiu} sumiram · ${_audSaidas.stats.sem} sem histórico · ${_audSaidas.scrapes} consultas API.`;
+      `Concluído. ${_audSaidas.stats.dem} com demissão · ${_audSaidas.stats.sumiu} na folha sem demissão · ` +
+      `${_audSaidas.stats.sem} sem histórico · ${_audSaidas.scrapes} competência(s) baixada(s) em lote.`;
     audProgresso(100, msg);
     showToast(msg, _audSaidas.stats.dem ? 'warning' : 'success');
-    await registrarLog('GIAP — AUDITORIA SAÍDAS', null, 'Auditoria', {
-      escopo, compRef, compPiso, fase, comps, scrapes: _audSaidas.scrapes, stats: _audSaidas.stats, parado
+    await registrarLog('GIAP — AUDITORIA SAÍDAS LOTE', null, 'Auditoria', {
+      escopo,
+      compRef,
+      compPiso,
+      fase,
+      comps,
+      comps_baixadas: compsBaixar,
+      scrapes: _audSaidas.scrapes,
+      stats: _audSaidas.stats
     });
   } catch (e) {
     console.error('[AUD]', e);

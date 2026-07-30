@@ -972,7 +972,7 @@
             <div class="row-label" style="margin:0"><i class="ti ti-radar"></i> Auditoria de Saídas GIAP</div>
             <small class="view-help" style="color:var(--color-text-muted)">
               Vasculha competências anteriores (até jan/2025) para saber se servidores ativos foram exonerados/demitidos.
-              Primeiro consulta o banco; só então chama a API — 1 a 1, com pausa, para não derrubar o Render.
+              Baixa a folha SEMCAS por mês (1 job = todos os nomes) e cruza com o RH de uma vez — sem busca 1 a 1.
             </small>
           </div>
         </div>
@@ -997,9 +997,9 @@
             <div class="form-group" style="margin:0">
               <label class="form-label" for="aud-fase">Modo</label>
               <select id="aud-fase" class="form-control">
-                <option value="inteligente" selected>Inteligente (banco → API só no que falta)</option>
-                <option value="so_banco">Só banco (rápido, sem API)</option>
-                <option value="forcar_api">Forçar API em quem ainda não tem demissão</option>
+                <option value="inteligente" selected>Inteligente (usa banco; baixa só competências vazias)</option>
+                <option value="so_banco">Só banco (rápido, sem baixar folha)</option>
+                <option value="forcar_api">Forçar download de todas as competências do intervalo</option>
               </select>
             </div>
           </div>
@@ -1025,7 +1025,7 @@
           <div class="kpi-card" style="border-top-color:var(--gov-red)"><div class="kpi-card-label">Com demissão</div><div class="kpi-card-value" id="aud-kpi-dem">—</div></div>
           <div class="kpi-card" style="border-top-color:var(--gov-orange,#c05621)"><div class="kpi-card-label">Sumiram s/ demissão</div><div class="kpi-card-value" id="aud-kpi-sumiu">—</div></div>
           <div class="kpi-card"><div class="kpi-card-label">Sem histórico</div><div class="kpi-card-value" id="aud-kpi-sem">—</div></div>
-          <div class="kpi-card" style="border-top-color:var(--gov-blue-primary,#3182ce)"><div class="kpi-card-label">Consultas API</div><div class="kpi-card-value" id="aud-kpi-api">—</div></div>
+          <div class="kpi-card" style="border-top-color:var(--gov-blue-primary,#3182ce)"><div class="kpi-card-label">Folhas baixadas</div><div class="kpi-card-value" id="aud-kpi-api">—</div></div>
         </div>
 
         <div class="card" style="margin-bottom:12px;padding:12px 16px">
@@ -1697,7 +1697,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20260730f"></script>
+  <script type="module" src="js/app.js?v=20260730g"></script>
 
 
 
