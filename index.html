@@ -129,9 +129,9 @@
         <i class="ti ti-file-search"></i> Conferência GIAP
         <span id="badge-giap-revisao" style="display:none;margin-left:auto;background:var(--gov-orange,#ed8936);color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;line-height:16px"></span>
       </a>
-      <a href="#pendentes" class="nav-item" data-route="pendentes">
-        <i class="ti ti-user-exclamation"></i> Dados incompletos
-        <span id="badge-pendentes" style="display:none;margin-left:auto;background:var(--gov-red,#d9363e);color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;line-height:16px"></span>
+      <a href="#giap-rastreio" class="nav-item hidden" data-route="giap-rastreio" id="nav-giap-rastreio">
+                <i class="ti ti-radar"></i> Auditoria de Saídas GIAP
+        <span id="badge-giap-rastreio" style="display:none;margin-left:auto;background:var(--gov-red,#c53030);color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;line-height:16px"></span>
       </a>
       <a href="#logs" class="nav-item" data-route="logs">
         <i class="ti ti-history"></i> Histórico
@@ -616,8 +616,8 @@
         <div id="ferias-aba-conteudo"><span class="spinner"></span> Carregando…</div>
       </section>
 
-      <!-- ===== DADOS INCOMPLETOS ===== -->
-      <section id="view-pendentes" class="view-section">
+      <!-- ===== DADOS INCOMPLETOS (removido do menu — legado) ===== -->
+      <section id="view-pendentes" class="view-section" hidden aria-hidden="true">
         <div class="row-label">Dados incompletos</div>
         <div class="view-help" style="background:#FEF3C7;border-left:4px solid #F59E0B;padding:12px 16px;border-radius:4px;font-size:13px;margin-bottom:16px;color:#92400E">
           <i class="ti ti-alert-triangle"></i>
@@ -805,7 +805,7 @@
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:12px">
           <div>
             <div class="row-label" style="margin:0"><i class="ti ti-file-search"></i> Conferência GIAP</div>
-            <small class="view-help" style="color:var(--color-text-muted)">Compare a folha de pagamento com o cadastro do RH: corrija matrícula, nome ou admissão na coluna Ações. Só SEMCAS e Cedidos/Recebidos ficam na lista.</small>
+            <small class="view-help" style="color:var(--color-text-muted)">Puxe a folha de remuneração da competência e corrija cadastros já identificados (matrícula, nome, admissão, CPF). A busca de saídas/exoneração fica no menu <strong>Auditoria de Saídas GIAP</strong>.</small>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             <span id="giap-comp-badge" style="font-size:12px;padding:4px 10px;border-radius:4px;background:#edf2f7;color:#4a5568"></span>
@@ -817,9 +817,6 @@
             </button>
             <button type="button" class="btn-secondary" id="giap-btn-puxar-cedidos" onclick="giapPuxarCedidos()">
               <i class="ti ti-arrows-left-right"></i> Puxar Cedidos/Recebidos
-            </button>
-            <button type="button" class="btn-secondary" id="giap-btn-demissao" title="Na API: só quem não está na folha atual — confirma se tem demissão nos meses anteriores. Não exonera sozinho.">
-              <i class="ti ti-user-off"></i> Detectar demissões
             </button>
           </div>
         </div>
@@ -881,9 +878,6 @@
             <div class="row-label" style="margin:0"><i class="ti ti-table"></i> Resultados da folha GIAP</div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <span class="filter-result-count" id="giap-folha-count"></span>
-              <button type="button" class="btn-primary" id="giap-btn-puxar-todos" onclick="giapPuxarTodosFaltando()" title="Puxa quem ainda falta e grava em Resultados">
-                <i class="ti ti-cloud-download"></i> Completar Resultados (1 a 1)
-              </button>
               <button type="button" class="btn-secondary" id="giap-btn-alimentar-cpf" onclick="giapAlimentarCpfsAlinhados()" title="Copia CPF do GIAP para o cadastro RH dos alinhados sem CPF">
                 <i class="ti ti-id"></i> Alimentar CPFs
               </button>
@@ -968,69 +962,117 @@
           </div>
         </div>
 
-        <div class="card" id="giap-card-fila-resultados" style="margin-top:16px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;padding:0 4px">
-            <div class="row-label" style="margin:0"><i class="ti ti-list-check"></i> Vasculha — RH fora dos Resultados</div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <span class="filter-result-count" id="giap-faltando-count"></span>
-              <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--color-text-muted)" title="Até onde a API desce se não achar no mês atual">
-                Até
-                <select id="giap-rastreio-meses" class="form-control" style="width:auto;padding:4px 8px;font-size:12px">
-                  <option value="202601" selected>jan/2026</option>
-                  <option value="3">3 meses</option>
-                  <option value="6">6 meses</option>
-                  <option value="12">12 meses</option>
-                </select>
-              </label>
-              <button type="button" class="btn-primary" id="giap-btn-vasculha-puxar-todos" onclick="giapPuxarFaltantesCascata()" title="Puxa na API só quem ainda não foi rastreado: mês atual → mais antigo até o limite">
-                <i class="ti ti-cloud-download"></i> Puxar faltantes
-              </button>
-              <button type="button" class="btn-secondary" id="giap-btn-vasculha-parar" onclick="giapPararPuxarTodos()" style="display:none">
-                Parar
-              </button>
-              <button type="button" class="btn-secondary" id="giap-btn-vasculhar" onclick="giapVasculharFaltantes()" title="Recarrega a comparação RH × folha GIAP">
-                <i class="ti ti-search"></i> Atualizar lista
-              </button>
-              <button type="button" class="btn-secondary" id="giap-btn-exonerar-sugeridos" onclick="giapExonerarSugeridosRastreio()" title="Exonerar quem a API marcou com demissão" style="display:none">
-                <i class="ti ti-user-off"></i> Exonerar sugeridos
-              </button>
-              <button type="button" class="btn-secondary" onclick="giapExportarFaltantesCsv()" title="Baixa CSV de quem falta">
-                <i class="ti ti-download"></i> CSV
-              </button>
+        </div>
+      </section>
+
+      <!-- ===== AUDITORIA DE SAÍDAS GIAP (coordenadora) ===== -->
+      <section id="view-giap-rastreio" class="view-section">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:12px">
+          <div>
+            <div class="row-label" style="margin:0"><i class="ti ti-radar"></i> Auditoria de Saídas GIAP</div>
+            <small class="view-help" style="color:var(--color-text-muted)">
+              Vasculha competências anteriores (até jan/2025) para saber se servidores ativos foram exonerados/demitidos.
+              Primeiro consulta o banco; só então chama a API — 1 a 1, com pausa, para não derrubar o Render.
+            </small>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px;padding:20px;background:linear-gradient(135deg,#f7fafc 0%,#edf2f7 100%);border:1px solid #e2e8f0">
+          <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;align-items:end">
+            <div class="form-group" style="margin:0">
+              <label class="form-label" for="aud-escopo">Quem auditar</label>
+              <select id="aud-escopo" class="form-control">
+                <option value="nao_identificados" selected>Só não identificados (fora da folha atual)</option>
+                <option value="todos_ativos">Todos os servidores ativos do RH</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0">
+              <label class="form-label" for="aud-comp-ref">Competência de referência</label>
+              <input type="number" id="aud-comp-ref" class="form-control" placeholder="202607">
+            </div>
+            <div class="form-group" style="margin:0">
+              <label class="form-label" for="aud-comp-piso">Vasculhar até</label>
+              <input type="number" id="aud-comp-piso" class="form-control" value="202501" title="Piso YYYYMM — padrão janeiro/2025">
+            </div>
+            <div class="form-group" style="margin:0">
+              <label class="form-label" for="aud-fase">Modo</label>
+              <select id="aud-fase" class="form-control">
+                <option value="inteligente" selected>Inteligente (banco → API só no que falta)</option>
+                <option value="so_banco">Só banco (rápido, sem API)</option>
+                <option value="forcar_api">Forçar API em quem ainda não tem demissão</option>
+              </select>
             </div>
           </div>
-          <div id="giap-faltando-resumo" style="display:none;margin:0 4px 10px;padding:10px 12px;background:#fffaf0;border:1px solid #fbd38d;border-radius:6px;font-size:13px;color:#744210"></div>
-          <div id="giap-vasculha-status" style="display:none;margin:0 4px 10px;padding:8px 12px;background:#ebf8ff;border-radius:6px;font-size:13px;color:#2b6cb0"></div>
-          <small style="display:block;margin:0 4px 10px;color:var(--color-text-muted)">
-            <strong>Puxar faltantes</strong> consulta a API GIAP só para quem ainda não foi rastreado: tenta o mês atual; se não achar, desce automaticamente mês a mês (padrão até jan/2026). Se achar demissão, sugere exoneração. Use <strong>Parar</strong> a qualquer momento.
-          </small>
-          <label style="display:flex;align-items:center;gap:8px;margin:0 4px 10px;cursor:pointer;font-size:13px">
-            <input type="checkbox" id="giap-fila-com-matricula" checked onchange="giapCarregarFaltandoFolha()">
-            Incluir quem <strong>já tem matrícula</strong> (ex.: Jurandy) mas ainda não entrou nos Resultados
-          </label>
+          <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:18px;align-items:center">
+            <button type="button" class="btn-primary" id="aud-btn-iniciar" onclick="audIniciarRastreio()">
+              <i class="ti ti-player-play"></i> Iniciar auditoria
+            </button>
+            <button type="button" class="btn-secondary" id="aud-btn-parar" onclick="audPararRastreio()" style="display:none">
+              <i class="ti ti-player-stop"></i> Parar
+            </button>
+            <button type="button" class="btn-secondary" id="aud-btn-exonerar" onclick="audExonerarSugeridos()" style="display:none">
+              <i class="ti ti-user-off"></i> Exonerar sugeridos
+            </button>
+            <button type="button" class="btn-secondary" onclick="audExportarCsv()">
+              <i class="ti ti-download"></i> CSV
+            </button>
+            <span id="aud-status" style="font-size:13px;color:#2b6cb0;flex:1;min-width:200px"></span>
+          </div>
+        </div>
+
+        <div class="stats-grid" id="aud-kpis" style="margin-bottom:16px">
+          <div class="kpi-card"><div class="kpi-card-label">Alvos</div><div class="kpi-card-value" id="aud-kpi-alvos">—</div></div>
+          <div class="kpi-card" style="border-top-color:var(--gov-red)"><div class="kpi-card-label">Com demissão</div><div class="kpi-card-value" id="aud-kpi-dem">—</div></div>
+          <div class="kpi-card" style="border-top-color:var(--gov-orange,#c05621)"><div class="kpi-card-label">Sumiram s/ demissão</div><div class="kpi-card-value" id="aud-kpi-sumiu">—</div></div>
+          <div class="kpi-card"><div class="kpi-card-label">Sem histórico</div><div class="kpi-card-value" id="aud-kpi-sem">—</div></div>
+          <div class="kpi-card" style="border-top-color:var(--gov-blue-primary,#3182ce)"><div class="kpi-card-label">Consultas API</div><div class="kpi-card-value" id="aud-kpi-api">—</div></div>
+        </div>
+
+        <div class="card" style="margin-bottom:12px;padding:12px 16px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px">
+            <span id="aud-progress-label">Aguardando…</span>
+            <span id="aud-progress-pct">0%</span>
+          </div>
+          <div style="background:#edf2f7;border-radius:8px;height:12px;overflow:hidden">
+            <div id="aud-progress-bar" style="height:100%;width:0%;background:#2b6cb0;transition:width .25s"></div>
+          </div>
+        </div>
+
+        <div class="toolbar-filters" style="margin-bottom:10px">
+          <input type="text" id="aud-busca" class="form-control" placeholder="Filtrar nome ou matrícula…" style="max-width:320px" oninput="audRenderTabela()">
+          <select id="aud-filtro-status" class="form-control" style="max-width:220px" onchange="audRenderTabela()">
+            <option value="">Todos os status</option>
+            <option value="candidato_exo">Com demissão (sugerir exoneração)</option>
+            <option value="sumiu">Sumiram sem demissão</option>
+            <option value="sem_historico">Sem histórico</option>
+            <option value="pendente">Ainda pendente</option>
+          </select>
+          <span class="filter-result-count" id="aud-count"></span>
+        </div>
+
+        <div class="card">
           <div class="table-container" style="overflow-x:auto">
             <table class="gov-table">
               <thead>
                 <tr>
                   <th>Matrícula</th>
-                  <th>Nome (RH)</th>
-                  <th>Vínculo</th>
-                  <th>Admissão RH</th>
+                  <th>Nome</th>
                   <th>Última folha</th>
                   <th>Demissão GIAP</th>
-                  <th>Status saída</th>
+                  <th>Fonte</th>
+                  <th>Status</th>
                   <th style="text-align:center">Ação</th>
                 </tr>
               </thead>
-              <tbody id="tbody-giap-faltando">
-                <tr><td colspan="8" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>
+              <tbody id="tbody-aud-saidas">
+                <tr><td colspan="7" class="empty-state">Configure o escopo e clique em Iniciar auditoria.</td></tr>
               </tbody>
             </table>
           </div>
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;padding:0 4px;align-items:center">
-            <button type="button" class="btn-secondary" style="padding:4px 10px" onclick="giapFaltandoPagina(-1)">←</button>
-            <span id="giap-faltando-page" style="font-size:13px;min-width:70px;text-align:center"></span>
-            <button type="button" class="btn-secondary" style="padding:4px 10px" onclick="giapFaltandoPagina(1)">→</button>
+            <button type="button" class="btn-secondary" style="padding:4px 10px" onclick="audPagina(-1)">←</button>
+            <span id="aud-page" style="font-size:13px;min-width:70px;text-align:center"></span>
+            <button type="button" class="btn-secondary" style="padding:4px 10px" onclick="audPagina(1)">→</button>
           </div>
         </div>
       </section>
@@ -1655,7 +1697,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20260730e"></script>
+  <script type="module" src="js/app.js?v=20260730f"></script>
 
 
 

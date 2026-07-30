@@ -120,8 +120,7 @@ async function bootApp() {
     navigate();
     const { data } = await sb.from('v_pendentes_kpis').select('pendentes').single();
     if (data && $('badge-pendentes')) {
-      $('badge-pendentes').textContent = data.pendentes;
-      $('badge-pendentes').style.display = data.pendentes > 0 ? '' : 'none';
+      // Menu Dados incompletos removido — badge legado ignorado
     }
     atualizarBadgesSemLotacaoExonerados();
     atualizarAlertasLicenca();
@@ -148,6 +147,7 @@ async function carregarPerfilUsuario() {
   const coordenadora = state.perfilUsuario?.perfil === 'coordenador' && state.perfilUsuario?.ativo !== false;
   $('nav-usuarios')?.classList.toggle('hidden', !coordenadora);
   $('nav-relatorio-api')?.classList.toggle('hidden', !coordenadora);
+  $('nav-giap-rastreio')?.classList.toggle('hidden', !coordenadora);
   $('btn-editar-meu-nome')?.classList.toggle('hidden', !coordenadora);
 
   if (state.perfilUsuario?.nome) {
@@ -915,6 +915,15 @@ function navigate() {
   if (rota === 'relatorio-api' && !usuarioEhCoordenador()) {
     location.hash = '#painel';
     showToast('Apenas a coordenadora pode acessar a Conferência GIAP.', 'warning');
+    return;
+  }
+  if (rota === 'giap-rastreio' && !usuarioEhCoordenador()) {
+    location.hash = '#painel';
+    showToast('Apenas a coordenadora pode acessar a Auditoria de Saídas GIAP.', 'warning');
+    return;
+  }
+  if (rota === 'pendentes') {
+    location.hash = '#painel';
     return;
   }
   const def = rotas[rota] || rotas['painel'];
@@ -3265,11 +3274,15 @@ function fpImprimirUnidade() {
 // ╚══════════════════════════════════════════════════════════════╝
 if (typeof rotas !== 'undefined') {
   rotas.ferias       = { titulo: 'Controle de Férias',     bread: 'Férias',       render: renderFerias };
-  rotas.pendentes    = { titulo: 'Dados incompletos',   bread: 'Dados incompletos',    render: renderPendentes };
   rotas.lotacoes     = { titulo: 'Gestão de Lotações',     bread: 'Lotações',     render: renderLotacoes };
   rotas['sem-lotacao'] = { titulo: 'Servidores sem Lotação', bread: 'Sem Lotação', render: renderSemLotacao };
   rotas.exonerados   = { titulo: 'Exonerados e Demitidos', bread: 'Exonerados e Demitidos', render: renderExonerados };
   rotas['relatorio-api'] = { titulo: 'Conferência GIAP', bread: 'Conferência GIAP', render: renderRelatorioApi };
+  rotas['giap-rastreio'] = {
+    titulo: 'Auditoria de Saídas GIAP',
+    bread: 'Auditoria de Saídas',
+    render: () => window.renderGiapAuditoriaSaidas?.()
+  };
   rotas.remuneracoes = { titulo: 'Remunerações', bread: 'Remunerações', render: renderRemuneracoes };
 }
 
@@ -5971,6 +5984,471 @@ window.giapPuxarTodosVasculha = async function giapPuxarTodosVasculha() {
 };
 window.giapPuxarTodosFaltando = async function giapPuxarTodosFaltando() {
   return window.giapPuxarFaltantesCascata();
+};
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║         AUDITORIA DE SAÍDAS GIAP (menu coordenadora)          ║
+// ╚══════════════════════════════════════════════════════════════╝
+const _audSaidas = {
+  rows: [],
+  page: 1,
+  pageSize: 40,
+  rodando: false,
+  parar: false,
+  comps: [],
+  scrapes: 0,
+  stats: { dem: 0, sumiu: 0, sem: 0, pendente: 0 }
+};
+
+function audStatusMeta(st) {
+  const map = {
+    candidato_exo: { label: 'Demissão no GIAP → sugerir exoneração', color: 'var(--gov-red,#c53030)' },
+    sumiu: { label: 'Apareceu na folha sem demissão', color: 'var(--gov-orange,#c05621)' },
+    sem_historico: { label: 'Sem histórico até o piso', color: 'var(--color-text-muted,#718096)' },
+    pendente: { label: 'Pendente', color: '#a0aec0' }
+  };
+  return map[st] || map.pendente;
+}
+
+function audAtualizarKpis() {
+  const rows = _audSaidas.rows || [];
+  const dem = rows.filter((r) => r.status === 'candidato_exo').length;
+  const sumiu = rows.filter((r) => r.status === 'sumiu').length;
+  const sem = rows.filter((r) => r.status === 'sem_historico').length;
+  const pendente = rows.filter((r) => r.status === 'pendente').length;
+  _audSaidas.stats = { dem, sumiu, sem, pendente };
+  if ($('aud-kpi-alvos')) $('aud-kpi-alvos').textContent = String(rows.length);
+  if ($('aud-kpi-dem')) $('aud-kpi-dem').textContent = String(dem);
+  if ($('aud-kpi-sumiu')) $('aud-kpi-sumiu').textContent = String(sumiu);
+  if ($('aud-kpi-sem')) $('aud-kpi-sem').textContent = String(sem);
+  if ($('aud-kpi-api')) $('aud-kpi-api').textContent = String(_audSaidas.scrapes || 0);
+  const btnEx = $('aud-btn-exonerar');
+  if (btnEx) {
+    btnEx.style.display = dem > 0 ? '' : 'none';
+    btnEx.innerHTML = `<i class="ti ti-user-off"></i> Exonerar sugeridos (${dem})`;
+  }
+  const badge = $('badge-giap-rastreio');
+  if (badge) {
+    badge.textContent = dem > 0 ? String(dem) : '';
+    badge.style.display = dem > 0 ? '' : 'none';
+  }
+}
+
+function audProgresso(pct, label) {
+  const p = Math.max(0, Math.min(100, Math.round(pct)));
+  if ($('aud-progress-bar')) $('aud-progress-bar').style.width = `${p}%`;
+  if ($('aud-progress-pct')) $('aud-progress-pct').textContent = `${p}%`;
+  if ($('aud-progress-label')) $('aud-progress-label').textContent = label || '';
+  if ($('aud-status')) $('aud-status').textContent = label || '';
+}
+
+window.audRenderTabela = function audRenderTabela() {
+  const tbody = $('tbody-aud-saidas');
+  if (!tbody) return;
+  const termo = ($('aud-busca')?.value || '').trim().toLowerCase();
+  const filtro = ($('aud-filtro-status')?.value || '').trim();
+  let lista = _audSaidas.rows || [];
+  if (filtro) lista = lista.filter((r) => r.status === filtro);
+  if (termo) {
+    lista = lista.filter((r) =>
+      (r.nome || '').toLowerCase().includes(termo) ||
+      String(r.matricula || '').toLowerCase().includes(termo)
+    );
+  }
+  const pages = Math.max(1, Math.ceil(lista.length / _audSaidas.pageSize) || 1);
+  if (_audSaidas.page > pages) _audSaidas.page = pages;
+  const p = _audSaidas.page;
+  const slice = lista.slice((p - 1) * _audSaidas.pageSize, p * _audSaidas.pageSize);
+  if ($('aud-count')) $('aud-count').textContent = `${lista.length} registro(s)`;
+  if ($('aud-page')) $('aud-page').textContent = `${p} / ${pages}`;
+  if (!slice.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Nenhum registro neste filtro.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = slice.map((r) => {
+    const meta = audStatusMeta(r.status);
+    const dem = r.demissao ? giapFolhaFmtDt(r.demissao) : '—';
+    let acao = '—';
+    if (r.status === 'candidato_exo' && r.id) {
+      acao = `<button type="button" class="btn-primary" style="padding:4px 8px;font-size:12px;background:var(--gov-red)" onclick="audExonerarUm(${Number(r.id)})">Exonerar</button>`;
+    }
+    return `<tr>
+      <td style="font-family:monospace;font-size:12px">${htmlEscape(r.matricula || '—')}</td>
+      <td style="font-weight:600">${htmlEscape(r.nome || '—')}</td>
+      <td style="font-family:monospace;font-size:12px">${htmlEscape(r.competencia ? String(r.competencia) : '—')}</td>
+      <td style="font-size:12px;${r.demissao ? 'color:var(--gov-red);font-weight:600' : ''}">${htmlEscape(dem)}</td>
+      <td style="font-size:12px">${htmlEscape(r.fonte || '—')}</td>
+      <td style="font-size:12px;color:${meta.color};font-weight:600">${htmlEscape(meta.label)}</td>
+      <td style="text-align:center">${acao}</td>
+    </tr>`;
+  }).join('');
+};
+
+window.audPagina = function audPagina(delta) {
+  const pages = Math.max(1, Math.ceil((_audSaidas.rows || []).length / _audSaidas.pageSize) || 1);
+  _audSaidas.page = Math.min(pages, Math.max(1, _audSaidas.page + delta));
+  audRenderTabela();
+};
+
+async function audCarregarAlvos(escopo, compRef) {
+  const all = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await sb.from('funcionarios')
+      .select('id, nome, matricula, data_admissao, ativo')
+      .eq('ativo', true)
+      .order('nome')
+      .range(from, from + 999);
+    if (error) throw error;
+    if (data?.length) all.push(...data);
+    if (!data || data.length < 1000) break;
+  }
+  let alvos = all.filter((r) => (r.nome || '').trim().split(/\s+/).length >= 2);
+  // Exclui terceirizado/procad/estagi se tiver vínculo na view
+  try {
+    const vinMap = new Map();
+    for (let from = 0; ; from += 1000) {
+      const { data } = await sb.from('v_funcionarios_atual')
+        .select('funcionario_id, vinculo')
+        .range(from, from + 999);
+      for (const r of data || []) vinMap.set(Number(r.funcionario_id), r.vinculo);
+      if (!data || data.length < 1000) break;
+    }
+    alvos = alvos.filter((r) => !giapFaltandoExcluido(vinMap.get(Number(r.id))));
+  } catch (_) { /* ok */ }
+
+  if (escopo !== 'nao_identificados') {
+    return alvos.map((r) => ({
+      id: r.id,
+      nome: r.nome,
+      matricula: r.matricula,
+      status: 'pendente',
+      competencia: null,
+      demissao: null,
+      fonte: null
+    }));
+  }
+
+  const mats = new Set();
+  const nomes = new Set();
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await sb.from('folha_pmsl')
+      .select('matricula, funcionario, funcionario_norm')
+      .eq('competencia', Number(compRef))
+      .range(from, from + 999);
+    if (error) throw error;
+    for (const f of data || []) {
+      const mk = giapMatKey(f.matricula);
+      if (mk) mats.add(mk);
+      const nn = f.funcionario_norm || giapNormNome(f.funcionario);
+      if (nn) nomes.add(nn);
+    }
+    if (!data || data.length < 1000) break;
+  }
+  return alvos
+    .filter((r) => {
+      const mk = giapMatKey(r.matricula);
+      if (mk && mats.has(mk)) return false;
+      if (nomes.has(giapNormNome(r.nome))) return false;
+      return true;
+    })
+    .map((r) => ({
+      id: r.id,
+      nome: r.nome,
+      matricula: r.matricula,
+      status: 'pendente',
+      competencia: null,
+      demissao: null,
+      fonte: null
+    }));
+}
+
+/** Índice local folha_pmsl nas competências (1 competência por vez — leve na memória). */
+async function audIndexarCompLocal(comp, byMat, byNome) {
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await sb.from('folha_pmsl')
+      .select('matricula, funcionario, funcionario_norm, demissao, competencia')
+      .eq('competencia', Number(comp))
+      .range(from, from + 999);
+    if (error) throw error;
+    for (const f of data || []) {
+      const row = {
+        competencia: f.competencia,
+        demissao: f.demissao || null,
+        funcionario: f.funcionario,
+        matricula: f.matricula
+      };
+      const mk = giapMatKey(f.matricula);
+      if (mk) {
+        const prev = byMat.get(mk);
+        if (!prev || Number(row.competencia) > Number(prev.competencia)) byMat.set(mk, row);
+        if (row.demissao && (!prev?.demissao || Number(row.competencia) >= Number(prev.competencia))) {
+          byMat.set(mk, row);
+        }
+      }
+      const nn = f.funcionario_norm || giapNormNome(f.funcionario);
+      if (nn) {
+        const prev = byNome.get(nn);
+        if (!prev || Number(row.competencia) > Number(prev.competencia)) byNome.set(nn, row);
+        if (row.demissao && (!prev?.demissao || Number(row.competencia) >= Number(prev.competencia))) {
+          byNome.set(nn, row);
+        }
+      }
+    }
+    if (!data || data.length < 1000) break;
+  }
+}
+
+function audMatchLocal(r, byMat, byNome) {
+  const mk = giapMatKey(r.matricula);
+  if (mk && byMat.has(mk)) return byMat.get(mk);
+  const nn = giapNormNome(r.nome);
+  if (nn && byNome.has(nn)) return byNome.get(nn);
+  return null;
+}
+
+function audAplicarHit(r, hit, fonte) {
+  if (!hit) {
+    r.status = 'sem_historico';
+    r.fonte = fonte;
+    return;
+  }
+  r.competencia = hit.competencia;
+  r.demissao = hit.demissao || null;
+  r.fonte = fonte;
+  r.status = hit.demissao ? 'candidato_exo' : 'sumiu';
+}
+
+window.renderGiapAuditoriaSaidas = async function renderGiapAuditoriaSaidas() {
+  if (!usuarioEhCoordenador()) return;
+  const sug = Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
+  if ($('aud-comp-ref') && !$('aud-comp-ref').value) $('aud-comp-ref').value = String(sug);
+  if ($('aud-comp-piso') && !$('aud-comp-piso').value) $('aud-comp-piso').value = '202501';
+  audAtualizarKpis();
+  audRenderTabela();
+};
+
+window.audPararRastreio = function audPararRastreio() {
+  _audSaidas.parar = true;
+  _giapPuxarTodos.parar = true;
+  audProgresso(null, 'Parando após a consulta atual…');
+};
+
+window.audIniciarRastreio = async function audIniciarRastreio() {
+  if (_audSaidas.rodando || _giapPuxarTodos.rodando) {
+    return showToast('Já há uma auditoria/puxar em andamento.', 'info');
+  }
+  const escopo = $('aud-escopo')?.value || 'nao_identificados';
+  const compRef = Number($('aud-comp-ref')?.value || giapCompetenciaPadrao());
+  const compPiso = Number($('aud-comp-piso')?.value || 202501);
+  const fase = $('aud-fase')?.value || 'inteligente';
+  if (!compRef || !compPiso || compPiso > compRef) {
+    return showToast('Informe competência de referência e piso válidos (piso ≤ referência).', 'warning');
+  }
+  const comps = giapListaCompsCascata(compRef, compPiso);
+  if (!comps.length) return showToast('Sem competências no intervalo.', 'info');
+
+  const ok = confirm(
+    `Iniciar auditoria de saídas?\n\n` +
+    `• Escopo: ${escopo === 'todos_ativos' ? 'todos ativos' : 'só não identificados'}\n` +
+    `• Intervalo: ${comps[0]} → ${comps[comps.length - 1]} (${comps.length} competências)\n` +
+    `• Modo: ${fase}\n` +
+    `• API 1 a 1 com pausa (protege memória do Render)\n\n` +
+    `Continuar?`
+  );
+  if (!ok) return;
+
+  _audSaidas.rodando = true;
+  _audSaidas.parar = false;
+  _giapPuxarTodos.rodando = true;
+  _giapPuxarTodos.parar = false;
+  _audSaidas.scrapes = 0;
+  _audSaidas.comps = comps;
+  if ($('aud-btn-iniciar')) $('aud-btn-iniciar').disabled = true;
+  if ($('aud-btn-parar')) $('aud-btn-parar').style.display = '';
+
+  try {
+    audProgresso(2, 'Carregando alvos do RH…');
+    const alvos = await audCarregarAlvos(escopo, compRef);
+    _audSaidas.rows = alvos;
+    _audSaidas.page = 1;
+    audAtualizarKpis();
+    audRenderTabela();
+    if (!alvos.length) {
+      showToast('Nenhum alvo para auditar neste escopo.', 'info');
+      return;
+    }
+
+    // Fase banco: indexa competência a competência (mais recente primeiro)
+    const byMat = new Map();
+    const byNome = new Map();
+    if (fase !== 'forcar_api') {
+      for (let ci = 0; ci < comps.length; ci++) {
+        if (_audSaidas.parar) break;
+        const comp = comps[ci];
+        audProgresso(5 + (ci / comps.length) * 35, `Banco local · competência ${comp} (${ci + 1}/${comps.length})…`);
+        await audIndexarCompLocal(comp, byMat, byNome);
+      }
+      for (const r of alvos) {
+        const hit = audMatchLocal(r, byMat, byNome);
+        if (hit) audAplicarHit(r, hit, 'banco');
+        else if (fase === 'so_banco') audAplicarHit(r, null, 'banco');
+      }
+      audAtualizarKpis();
+      audRenderTabela();
+    }
+
+    if (fase === 'so_banco' || _audSaidas.parar) {
+      const msg = _audSaidas.parar ? 'Parado na fase banco.' : 'Auditoria só-banco concluída.';
+      audProgresso(100, msg);
+      showToast(msg, 'success');
+      return;
+    }
+
+    // Fase API: só quem ainda precisa (sem demissão / sem histórico)
+    const filaApi = alvos.filter((r) => {
+      if (r.status === 'candidato_exo') return false;
+      if (fase === 'inteligente' && r.status === 'sumiu') return false;
+      if (fase === 'forcar_api') return true;
+      return r.status === 'pendente' || r.status === 'sem_historico';
+    });
+
+    const totalApi = filaApi.length;
+    audProgresso(40, `API: ${totalApi} servidor(es) a consultar…`);
+
+    for (let i = 0; i < filaApi.length; i++) {
+      if (_audSaidas.parar || _giapPuxarTodos.parar) break;
+      const r = filaApi[i];
+      // Se já tem aparição sem demissão e modo inteligente, não força API
+      if (fase === 'inteligente' && r.status === 'sumiu') continue;
+
+      const pct = 40 + ((i + 1) / Math.max(1, totalApi)) * 55;
+      audProgresso(pct, `API ${i + 1}/${totalApi} · ${r.nome}`);
+
+      const res = await giapSyncNomeCascata({
+        nome: String(r.nome || '').trim(),
+        matricula: r.matricula ? String(r.matricula).trim() : '',
+        comps: comps,
+        onStep: ({ msg }) => {
+          audProgresso(pct, `API ${i + 1}/${totalApi} · ${msg} · ${r.nome}`);
+        }
+      });
+      _audSaidas.scrapes += res.tentativas || 0;
+
+      if (res.encontrada && res.hit) {
+        audAplicarHit(r, {
+          competencia: res.competencia || res.hit.competencia,
+          demissao: res.hit.demissao || null,
+          funcionario: res.hit.funcionario,
+          matricula: res.hit.matricula
+        }, 'api');
+      } else if (r.status === 'pendente') {
+        audAplicarHit(r, null, 'api');
+      }
+
+      if ((i + 1) % 2 === 0 || i === filaApi.length - 1) {
+        // Ordena: demissão primeiro
+        alvos.sort((a, b) => {
+          const ord = { candidato_exo: 0, sumiu: 1, sem_historico: 2, pendente: 3 };
+          return (ord[a.status] ?? 9) - (ord[b.status] ?? 9) ||
+            String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR');
+        });
+        audAtualizarKpis();
+        audRenderTabela();
+      }
+    }
+
+    const parado = _audSaidas.parar || _giapPuxarTodos.parar;
+    const msg =
+      (parado ? 'Parado. ' : 'Concluído. ') +
+      `${_audSaidas.stats.dem} com demissão · ${_audSaidas.stats.sumiu} sumiram · ${_audSaidas.stats.sem} sem histórico · ${_audSaidas.scrapes} consultas API.`;
+    audProgresso(100, msg);
+    showToast(msg, _audSaidas.stats.dem ? 'warning' : 'success');
+    await registrarLog('GIAP — AUDITORIA SAÍDAS', null, 'Auditoria', {
+      escopo, compRef, compPiso, fase, comps, scrapes: _audSaidas.scrapes, stats: _audSaidas.stats, parado
+    });
+  } catch (e) {
+    console.error('[AUD]', e);
+    showToast(e.message || String(e), 'error');
+    audProgresso(0, 'Erro: ' + (e.message || e));
+  } finally {
+    _audSaidas.rodando = false;
+    _audSaidas.parar = false;
+    _giapPuxarTodos.rodando = false;
+    _giapPuxarTodos.parar = false;
+    if ($('aud-btn-iniciar')) $('aud-btn-iniciar').disabled = false;
+    if ($('aud-btn-parar')) $('aud-btn-parar').style.display = 'none';
+    audAtualizarKpis();
+    audRenderTabela();
+  }
+};
+
+window.audExonerarUm = async function audExonerarUm(rhId) {
+  const r = (_audSaidas.rows || []).find((x) => Number(x.id) === Number(rhId));
+  if (!r || r.status !== 'candidato_exo') return showToast('Registro sem demissão sugerida.', 'warning');
+  const dataExo = giapDataISO(r.demissao) || new Date().toISOString().slice(0, 10);
+  if (!confirm(`Exonerar “${r.nome}”?\nDemissão GIAP: ${giapFolhaFmtDt(r.demissao)}\nÚltima folha: ${r.competencia}`)) return;
+  try {
+    const { error } = await sb.rpc('fn_exonerar_funcionario', {
+      p_funcionario_id: Number(rhId),
+      p_data_exoneracao: dataExo,
+      p_motivo: `Auditoria GIAP — folha ${r.competencia} com demissão`,
+      p_tipo_saida: 'EXONERACAO'
+    });
+    if (error) throw error;
+    await registrarLog('GIAP — EXONERAÇÃO AUDITORIA', Number(rhId), r.nome, {
+      data_exoneracao: dataExo, competencia: r.competencia, demissao: r.demissao
+    });
+    _audSaidas.rows = _audSaidas.rows.filter((x) => Number(x.id) !== Number(rhId));
+    atualizarBadgesSemLotacaoExonerados();
+    audAtualizarKpis();
+    audRenderTabela();
+    showToast(`${r.nome} enviado para Exonerados.`, 'success');
+  } catch (e) {
+    showToast(e.message || String(e), 'error');
+  }
+};
+
+window.audExonerarSugeridos = async function audExonerarSugeridos() {
+  const lista = (_audSaidas.rows || []).filter((r) => r.status === 'candidato_exo' && r.id);
+  if (!lista.length) return showToast('Nenhum sugerido.', 'info');
+  if (!confirm(`Exonerar ${lista.length} servidor(es) com demissão no GIAP?`)) return;
+  let ok = 0;
+  for (const r of lista) {
+    try {
+      const dataExo = giapDataISO(r.demissao) || new Date().toISOString().slice(0, 10);
+      const { error } = await sb.rpc('fn_exonerar_funcionario', {
+        p_funcionario_id: Number(r.id),
+        p_data_exoneracao: dataExo,
+        p_motivo: `Auditoria GIAP (lote) — folha ${r.competencia}`,
+        p_tipo_saida: 'EXONERACAO'
+      });
+      if (error) throw error;
+      ok++;
+    } catch (e) {
+      console.warn('[AUD] exo', r.nome, e);
+    }
+  }
+  _audSaidas.rows = _audSaidas.rows.filter((r) => r.status !== 'candidato_exo');
+  atualizarBadgesSemLotacaoExonerados();
+  audAtualizarKpis();
+  audRenderTabela();
+  showToast(`Exonerados: ${ok} de ${lista.length}.`, ok ? 'success' : 'warning');
+};
+
+window.audExportarCsv = function audExportarCsv() {
+  const rows = _audSaidas.rows || [];
+  if (!rows.length) return showToast('Nada para exportar.', 'info');
+  const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const lines = [
+    'matricula,nome,ultima_folha,demissao,fonte,status',
+    ...rows.map((r) => [r.matricula, r.nome, r.competencia, r.demissao, r.fonte, audStatusMeta(r.status).label].map(esc).join(','))
+  ];
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `auditoria_saidas_giap.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
 };
 
 window.giapExonerarPorRastreio = async function giapExonerarPorRastreio(rhId) {
