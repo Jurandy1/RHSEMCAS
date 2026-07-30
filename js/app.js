@@ -6517,13 +6517,27 @@ window.giapBuscarDemissoes = async function giapBuscarDemissoes() {
   if (btn) btn.disabled = true;
   try {
     const competencia = Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
-    giapProgressoLocal(`Detectando demissões (${competencia})…`, 'buscar_demissoes');
-    showToast('Detectando demissões (somente leitura — não exonera)…', 'info');
+    if (!confirm(
+      `Detectar demissões na API GIAP?\n\n` +
+      `• Só quem NÃO está na folha ${competencia} (não encontrado)\n` +
+      `• Consulta mês a mês até achar demissão (padrão 12 meses)\n` +
+      `• Não exonera sozinho — só lista para você confirmar\n` +
+      `• Pode demorar (várias consultas no portal)\n\n` +
+      `Continuar?`
+    )) {
+      btn.disabled = false;
+      return;
+    }
+    giapProgressoLocal(`Confirmando demissões de quem não está na folha ${competencia}…`, 'buscar_demissoes');
+    showToast('Puxando demissão na API só de quem não foi encontrado na folha atual…', 'info');
     const data = await giapProxy('start_job', {
       tipo: 'buscar_demissoes',
       competencia,
       dryRun: true,
-      filtros: { mesesAtras: 12 }
+      filtros: {
+        mesesAtras: 12,
+        soForaDaFolhaAtual: true
+      }
     });
     const job = data.job;
     if (!job?.id) throw new Error('Job não retornado pela API');
