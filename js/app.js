@@ -6178,36 +6178,53 @@ async function audContagemFolha(comp) {
   return count || 0;
 }
 
-/** Espera job GIAP terminar (sem abrir Chrome no browser — só poll). */
+/** Espera job GIAP terminar (poll no banco + fallback proxy). */
 async function audAguardarJob(jobId, comp, basePct, spanPct) {
   const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+  const lerJob = async () => {
+    // Preferir tabela giap_jobs (mesmo formato da Conferência)
+    try {
+      const { data } = await sb.from('giap_jobs').select('*').eq('id', jobId).maybeSingle();
+      if (data) return data;
+    } catch (_) { /* fallback proxy */ }
+    const data = await giapProxy('job_status', { jobId });
+    // Proxy devolve { job: {...} } — sem unwrap o poll nunca sai do 0%
+    return data?.job || data;
+  };
   while (!_audSaidas.parar) {
-    const job = await giapProxy('job_status', { jobId });
-    const jp = Number(job.progresso_pct || 0);
+    const job = await lerJob();
+    const jp = Number(job?.progresso_pct || 0);
+    const st = job?.status || '—';
+    const etapa = job?.resumo?.etapa ? ` · ${job.resumo.etapa}` : '';
     audProgresso(
       basePct + (jp / 100) * spanPct,
-      `Folha ${comp} · job #${jobId} · ${job.status || '—'} · ${jp}%`
+      `Folha ${comp} · job #${jobId} · ${st} · ${jp}%${etapa}`
     );
-    if (job.status === 'done') return job;
-    if (job.status === 'error') throw new Error(job.erro || `Job ${jobId} falhou`);
-    if (job.status === 'cancelled') throw new Error(`Job ${jobId} cancelado`);
+    if (st === 'done') return job;
+    if (st === 'error') throw new Error(job.erro || `Job ${jobId} falhou`);
+    if (st === 'cancelled') throw new Error(`Job ${jobId} cancelado`);
     await pause(3000);
   }
   throw new Error('Parado pelo usuário');
 }
 
 /**
- * Baixa a folha SEMCAS inteira da competência (1 job = centenas de nomes).
- * Muito mais eficiente que sync_nome 1 a 1.
+ * Snapshot da folha SEMCAS da competência (órgão + A–Z).
+ * Sem fila de 900 buscas por nome (isso é da Conferência, não da auditoria).
  */
 async function audBaixarFolhaCompetencia(comp, basePct, spanPct) {
+  try { await giapProxy('parar_cadeia', {}); } catch (_) { /* ok */ }
   const data = await giapProxy('start_job', {
     tipo: 'sync_orgao',
     competencia: Number(comp),
     dryRun: false,
-    filtros: { continuarAteCompletar: true }
+    filtros: {
+      continuarAteCompletar: false,
+      forcarLetras: true,
+      pularBuscasNome: true
+    }
   });
-  const job = data.job;
+  const job = data.job || data;
   if (!job?.id) throw new Error(`Não iniciou job para ${comp}`);
   _audSaidas.scrapes += 1;
   return audAguardarJob(job.id, comp, basePct, spanPct);
@@ -6350,10 +6367,11 @@ window.audIniciarRastreio = async function audIniciarRastreio() {
       }
     }
 
-    // 2) Baixa folha por competência (1 job por mês — cobre todos os nomes)
+    // 2) Baixa folha por competência (órgão + A–Z; sem cadeia de 900 nomes)
     if (compsBaixar.length && !_audSaidas.parar) {
+      try { await giapProxy('parar_cadeia', {}); } catch (_) { /* ok */ }
       showToast(
-        `Baixando ${compsBaixar.length} competência(s) em lote no servidor. Isso cobre todos os alvos de uma vez.`,
+        `Baixando ${compsBaixar.length} competência(s) em snapshot (A–Z). Cada mês leva alguns minutos.`,
         'info'
       );
       for (let i = 0; i < compsBaixar.length; i++) {
