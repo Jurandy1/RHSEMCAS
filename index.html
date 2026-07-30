@@ -111,7 +111,7 @@
         <span id="badge-sem-lotacao" style="display:none;margin-left:auto;background:var(--gov-orange,#ed8936);color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;line-height:16px"></span>
       </a>
       <a href="#exonerados" class="nav-item" data-route="exonerados">
-        <i class="ti ti-user-off"></i> Exonerados
+        <i class="ti ti-user-off"></i> Exonerados e Demitidos
         <span id="badge-exonerados" style="display:none;margin-left:auto;background:#718096;color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;line-height:16px"></span>
       </a>
       <a href="#lotacoes" class="nav-item" data-route="lotacoes">
@@ -754,13 +754,27 @@
       <section id="view-exonerados" class="view-section">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
           <div>
-            <div class="row-label" style="margin:0"><i class="ti ti-user-off"></i> Servidores Exonerados</div>
-            <small style="color:var(--color-text-muted)">Servidores removidos do quadro ativo com data de exoneração</small>
+            <div class="row-label" style="margin:0"><i class="ti ti-user-off"></i> Exonerados e Demitidos</div>
+            <small style="color:var(--color-text-muted)">Exoneração (com matrícula), demissão de terceirizado/CLT, falecimento e outros motivos. Edite registros antigos pela coluna Ações.</small>
           </div>
         </div>
-        <div class="toolbar-filters" style="margin-bottom:12px">
-          <input type="text" id="exo-busca" class="form-control" placeholder="🔍 Buscar por nome ou matrícula…" style="max-width:360px">
+        <div class="toolbar-filters" style="margin-bottom:12px;flex-wrap:wrap;gap:10px">
+          <input type="text" id="exo-busca" class="form-control" placeholder="Buscar por nome ou matrícula…" style="max-width:360px">
+          <select id="exo-filtro-tipo" class="form-control" style="max-width:220px" onchange="renderExonerados()">
+            <option value="">Todos os tipos</option>
+            <option value="EXONERACAO">Exonerados</option>
+            <option value="DEMISSAO_TERCEIRIZADO">Demitidos (Terceirizado/CLT)</option>
+            <option value="FALECIMENTO">Falecidos</option>
+            <option value="OUTROS">Outros motivos</option>
+          </select>
           <span class="filter-result-count" id="exo-count"></span>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px" id="exo-tabs">
+          <button type="button" class="btn-secondary exo-tab active" data-exo-tipo="" onclick="exoFiltrarTipo('')">Todos</button>
+          <button type="button" class="btn-secondary exo-tab" data-exo-tipo="EXONERACAO" onclick="exoFiltrarTipo('EXONERACAO')">Exonerados</button>
+          <button type="button" class="btn-secondary exo-tab" data-exo-tipo="DEMISSAO_TERCEIRIZADO" onclick="exoFiltrarTipo('DEMISSAO_TERCEIRIZADO')">Demitidos</button>
+          <button type="button" class="btn-secondary exo-tab" data-exo-tipo="FALECIMENTO" onclick="exoFiltrarTipo('FALECIMENTO')">Falecidos</button>
+          <button type="button" class="btn-secondary exo-tab" data-exo-tipo="OUTROS" onclick="exoFiltrarTipo('OUTROS')">Outros</button>
         </div>
         <div class="card">
           <div class="table-container">
@@ -769,12 +783,12 @@
                 <tr>
                   <th>Matrícula</th>
                   <th>Nome</th>
-                  <th>Data exoneração</th>
+                  <th>Tipo</th>
+                  <th>Data saída</th>
+                  <th>Motivo</th>
                   <th>Última função</th>
                   <th>Última lotação</th>
                   <th>Vínculo</th>
-                  <th>Simbologia</th>
-                  <th>Admissão</th>
                   <th style="text-align:center">Ações</th>
                 </tr>
               </thead>
@@ -1329,7 +1343,7 @@
 
 <!-- MODAL · REMOVER SERVIDOR (exonerar ou cadastro errado) -->
 <div class="modal-overlay" id="modal-remover-servidor">
-  <div class="modal-content" style="max-width:480px">
+  <div class="modal-content" style="max-width:520px">
     <div class="modal-header">
       <div class="modal-title"><i class="ti ti-user-x"></i> Remover servidor</div>
       <button class="modal-close" onclick="closeModal('modal-remover-servidor')" aria-label="Fechar"></button>
@@ -1337,16 +1351,43 @@
     <div class="modal-body">
       <input type="hidden" id="rem-func-id">
       <p style="margin:0 0 14px;font-size:14px">O que deseja fazer com <strong id="rem-func-nome">este servidor</strong>?</p>
-      <div class="form-group full-width" style="margin-bottom:12px">
+
+      <div class="form-group full-width" style="margin-bottom:10px">
         <label class="form-label" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-weight:600">
-          <input type="radio" name="rem-tipo" id="rem-tipo-exo" value="exonerado" checked style="margin-top:3px">
-          <span>Servidor foi exonerado<br><small style="font-weight:400;color:var(--color-text-muted)">Vai para a lista de Exonerados (não apaga o histórico)</small></span>
+          <input type="radio" name="rem-tipo" id="rem-tipo-exo" value="EXONERACAO" checked style="margin-top:3px">
+          <span>Exoneração<br><small style="font-weight:400;color:var(--color-text-muted)">Servidor com matrícula — vai para Exonerados</small></span>
         </label>
       </div>
-      <div class="form-group full-width" id="rem-exo-campos" style="margin-bottom:14px;padding-left:24px">
-        <label class="form-label" for="rem-data-exo">Data da exoneração *</label>
-        <input type="date" id="rem-data-exo" class="form-control" required>
+      <div class="form-group full-width" style="margin-bottom:10px">
+        <label class="form-label" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-weight:600">
+          <input type="radio" name="rem-tipo" id="rem-tipo-dem" value="DEMISSAO_TERCEIRIZADO" style="margin-top:3px">
+          <span>Demissão — Terceirizado / Celetista (CLT)<br><small style="font-weight:400;color:var(--color-text-muted)">Funcionário sem vínculo de matrícula estatutária</small></span>
+        </label>
       </div>
+      <div class="form-group full-width" style="margin-bottom:10px">
+        <label class="form-label" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-weight:600">
+          <input type="radio" name="rem-tipo" id="rem-tipo-fal" value="FALECIMENTO" style="margin-top:3px">
+          <span>Falecimento<br><small style="font-weight:400;color:var(--color-text-muted)">Registra saída por óbito</small></span>
+        </label>
+      </div>
+      <div class="form-group full-width" style="margin-bottom:10px">
+        <label class="form-label" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-weight:600">
+          <input type="radio" name="rem-tipo" id="rem-tipo-out" value="OUTROS" style="margin-top:3px">
+          <span>Outros motivos<br><small style="font-weight:400;color:var(--color-text-muted)">Informe o motivo no campo abaixo</small></span>
+        </label>
+      </div>
+
+      <div id="rem-saida-campos" style="margin:8px 0 14px;padding:12px;background:var(--gov-bg-light,#f7fafc);border-radius:8px">
+        <div class="form-group full-width" style="margin-bottom:10px">
+          <label class="form-label" for="rem-data-exo">Data da saída *</label>
+          <input type="date" id="rem-data-exo" class="form-control" required>
+        </div>
+        <div class="form-group full-width" style="margin-bottom:0">
+          <label class="form-label" for="rem-motivo">Motivo <span id="rem-motivo-obrig" style="display:none;color:var(--gov-red)">(obrigatório)</span></label>
+          <input type="text" id="rem-motivo" class="form-control" placeholder="Opcional — obrigatório em Outros motivos" maxlength="300">
+        </div>
+      </div>
+
       <div class="form-group full-width">
         <label class="form-label" style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-weight:600">
           <input type="radio" name="rem-tipo" id="rem-tipo-errado" value="cadastro_errado" style="margin-top:3px">
@@ -1359,6 +1400,41 @@
       <button type="button" class="btn-primary" id="btn-confirmar-remover" style="background:var(--gov-red)">
         Confirmar
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · EDITAR SAÍDA (exonerados/demitidos) -->
+<div class="modal-overlay" id="modal-editar-saida">
+  <div class="modal-content" style="max-width:480px">
+    <div class="modal-header">
+      <div class="modal-title"><i class="ti ti-edit"></i> Editar saída</div>
+      <button class="modal-close" onclick="closeModal('modal-editar-saida')" aria-label="Fechar"></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="esaida-id">
+      <p style="margin:0 0 12px;font-size:14px">Corrigir registro de <strong id="esaida-nome">—</strong></p>
+      <div class="form-group full-width" style="margin-bottom:10px">
+        <label class="form-label" for="esaida-tipo">Tipo de saída *</label>
+        <select id="esaida-tipo" class="form-control" onchange="esaidaToggleMotivo()">
+          <option value="EXONERACAO">Exoneração</option>
+          <option value="DEMISSAO_TERCEIRIZADO">Demissão — Terceirizado / CLT</option>
+          <option value="FALECIMENTO">Falecimento</option>
+          <option value="OUTROS">Outros motivos</option>
+        </select>
+      </div>
+      <div class="form-group full-width" style="margin-bottom:10px">
+        <label class="form-label" for="esaida-data">Data da saída *</label>
+        <input type="date" id="esaida-data" class="form-control">
+      </div>
+      <div class="form-group full-width" style="margin-bottom:0">
+        <label class="form-label" for="esaida-motivo">Motivo <span id="esaida-motivo-obrig" style="display:none;color:var(--gov-red)">(obrigatório)</span></label>
+        <input type="text" id="esaida-motivo" class="form-control" maxlength="300" placeholder="Texto livre">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary" onclick="closeModal('modal-editar-saida')">Cancelar</button>
+      <button type="button" class="btn-primary" id="btn-salvar-saida" onclick="salvarEditarSaida()">Salvar</button>
     </div>
   </div>
 </div>
@@ -1572,7 +1648,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20260727c"></script>
+  <script type="module" src="js/app.js?v=20260729a"></script>
 
 
 

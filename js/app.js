@@ -1988,55 +1988,62 @@ window.abrirRemoverServidor = async (id) => {
   const fid = Number(id);
   if (!fid) return;
   let nome = 'este servidor';
-  const { data } = await sb.from('funcionarios').select('nome').eq('id', fid).maybeSingle();
+  let matricula = '';
+  const { data } = await sb.from('funcionarios').select('nome, matricula').eq('id', fid).maybeSingle();
   if (data?.nome) nome = data.nome;
+  if (data?.matricula) matricula = String(data.matricula).trim();
 
   $('rem-func-id').value = String(fid);
   $('rem-func-nome').textContent = nome;
-  $('rem-tipo-exo').checked = true;
-  $('rem-tipo-errado').checked = false;
-  $('rem-exo-campos').style.display = '';
+  // Sugere demissão se não tem matrícula; senão exoneração
+  if (matricula) {
+    $('rem-tipo-exo').checked = true;
+  } else {
+    $('rem-tipo-dem').checked = true;
+  }
+  if ($('rem-motivo')) $('rem-motivo').value = '';
   $('rem-data-exo').value = new Date().toISOString().slice(0, 10);
   atualizarCamposRemover();
   openModal('modal-remover-servidor');
 };
 
-function atualizarCamposRemover() {
-  const exo = $('rem-tipo-exo')?.checked;
-  if ($('rem-exo-campos')) $('rem-exo-campos').style.display = exo ? '' : 'none';
-  const btn = $('btn-confirmar-remover');
-  if (btn) btn.textContent = exo ? 'Confirmar exoneração' : 'Excluir cadastro errado';
+function remTipoSaidaSelecionado() {
+  return document.querySelector('input[name="rem-tipo"]:checked')?.value || '';
 }
 
-$('rem-tipo-exo')?.addEventListener('change', atualizarCamposRemover);
-$('rem-tipo-errado')?.addEventListener('change', atualizarCamposRemover);
+function atualizarCamposRemover() {
+  const tipo = remTipoSaidaSelecionado();
+  const saida = tipo && tipo !== 'cadastro_errado';
+  if ($('rem-saida-campos')) $('rem-saida-campos').style.display = saida ? '' : 'none';
+  const obrig = tipo === 'OUTROS';
+  if ($('rem-motivo-obrig')) $('rem-motivo-obrig').style.display = obrig ? '' : 'none';
+  const btn = $('btn-confirmar-remover');
+  if (!btn) return;
+  const labels = {
+    EXONERACAO: 'Confirmar exoneração',
+    DEMISSAO_TERCEIRIZADO: 'Confirmar demissão',
+    FALECIMENTO: 'Confirmar falecimento',
+    OUTROS: 'Confirmar saída',
+    cadastro_errado: 'Excluir cadastro errado'
+  };
+  btn.textContent = labels[tipo] || 'Confirmar';
+}
+
+['rem-tipo-exo', 'rem-tipo-dem', 'rem-tipo-fal', 'rem-tipo-out', 'rem-tipo-errado'].forEach((id) => {
+  $(id)?.addEventListener('change', atualizarCamposRemover);
+});
 
 $('btn-confirmar-remover')?.addEventListener('click', async () => {
   const id = Number($('rem-func-id').value);
   const nome = $('rem-func-nome')?.textContent || 'Servidor(a)';
   if (!id) return;
 
-  const tipo = document.querySelector('input[name="rem-tipo"]:checked')?.value;
+  const tipo = remTipoSaidaSelecionado();
   const btn = $('btn-confirmar-remover');
   btn.disabled = true;
 
   try {
-    if (tipo === 'exonerado') {
-      const dataExo = $('rem-data-exo').value;
-      if (!dataExo) {
-        showToast('Informe a data da exoneração.', 'warning');
-        btn.disabled = false;
-        return;
-      }
-      const { error } = await sb.rpc('fn_exonerar_funcionario', {
-        p_funcionario_id: id,
-        p_data_exoneracao: dataExo,
-        p_motivo: null
-      });
-      if (error) throw error;
-      await registrarLog('EXONERAÇÃO DE SERVIDOR', id, nome, { data_exoneracao: dataExo });
-      showToast('Servidor marcado como exonerado.', 'success');
-    } else {
+    if (tipo === 'cadastro_errado') {
       if (!confirm('Confirma exclusão definitiva por cadastro errado? Esta ação não pode ser desfeita.')) {
         btn.disabled = false;
         return;
@@ -2045,6 +2052,44 @@ $('btn-confirmar-remover')?.addEventListener('click', async () => {
       if (res.error) throw res.error;
       await registrarLog('EXCLUSÃO DE SERVIDOR (CADASTRO ERRADO)', id, nome, {});
       showToast('Cadastro errado excluído.', 'success');
+    } else {
+      const dataExo = $('rem-data-exo').value;
+      const motivo = ($('rem-motivo')?.value || '').trim();
+      if (!dataExo) {
+        showToast('Informe a data da saída.', 'warning');
+        btn.disabled = false;
+        return;
+      }
+      if (tipo === 'OUTROS' && !motivo) {
+        showToast('Informe o motivo quando o tipo for Outros.', 'warning');
+        btn.disabled = false;
+        return;
+      }
+      const { error } = await sb.rpc('fn_exonerar_funcionario', {
+        p_funcionario_id: id,
+        p_data_exoneracao: dataExo,
+        p_motivo: motivo || null,
+        p_tipo_saida: tipo
+      });
+      if (error) throw error;
+      const logTipo = {
+        EXONERACAO: 'EXONERAÇÃO DE SERVIDOR',
+        DEMISSAO_TERCEIRIZADO: 'DEMISSÃO TERCEIRIZADO/CLT',
+        FALECIMENTO: 'FALECIMENTO DE SERVIDOR',
+        OUTROS: 'SAÍDA POR OUTROS MOTIVOS'
+      };
+      await registrarLog(logTipo[tipo] || 'SAÍDA DE SERVIDOR', id, nome, {
+        data_exoneracao: dataExo,
+        tipo_saida: tipo,
+        motivo: motivo || null
+      });
+      const toastOk = {
+        EXONERACAO: 'Servidor marcado como exonerado.',
+        DEMISSAO_TERCEIRIZADO: 'Demissão de terceirizado/CLT registrada.',
+        FALECIMENTO: 'Falecimento registrado.',
+        OUTROS: 'Saída registrada.'
+      };
+      showToast(toastOk[tipo] || 'Saída registrada.', 'success');
     }
     closeModal('modal-remover-servidor');
     carregarFuncionarios();
@@ -3223,7 +3268,7 @@ if (typeof rotas !== 'undefined') {
   rotas.pendentes    = { titulo: 'Dados incompletos',   bread: 'Dados incompletos',    render: renderPendentes };
   rotas.lotacoes     = { titulo: 'Gestão de Lotações',     bread: 'Lotações',     render: renderLotacoes };
   rotas['sem-lotacao'] = { titulo: 'Servidores sem Lotação', bread: 'Sem Lotação', render: renderSemLotacao };
-  rotas.exonerados   = { titulo: 'Servidores Exonerados',  bread: 'Exonerados',   render: renderExonerados };
+  rotas.exonerados   = { titulo: 'Exonerados e Demitidos', bread: 'Exonerados e Demitidos', render: renderExonerados };
   rotas['relatorio-api'] = { titulo: 'Conferência GIAP', bread: 'Conferência GIAP', render: renderRelatorioApi };
   rotas.remuneracoes = { titulo: 'Remunerações', bread: 'Remunerações', render: renderRemuneracoes };
 }
@@ -3821,62 +3866,167 @@ window.alocarServidorSemLotacao = async (funcionarioId) => {
   await abrirTransferencia(funcionarioId, { fromSemLotacao: true });
 };
 
+const EXO_TIPO_LABEL = {
+  EXONERACAO: 'Exoneração',
+  DEMISSAO_TERCEIRIZADO: 'Demissão (Terceirizado/CLT)',
+  FALECIMENTO: 'Falecimento',
+  OUTROS: 'Outros'
+};
+
+function exoTipoLabel(tipo) {
+  return EXO_TIPO_LABEL[tipo] || tipo || 'Exoneração';
+}
+
+window.exoFiltrarTipo = function exoFiltrarTipo(tipo) {
+  if ($('exo-filtro-tipo')) $('exo-filtro-tipo').value = tipo || '';
+  document.querySelectorAll('#exo-tabs .exo-tab').forEach((btn) => {
+    btn.classList.toggle('active', (btn.getAttribute('data-exo-tipo') || '') === (tipo || ''));
+  });
+  renderExonerados();
+};
+
 async function renderExonerados() {
   const tbody = $('tbody-exonerados');
   if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
 
   const { data, error } = await sb.from('v_exonerados')
-    .select('funcionario_id, nome, matricula, data_exoneracao, funcao, lotacao_nome, vinculo, simbologia, data_admissao')
+    .select('funcionario_id, nome, matricula, data_exoneracao, motivo_saida, tipo_saida, funcao, lotacao_nome, vinculo, simbologia, data_admissao')
     .order('data_exoneracao', { ascending: false });
 
   if (error) {
-    if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="empty-state">Erro: ${htmlEscape(error.message)}. Rode sql/exonerados_e_sem_lotacao.sql no Supabase.</td></tr>`;
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="9" class="empty-state">Erro: ${htmlEscape(error.message)}. Rode sql/exonerados_demitidos.sql no Supabase.</td></tr>`;
+    }
     return;
   }
 
   let lista = data || [];
   window._exoneradosCache = lista;
   const termo = ($('exo-busca')?.value || '').trim().toLowerCase();
+  const filtroTipo = ($('exo-filtro-tipo')?.value || '').trim();
+  document.querySelectorAll('#exo-tabs .exo-tab').forEach((btn) => {
+    btn.classList.toggle('active', (btn.getAttribute('data-exo-tipo') || '') === filtroTipo);
+  });
+  if (filtroTipo) {
+    lista = lista.filter((f) => (f.tipo_saida || 'EXONERACAO') === filtroTipo);
+  }
   if (termo) {
-    lista = lista.filter(f =>
+    lista = lista.filter((f) =>
       (f.nome || '').toLowerCase().includes(termo) ||
-      String(f.matricula || '').toLowerCase().includes(termo)
+      String(f.matricula || '').toLowerCase().includes(termo) ||
+      (f.motivo_saida || '').toLowerCase().includes(termo)
     );
   }
 
-  if ($('exo-count')) $('exo-count').textContent = `${lista.length} exonerado(s)`;
+  if ($('exo-count')) {
+    $('exo-count').textContent = `${lista.length} registro(s)` +
+      (filtroTipo ? ` · ${exoTipoLabel(filtroTipo)}` : '');
+  }
   atualizarBadgesSemLotacaoExonerados();
 
   if (!lista.length) {
-    if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Nenhum servidor exonerado.</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Nenhum registro neste filtro.</td></tr>';
     return;
   }
 
   const fmtDt = (s) => s ? new Date(s + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
-  tbody.innerHTML = lista.map(f => `
+  tbody.innerHTML = lista.map((f) => {
+    const tipo = f.tipo_saida || 'EXONERACAO';
+    return `
     <tr>
       <td style="font-family:monospace;font-size:12px">${htmlEscape(f.matricula || '—')}</td>
       <td style="font-weight:600">${htmlEscape(f.nome || '—')}</td>
+      <td style="font-size:12px;font-weight:600">${htmlEscape(exoTipoLabel(tipo))}</td>
       <td style="font-weight:700;color:var(--gov-red)">${fmtDt(f.data_exoneracao)}</td>
+      <td style="font-size:12px;max-width:180px">${htmlEscape(f.motivo_saida || '—')}</td>
       <td>${htmlEscape(f.funcao || '—')}</td>
       <td>${htmlEscape(f.lotacao_nome || '—')}</td>
       <td>${htmlEscape(f.vinculo || '—')}</td>
-      <td>${htmlEscape(f.simbologia || '—')}</td>
-      <td style="font-size:12px">${fmtDt(f.data_admissao)}</td>
-      <td style="text-align:center">
+      <td style="text-align:center;white-space:nowrap">
+        <button
+          type="button"
+          class="btn-secondary"
+          style="padding:5px 8px;font-size:12px;margin:1px"
+          onclick="abrirEditarSaida(${Number(f.funcionario_id)})"
+          title="Editar tipo, data e motivo"
+        >
+          <i class="ti ti-edit"></i> Editar
+        </button>
         <button
           type="button"
           class="btn-primary"
-          style="padding:6px 10px;font-size:12px"
+          style="padding:5px 8px;font-size:12px;margin:1px"
           onclick="reativarExonerado(${Number(f.funcionario_id)})"
           title="Reativar e devolver à última lotação"
         >
           <i class="ti ti-user-check"></i> Reativar
         </button>
       </td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
 }
+
+window.abrirEditarSaida = function abrirEditarSaida(funcionarioId) {
+  const f = (window._exoneradosCache || [])
+    .find((x) => Number(x.funcionario_id) === Number(funcionarioId));
+  if (!f) return showToast('Registro não encontrado. Atualize a lista.', 'warning');
+  $('esaida-id').value = String(f.funcionario_id);
+  $('esaida-nome').textContent = f.nome || '—';
+  $('esaida-tipo').value = f.tipo_saida || 'EXONERACAO';
+  $('esaida-data').value = (f.data_exoneracao || '').slice(0, 10);
+  $('esaida-motivo').value = f.motivo_saida || '';
+  esaidaToggleMotivo();
+  openModal('modal-editar-saida');
+};
+
+window.esaidaToggleMotivo = function esaidaToggleMotivo() {
+  const obrig = ($('esaida-tipo')?.value || '') === 'OUTROS';
+  if ($('esaida-motivo-obrig')) $('esaida-motivo-obrig').style.display = obrig ? '' : 'none';
+};
+
+window.salvarEditarSaida = async function salvarEditarSaida() {
+  const id = Number($('esaida-id')?.value);
+  const tipo = ($('esaida-tipo')?.value || '').trim();
+  const dataSaida = ($('esaida-data')?.value || '').trim();
+  const motivo = ($('esaida-motivo')?.value || '').trim();
+  const nome = $('esaida-nome')?.textContent || 'Servidor(a)';
+  if (!id || !tipo || !dataSaida) {
+    return showToast('Preencha tipo e data da saída.', 'warning');
+  }
+  if (tipo === 'OUTROS' && !motivo) {
+    return showToast('Informe o motivo quando o tipo for Outros.', 'warning');
+  }
+  const btn = $('btn-salvar-saida');
+  if (btn) btn.disabled = true;
+  try {
+    const { error } = await sb.rpc('fn_atualizar_saida_funcionario', {
+      p_funcionario_id: id,
+      p_tipo_saida: tipo,
+      p_data_exoneracao: dataSaida,
+      p_motivo: motivo || null
+    });
+    if (error) throw error;
+    await registrarLog('EDIÇÃO DE SAÍDA', id, nome, {
+      tipo_saida: tipo,
+      data_exoneracao: dataSaida,
+      motivo: motivo || null
+    });
+    showToast('Registro de saída atualizado.', 'success');
+    closeModal('modal-editar-saida');
+    await renderExonerados();
+  } catch (e) {
+    const msg = e.message || String(e);
+    if (/fn_atualizar_saida|schema cache|does not exist|404/i.test(msg)) {
+      showToast('Rode sql/exonerados_demitidos.sql no Supabase primeiro. (' + msg + ')', 'warning');
+    } else {
+      showToast(msg, 'error');
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+};
+
+window.renderExonerados = renderExonerados;
 
 window.reativarExonerado = async function reativarExonerado(funcionarioId) {
   const servidor = (window._exoneradosCache || [])
@@ -3921,7 +4071,7 @@ window.reativarExonerado = async function reativarExonerado(funcionarioId) {
     const detalhes = [e.details, e.hint, e.code].filter(Boolean).join(' | ');
     if (/schema cache|does not exist|PGRST202|404/i.test(`${msg} ${detalhes}`)) {
       showToast(
-        `Função não encontrada no Supabase. Rode sql/reativar_servidor_exonerado.sql e tente de novo. (${msg})`,
+        `Função não encontrada no Supabase. Rode sql/exonerados_demitidos.sql e tente de novo. (${msg})`,
         'warning'
       );
     } else {
@@ -5039,7 +5189,8 @@ window.giapAplicarExoneracao = async function giapAplicarExoneracao(mat) {
     const { error } = await sb.rpc('fn_exonerar_funcionario', {
       p_funcionario_id: r._rhId,
       p_data_exoneracao: dataExo,
-      p_motivo: `Manual via Relatório API GIAP (competência ${r.competencia})`
+      p_motivo: `Manual via Relatório API GIAP (competência ${r.competencia})`,
+      p_tipo_saida: 'EXONERACAO'
     });
     if (error) throw error;
     await registrarLog('GIAP — EXONERAÇÃO MANUAL', r._rhId, r._rhNome, {
@@ -6015,7 +6166,8 @@ window.giapExonerarRevisao = async function giapExonerarRevisao(revisaoId, funci
     const { error } = await sb.rpc('fn_exonerar_funcionario', {
       p_funcionario_id: funcionarioId,
       p_data_exoneracao: hoje,
-      p_motivo: 'Revisão GIAP — ausência na folha'
+      p_motivo: 'Revisão GIAP — ausência na folha',
+      p_tipo_saida: 'EXONERACAO'
     });
     if (error) throw error;
     await sb.from('giap_revisao_ausencia').update({
