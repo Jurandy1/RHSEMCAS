@@ -8462,68 +8462,188 @@ function renderTabelaLicencas(lista) {
     }
 
     if (data.length === 0) {
-      $('tbody-licencas').innerHTML = `<tr><td colspan="6"><div class="empty-state">${lista.length === 0 ? 'Nenhum afastamento encontrado' : 'Nenhum afastamento corresponde aos filtros'}</div></td></tr>`;
+      const tb = $('tbody-licencas');
+      if (tb) {
+        tb.replaceChildren();
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 6;
+        td.innerHTML = `<div class="empty-state">${lista.length === 0 ? 'Nenhum afastamento encontrado' : 'Nenhum afastamento corresponde aos filtros'}</div>`;
+        tr.appendChild(td);
+        tb.appendChild(tr);
+      }
       return;
     }
-    $('tbody-licencas').innerHTML = pagina.map(l => {
+
+    const tbody = $('tbody-licencas');
+    if (!tbody) return;
+    const frag = document.createDocumentFragment();
+
+    for (const l of pagina) {
       const dias = diasAteData(l.data_final);
-      let vencHtml = '';
-      let rowBg = l.precisa_definir_lotacao ? 'background:#fff8f0' : '';
-      if (dias != null && dias < 0) {
-        vencHtml = `<div style="font-size:11px;color:var(--gov-red);font-weight:700"><i class="ti ti-alert-triangle"></i> Vencida há ${Math.abs(dias)} dia(s)</div>`;
-        rowBg = rowBg || 'background:#fff5f5';
-      } else if (dias != null && dias <= LIC_URGENTE_DIAS) {
-        vencHtml = `<div style="font-size:11px;color:var(--gov-red);font-weight:700"><i class="ti ti-clock"></i> ${dias === 0 ? 'Vence hoje' : `Vence em ${dias} dia(s)`}</div>`;
-        rowBg = rowBg || 'background:#fff5f5';
-      } else if (dias != null && dias <= LIC_AVISO_DIAS) {
-        vencHtml = `<div style="font-size:11px;color:var(--gov-orange);font-weight:600"><i class="ti ti-clock"></i> Vence em ${dias} dia(s)</div>`;
-        rowBg = rowBg || 'background:#fffaf3';
+      const tr = document.createElement('tr');
+      if (l.precisa_definir_lotacao) tr.style.background = '#fff8f0';
+      else if (dias != null && dias < 0) tr.style.background = '#fff5f5';
+      else if (dias != null && dias <= LIC_URGENTE_DIAS) tr.style.background = '#fff5f5';
+      else if (dias != null && dias <= LIC_AVISO_DIAS) tr.style.background = '#fffaf3';
+
+      // Servidor
+      const tdNome = document.createElement('td');
+      const divN = document.createElement('div');
+      divN.style.cssText = 'font-weight:600;color:var(--gov-blue-dark)';
+      divN.textContent = l.nome || '—';
+      const divM = document.createElement('div');
+      divM.style.cssText = 'font-size:12px;color:var(--color-text-sec)';
+      divM.textContent = `Mat: ${l.matricula || 'S/M'}`;
+      if (l._outras_licencas) {
+        const extra = document.createElement('span');
+        extra.style.cssText = 'color:var(--gov-orange)';
+        extra.title = 'Outras licenças ativas no banco';
+        extra.textContent = ` · +${l._outras_licencas} licença(s)`;
+        divM.appendChild(extra);
       }
+      tdNome.append(divN, divM);
+      tr.appendChild(tdNome);
+
+      // Tipo
+      const tdTipo = document.createElement('td');
+      const badge = document.createElement('span');
+      badge.className = 'badge';
+      badge.style.cssText = 'background:#fff9e6;color:var(--gov-orange)';
+      badge.innerHTML = '<i class="ti ti-activity"></i> ';
+      badge.appendChild(document.createTextNode(l.tipo_afastamento || '—'));
+      tdTipo.appendChild(badge);
+      tr.appendChild(tdTipo);
+
+      // Lotação
+      const tdLot = document.createElement('td');
+      if (l.precisa_definir_lotacao) {
+        const p1 = document.createElement('div');
+        p1.style.cssText = 'font-size:12px;color:var(--gov-orange);font-weight:700';
+        p1.innerHTML = '<i class="ti ti-alert-circle"></i> Pendente de lotação';
+        const p2 = document.createElement('div');
+        p2.style.cssText = 'font-size:11px;color:var(--color-text-muted)';
+        p2.textContent = l.lotacao_nome || 'Sem lotação original';
+        tdLot.append(p1, p2);
+      } else {
+        const p = document.createElement('div');
+        p.style.fontSize = '12px';
+        p.textContent = l.lotacao_nome || '—';
+        tdLot.appendChild(p);
+      }
+      tr.appendChild(tdLot);
+
+      // Período
+      const tdPer = document.createElement('td');
+      const d1 = document.createElement('div');
+      d1.style.fontSize = '12px';
+      d1.textContent = fmtDataLicenca(l.data_inicial);
+      const d2 = document.createElement('div');
+      d2.style.fontSize = '12px';
+      d2.textContent = fmtDataLicenca(l.data_final);
+      tdPer.append(d1, d2);
+      if (dias != null) {
+        const v = document.createElement('div');
+        v.style.cssText = 'font-size:11px;font-weight:700';
+        if (dias < 0) {
+          v.style.color = 'var(--gov-red)';
+          v.innerHTML = `<i class="ti ti-alert-triangle"></i> Vencida há ${Math.abs(dias)} dia(s)`;
+        } else if (dias <= LIC_URGENTE_DIAS) {
+          v.style.color = 'var(--gov-red)';
+          v.innerHTML = `<i class="ti ti-clock"></i> ${dias === 0 ? 'Vence hoje' : `Vence em ${dias} dia(s)`}`;
+        } else if (dias <= LIC_AVISO_DIAS) {
+          v.style.cssText = 'font-size:11px;font-weight:600;color:var(--gov-orange)';
+          v.innerHTML = `<i class="ti ti-clock"></i> Vence em ${dias} dia(s)`;
+        }
+        if (v.innerHTML) tdPer.appendChild(v);
+      }
+      tr.appendChild(tdPer);
+
+      // Portaria / SEI
+      const tdDoc = document.createElement('td');
+      const po = document.createElement('div');
+      po.style.fontSize = '12px';
+      po.textContent = `Portaria: ${l.portaria || '-'}`;
+      const se = document.createElement('div');
+      se.style.fontSize = '12px';
+      se.textContent = `SEI: ${l.num_sei || '-'}`;
+      tdDoc.append(po, se);
+      tr.appendChild(tdDoc);
+
+      // Ações
+      const tdAc = document.createElement('td');
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;align-items:center';
+      const st = document.createElement('span');
+      st.style.cssText = 'color:var(--gov-orange);font-weight:600;font-size:12px;margin-right:4px';
+      st.innerHTML = '<i class="ti ti-clock"></i> Afastado';
+      wrap.appendChild(st);
+
       const fid = Number(l.funcionario_id) || 0;
-      const lid = l.licenca_id != null ? Number(l.licenca_id) : 'null';
-      return `
-      <tr${rowBg ? ` style="${rowBg}"` : ''}>
-        <td>
-          <div style="font-weight:600;color:var(--gov-blue-dark)">${htmlEscape(l.nome)}</div>
-          <div style="font-size:12px;color:var(--color-text-sec)">Mat: ${htmlEscape(l.matricula||'S/M')}${l._outras_licencas ? ` · <span style="color:var(--gov-orange)" title="Outras licenças ativas no banco">+${l._outras_licencas} licença(s)</span>` : ''}</div>
-        </td>
-        <td>
-          <span class="badge" style="background:#fff9e6;color:var(--gov-orange)"><i class="ti ti-activity"></i> ${htmlEscape(l.tipo_afastamento)}</span>
-        </td>
-        <td>
-          ${l.precisa_definir_lotacao
-            ? `<div style="font-size:12px;color:var(--gov-orange);font-weight:700"><i class="ti ti-alert-circle"></i> Pendente de lotação</div>
-               <div style="font-size:11px;color:var(--color-text-muted)">${htmlEscape(l.lotacao_nome || 'Sem lotação original')}</div>`
-            : `<div style="font-size:12px">${htmlEscape(l.lotacao_nome || '—')}</div>`}
-        </td>
-        <td>
-          <div style="font-size:12px">${fmtDataLicenca(l.data_inicial)}</div>
-          <div style="font-size:12px">${fmtDataLicenca(l.data_final)}</div>
-          ${vencHtml}
-        </td>
-        <td>
-          <div style="font-size:12px">Portaria: ${htmlEscape(l.portaria||'-')}</div>
-          <div style="font-size:12px">SEI: ${htmlEscape(l.num_sei||'-')}</div>
-        </td>
-        <td>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
-            <span style="color:var(--gov-orange);font-weight:600;font-size:12px;margin-right:4px"><i class="ti ti-clock"></i> Afastado</span>
-            ${l.precisa_definir_lotacao
-              ? `<button class="btn-primary" style="padding:5px 8px;font-size:12px" onclick="definirLotacaoLicenca(${fid})" title="Definir lotação original">
-                   <i class="ti ti-building"></i> Lotação
-                 </button>`
-              : `<button class="btn-secondary" style="padding:5px 8px;font-size:12px" onclick="enviarLicencaParaSemLotacao(${fid}, ${lid})" title="Enviar para Sem Lotação">
-                   <i class="ti ti-map-off"></i> Sem Lotação
-                 </button>`}
-            ${l.licenca_id
-              ? `<button class="btn-icon" onclick="abrirEditarTipoLicenca(${lid})" title="Editar"><i class="ti ti-edit"></i></button>`
-              : ''}
-            <button class="btn-icon" onclick="retornarAtiva(${lid}, ${fid})" title="Retornar à Ativa"><i class="ti ti-arrow-back-up"></i></button>
-            <button class="btn-icon" onclick="verHistorico(${fid})" title="Histórico"><i class="ti ti-history"></i></button>
-          </div>
-        </td>
-      </tr>`;
-    }).join('');
+      const lid = l.licenca_id != null && l.licenca_id !== '' ? Number(l.licenca_id) : null;
+
+      if (l.precisa_definir_lotacao) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'btn-primary';
+        b.style.cssText = 'padding:5px 8px;font-size:12px';
+        b.title = 'Definir lotação original';
+        b.innerHTML = '<i class="ti ti-building"></i> Lotação';
+        b.addEventListener('click', () => definirLotacaoLicenca(fid));
+        wrap.appendChild(b);
+      } else {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'btn-secondary';
+        b.style.cssText = 'padding:5px 8px;font-size:12px';
+        b.title = 'Enviar para Sem Lotação';
+        b.innerHTML = '<i class="ti ti-map-off"></i> Sem Lotação';
+        b.addEventListener('click', () => enviarLicencaParaSemLotacao(fid, lid));
+        wrap.appendChild(b);
+      }
+      if (lid != null && !Number.isNaN(lid)) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'btn-icon';
+        b.title = 'Editar';
+        b.innerHTML = '<i class="ti ti-edit"></i>';
+        b.addEventListener('click', () => abrirEditarTipoLicenca(lid));
+        wrap.appendChild(b);
+      }
+      {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'btn-icon';
+        b.title = 'Retornar à Ativa';
+        b.innerHTML = '<i class="ti ti-arrow-back-up"></i>';
+        b.addEventListener('click', () => retornarAtiva(lid, fid));
+        wrap.appendChild(b);
+      }
+      {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'btn-icon';
+        b.title = 'Histórico';
+        b.innerHTML = '<i class="ti ti-history"></i>';
+        b.addEventListener('click', () => verHistorico(fid));
+        wrap.appendChild(b);
+      }
+      tdAc.appendChild(wrap);
+      tr.appendChild(tdAc);
+
+      frag.appendChild(tr);
+    }
+
+    tbody.replaceChildren(frag);
+
+    // Diagnóstico: se o DOM tiver menos linhas que o esperado, avisa
+    const noDom = tbody.querySelectorAll('tr').length;
+    if (cnt && noDom !== pagina.length) {
+      cnt.innerHTML += ` · <span style="color:var(--gov-red);font-weight:700">DOM ${noDom}/${pagina.length} linhas</span>`;
+      console.error('[licenças] mismatch render', { esperado: pagina.length, noDom, amostra: pagina.map(x => x.nome) });
+    } else if (cnt) {
+      cnt.innerHTML += ` · <span style="color:var(--color-text-muted)">${noDom} linhas na tela</span>`;
+    }
 }
 
 window.licIrPagina = function licIrPagina(p) {
