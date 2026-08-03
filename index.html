@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
   
-  <link rel="stylesheet" href="css/styles.css?v=20260803d">
+  <link rel="stylesheet" href="css/styles.css?v=20260803e">
 </head>
 <body>
 
@@ -1114,6 +1114,10 @@
           </div>
           <span class="filter-result-count" id="remun-count"></span>
         </div>
+        <div class="pagination" style="margin-bottom:10px;position:sticky;top:0;z-index:4;background:#eef4fb;border:1px solid var(--gov-border);border-radius:6px;padding:10px 14px">
+          <div class="page-info" id="remun-page-info">—</div>
+          <div class="page-controls" id="remun-page-controls"></div>
+        </div>
         <div class="card">
           <div class="table-container" style="overflow-x:auto">
             <table class="gov-table" id="tabela-remuneracoes">
@@ -1134,10 +1138,6 @@
                 <tr><td colspan="9" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>
               </tbody>
             </table>
-            <div class="pagination">
-              <div class="page-info" id="remun-page-info">—</div>
-              <div class="page-controls" id="remun-page-controls"></div>
-            </div>
           </div>
         </div>
       </section>
@@ -1175,6 +1175,7 @@
           </div>
           <span class="filter-result-count" id="lic-count"></span>
         </div>
+        <div id="lic-paginacao" class="lic-paginacao-bar" style="display:none" aria-label="Paginação de licenças"></div>
         <div class="card lic-table-card">
           <div class="table-container" id="lic-tabela-wrap">
             <table class="gov-table">
@@ -1193,7 +1194,6 @@
               </tbody>
             </table>
           </div>
-          <div id="lic-paginacao" class="lic-paginacao-bar" style="display:none"></div>
         </div>
       </section>
 
@@ -1697,7 +1697,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20260803j"></script>
+  <script type="module" src="js/app.js?v=20260803k"></script>
 
 
 

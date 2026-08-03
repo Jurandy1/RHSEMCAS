@@ -118,6 +118,7 @@ async function bootApp() {
     window.addEventListener('hashchange', navigate);
     if (!location.hash || location.hash === '#') location.hash = '#painel';
     navigate();
+    instalarScrollConteudo();
     const { data } = await sb.from('v_pendentes_kpis').select('pendentes').single();
     if (data && $('badge-pendentes')) {
       // Menu Dados incompletos removido — badge legado ignorado
@@ -129,6 +130,31 @@ async function bootApp() {
     console.error('Boot failed:', e);
     showToast('Erro ao inicializar: ' + e.message, 'error');
   }
+}
+
+/** Garante rolagem da área principal (Firefox / flex). */
+function instalarScrollConteudo() {
+  const area = document.querySelector('.content-area');
+  if (!area || area.dataset.scrollFix === '1') return;
+  area.dataset.scrollFix = '1';
+  if (!area.hasAttribute('tabindex')) area.setAttribute('tabindex', '-1');
+
+  document.addEventListener('wheel', (e) => {
+    if (e.ctrlKey) return;
+    if (document.querySelector('.modal-overlay[style*="flex"]')) return;
+    let el = e.target instanceof Element ? e.target : null;
+    while (el && el !== document.body) {
+      if (el === area) break;
+      const st = getComputedStyle(el);
+      const oy = st.overflowY;
+      if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight + 1) return;
+      el = el.parentElement;
+    }
+    if (area.scrollHeight <= area.clientHeight + 1) return;
+    const before = area.scrollTop;
+    area.scrollTop += e.deltaY;
+    if (area.scrollTop !== before) e.preventDefault();
+  }, { passive: false });
 }
 
 async function carregarPerfilUsuario() {
@@ -990,6 +1016,9 @@ function navigate() {
 
   // Fecha sidebar automaticamente no mobile ao navegar
   closeSidebarMobile();
+
+  const area = document.querySelector('.content-area');
+  if (area) area.scrollTop = 0;
 
   def.render(resto);
 }
@@ -3580,6 +3609,8 @@ window.limparFiltrosRemuneracoes = function limparFiltrosRemuneracoes() {
 window.irPaginaRemuneracoes = function irPaginaRemuneracoes(p) {
   window._remunPage = Math.max(1, Number(p) || 1);
   renderTabelaRemuneracoes();
+  const area = document.querySelector('.content-area');
+  if (area) area.scrollTop = 0;
 };
 
 function renderPaginacaoRemuneracoes(filtradoTotal) {
@@ -8437,12 +8468,15 @@ function renderTabelaLicencas(lista) {
     }
 
     const htmlPag = data.length <= pageSize ? '' : `
-      <button type="button" class="btn-secondary" style="padding:6px 12px" ${page <= 1 ? 'disabled' : ''} onclick="licIrPagina(${page - 1})">
+      <button type="button" class="btn-secondary" style="padding:8px 14px" ${page <= 1 ? 'disabled' : ''} onclick="licIrPagina(${page - 1})">
         <i class="ti ti-chevron-left"></i> Anterior
       </button>
-      <span style="font-size:13px;color:var(--color-text-sec)">Página <strong>${page}</strong> de <strong>${totalPages}</strong> (${data.length} servidores)</span>
-      <button type="button" class="btn-primary" style="padding:6px 12px" ${page >= totalPages ? 'disabled' : ''} onclick="licIrPagina(${page + 1})">
-        Próxima <i class="ti ti-chevron-right"></i>
+      <span style="font-size:13px;color:var(--color-text-sec);text-align:center">
+        Página <strong>${page}</strong> de <strong>${totalPages}</strong>
+        <span style="display:block;font-size:12px;margin-top:2px">${data.length} servidores · use <strong>Próxima</strong> para ver mais</span>
+      </span>
+      <button type="button" class="btn-primary" style="padding:8px 16px" ${page >= totalPages ? 'disabled' : ''} onclick="licIrPagina(${page + 1})">
+        Próxima página <i class="ti ti-chevron-right"></i>
       </button>`;
 
     const pagEl = $('lic-paginacao');
@@ -8644,7 +8678,8 @@ function renderTabelaLicencas(lista) {
 window.licIrPagina = function licIrPagina(p) {
   window._licPage = Math.max(1, Number(p) || 1);
   if (window._licencasCache) renderTabelaLicencas(window._licencasCache);
-  $('view-licencas')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const area = document.querySelector('.content-area');
+  if (area) area.scrollTop = 0;
 };
 
 window.definirLotacaoLicenca = async (funcionario_id) => {

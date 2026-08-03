@@ -182,6 +182,8 @@
     .sidebar {
       width: 264px;
       flex-shrink: 0;
+      min-height: 0;
+      align-self: stretch;
       background: var(--gov-blue-dark);
       display: flex;
       flex-direction: column;
@@ -354,8 +356,8 @@
     }
 
     /* --- LAYOUT PRINCIPAL --- */
-    /* min-height:0 é obrigatório em filhos flex — sem isso o Firefox
-       não gera barra de rolagem e o conteúdo fica “preso” (só dá pra ver com zoom 40%). */
+    /* Conteúdo rola em .content-area com posição absoluta (limites top/bottom
+       explícitos). Flex+min-height:0 ainda falhava no Firefox de algumas estações. */
     .main {
       flex: 1;
       display: flex;
@@ -363,6 +365,7 @@
       overflow: hidden;
       min-height: 0;
       min-width: 0;
+      position: relative;
       background: var(--gov-bg-light);
     }
 
@@ -481,15 +484,17 @@
     @media (max-width: 768px) { .global-search { display: none; } }
 
     .content-area {
-      flex: 1;
-      min-height: 0;
+      position: absolute;
+      top: 64px; /* altura do .topbar */
+      left: 0;
+      right: 0;
+      bottom: 0;
       min-width: 0;
       overflow-x: hidden;
-      overflow-y: auto;
+      overflow-y: scroll;
       padding: 24px 28px;
       -webkit-overflow-scrolling: touch;
       overscroll-behavior: contain;
-      scrollbar-gutter: stable;
     }
 
     /* Sistema de Views (SPA) */
@@ -916,9 +921,20 @@
       gap: 12px;
       flex-wrap: wrap;
       padding: 10px 14px;
-      background: #f7f9fc;
-      border-top: 1px solid var(--gov-border);
+      background: #eef4fb;
+      border: 1px solid var(--gov-border);
+      border-radius: 6px;
+      margin-bottom: 10px;
       font-size: 13px;
+      position: sticky;
+      top: 0;
+      z-index: 4;
+      box-shadow: 0 1px 0 rgba(0,0,0,.04);
+    }
+    #view-licencas .lic-paginacao-bar .btn-primary,
+    #view-licencas .lic-paginacao-bar .btn-secondary {
+      min-height: 36px;
+      font-weight: 600;
     }
     #view-licencas .gov-table td,
     #view-licencas .gov-table th {
@@ -1472,10 +1488,11 @@
       .tbadge { display: none; }
       .tib { display: none; }
 
-      /* Conteúdo mobile */
+      /* Conteúdo mobile — topbar 56px + bottom-nav 64px */
       .content-area {
+        top: 56px;
+        bottom: 64px;
         padding: 16px;
-        padding-bottom: 80px; /* espaço para bottom nav */
       }
 
       /* Stats cards: 2 colunas no mobile */
