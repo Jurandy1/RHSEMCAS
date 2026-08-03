@@ -8193,7 +8193,7 @@ async function atualizarAlertasLicenca() {
       elPainel.hidden = !htmlPainel;
     }
 
-    const htmlPage = montarHtmlAlertaLicenca(info, { compacto: false });
+    const htmlPage = montarHtmlAlertaLicenca(info, { compacto: true });
     const elPage = $('alerta-licencas-page');
     if (elPage) {
       elPage.innerHTML = htmlPage;
@@ -8446,7 +8446,7 @@ function renderTabelaLicencas(lista) {
           Próxima <i class="ti ti-chevron-right"></i>
         </button>
       </div>
-      <span style="font-size:12px;color:var(--gov-blue-primary)"><i class="ti ti-arrow-down"></i> Role a tabela abaixo para ver os ${pagina.length} nomes desta página</span>`;
+      <span style="font-size:12px;color:var(--gov-blue-primary)"><i class="ti ti-arrow-down"></i> Role a lista nesta área</span>`;
 
     const pagTop = $('lic-paginacao-top');
     const pagEl = $('lic-paginacao');

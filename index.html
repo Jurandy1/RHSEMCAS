@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
   
-  <link rel="stylesheet" href="css/styles.css?v=20260719g">
+  <link rel="stylesheet" href="css/styles.css?v=20260803a">
 </head>
 <body>
 
@@ -1145,21 +1145,20 @@
       <!-- ===== LICENÇAS E AFASTAMENTOS ===== -->
       <section id="view-licencas" class="view-section">
         <div id="alerta-licencas-page" class="alerta-licenca-wrap" hidden></div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-          <div>
-            <div class="row-label" style="margin:0"><i class="ti ti-activity"></i> Controle de Licenças e Afastamentos</div>
-            <small class="view-help">O que fazer aqui: veja quem está afastado e registre novas licenças. Use os filtros para achar por nome ou tipo.</small>
+        <div class="lic-toolbar-top">
+          <div class="lic-toolbar-title">
+            <div class="row-label" style="margin:0"><i class="ti ti-activity"></i> Licenças e Afastamentos</div>
           </div>
           <button class="btn-primary" onclick="abrirModalLicenca()"><i class="ti ti-plus"></i> Registrar Afastamento</button>
         </div>
-        <div class="stats-grid" id="licencas-kpis" style="margin-bottom:20px;"></div>
-        <div class="toolbar-filters">
-          <div class="filter-field" style="flex:1;min-width:220px">
+        <div class="stats-grid lic-kpis" id="licencas-kpis"></div>
+        <div class="toolbar-filters lic-filters">
+          <div class="filter-field" style="flex:1;min-width:180px">
             <label for="lic-search">Buscar</label>
             <input type="text" id="lic-search" placeholder="Nome ou matrícula…">
           </div>
           <div class="filter-field">
-            <label for="lic-tipo-filtro">Tipo de afastamento</label>
+            <label for="lic-tipo-filtro">Tipo</label>
             <select id="lic-tipo-filtro"><option value="">Todos os tipos</option></select>
           </div>
           <div class="filter-field">
@@ -1176,9 +1175,9 @@
           </div>
           <span class="filter-result-count" id="lic-count"></span>
         </div>
-        <div class="card" style="padding:0">
-          <div id="lic-paginacao-top" style="display:none;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--gov-border);background:#f0f4fa;font-size:13px"></div>
-          <div id="lic-tabela-wrap" class="table-container" style="overflow:visible;max-height:none">
+        <div class="card lic-table-card">
+          <div id="lic-paginacao-top" class="lic-paginacao-bar" style="display:none"></div>
+          <div id="lic-tabela-wrap" class="table-container lic-tabela-wrap">
             <table class="gov-table" style="border:none;box-shadow:none">
               <thead>
                 <tr>
@@ -1195,7 +1194,7 @@
               </tbody>
             </table>
           </div>
-          <div id="lic-paginacao" style="display:none;justify-content:center;align-items:center;gap:14px;padding:12px 16px;border-top:1px solid var(--gov-border);background:#fafbfc"></div>
+          <div id="lic-paginacao" class="lic-paginacao-bar" style="display:none;border-top:1px solid var(--gov-border);border-bottom:none"></div>
         </div>
       </section>
 
@@ -1699,7 +1698,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20260803f"></script>
+  <script type="module" src="js/app.js?v=20260803g"></script>
 
 
 
