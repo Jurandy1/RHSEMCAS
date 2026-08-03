@@ -8273,6 +8273,43 @@ function isLotacaoLicencasEsp(nome) {
   return /licen[cç]as\s+e\s+afastamentos/i.test(nome || '');
 }
 
+/** Uma linha por servidor: se há várias licenças ativas, fica a mais relevante. */
+function dedupeLicencasPorServidor(lista) {
+  const score = (x) => {
+    const d = diasAteData(x.data_final);
+    // Vigente (sem fim ou ainda não venceu) > indeterminado inválido > vencida
+    const vigente = d == null ? 1 : (d >= 0 ? 2 : 0);
+    const fim = x.data_final ? String(x.data_final).slice(0, 10) : '';
+    const ini = x.data_inicial ? String(x.data_inicial).slice(0, 10) : '';
+    return { vigente, fim, ini, id: Number(x.licenca_id) || 0 };
+  };
+  const melhorQue = (a, b) => {
+    const sa = score(a);
+    const sb = score(b);
+    if (sa.vigente !== sb.vigente) return sa.vigente > sb.vigente;
+    if (sa.fim !== sb.fim) return sa.fim > sb.fim;
+    if (sa.ini !== sb.ini) return sa.ini > sb.ini;
+    return sa.id > sb.id;
+  };
+
+  const byFunc = new Map();
+  for (const l of lista || []) {
+    const fid = Number(l.funcionario_id);
+    if (!fid) continue;
+    const prev = byFunc.get(fid);
+    if (!prev) {
+      byFunc.set(fid, { ...l, _outras_licencas: 0 });
+      continue;
+    }
+    if (melhorQue(l, prev)) {
+      byFunc.set(fid, { ...l, _outras_licencas: (prev._outras_licencas || 0) + 1 });
+    } else {
+      prev._outras_licencas = (prev._outras_licencas || 0) + 1;
+    }
+  }
+  return [...byFunc.values()];
+}
+
 async function carregarTabelaLicencas() {
   let data;
   try {
@@ -8317,10 +8354,13 @@ async function carregarTabelaLicencas() {
     };
   });
 
-  window._licencasCache = enriquecida;
+  // 79 registros ≠ 79 pessoas: várias licenças ativas do mesmo servidor poluíam a lista
+  const porServidor = dedupeLicencasPorServidor(enriquecida);
+  window._licencasCache = porServidor;
+  window._licencasTotalRegistros = enriquecida.length;
   window._licPage = 1;
   // Popula o filtro de tipo com os tipos realmente presentes (filtragem inteligente)
-  const tipos = [...new Set(enriquecida.map(l => (l.tipo_afastamento || '').trim()).filter(Boolean))]
+  const tipos = [...new Set(porServidor.map(l => (l.tipo_afastamento || '').trim()).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b));
   const sel = $('lic-tipo-filtro');
   if (sel) {
@@ -8329,7 +8369,7 @@ async function carregarTabelaLicencas() {
       tipos.map(t => `<option value="${htmlEscape(t)}">${htmlEscape(t)}</option>`).join('');
     if (tipos.includes(atual)) sel.value = atual;
   }
-  renderTabelaLicencas(enriquecida);
+  renderTabelaLicencas(porServidor);
 }
 
 function renderTabelaLicencas(lista) {
@@ -8355,16 +8395,17 @@ function renderTabelaLicencas(lista) {
       }
       return true;
     });
-    // Pendentes de lotação / vencimento primeiro
+    // Pendentes de lotação primeiro; depois vigentes; vencidas por último
     data.sort((a, b) => {
       const da = diasAteData(a.data_final);
       const db = diasAteData(b.data_final);
-      const prioA = (a.precisa_definir_lotacao ? 2 : 0) + (da != null && da <= LIC_AVISO_DIAS ? 1 : 0);
-      const prioB = (b.precisa_definir_lotacao ? 2 : 0) + (db != null && db <= LIC_AVISO_DIAS ? 1 : 0);
-      if (prioB !== prioA) return prioB - prioA;
+      const pendA = a.precisa_definir_lotacao ? 1 : 0;
+      const pendB = b.precisa_definir_lotacao ? 1 : 0;
+      if (pendB !== pendA) return pendB - pendA;
+      const vigA = da == null ? 1 : (da >= 0 ? 2 : 0);
+      const vigB = db == null ? 1 : (db >= 0 ? 2 : 0);
+      if (vigB !== vigA) return vigB - vigA;
       if (da != null && db != null && da !== db) return da - db;
-      if (da != null && db == null) return -1;
-      if (da == null && db != null) return 1;
       return (a.nome || '').localeCompare(b.nome || '');
     });
 
@@ -8377,6 +8418,7 @@ function renderTabelaLicencas(lista) {
     const pagina = data.slice(start, start + pageSize);
 
     const pendentes = lista.filter(l => l.precisa_definir_lotacao).length;
+    const totalRegs = window._licencasTotalRegistros || lista.length;
     const cnt = $('lic-count');
     if (cnt) {
       let extra = '';
@@ -8386,8 +8428,12 @@ function renderTabelaLicencas(lista) {
       if (pendentes) extra += ` · <span style="color:var(--gov-orange);font-weight:700">${pendentes} pendente(s) de lotação</span>`;
       const de = data.length === 0 ? 0 : start + 1;
       const ate = Math.min(start + pageSize, data.length);
-      cnt.innerHTML = `<strong>${data.length}</strong> de ${lista.length} afastado(s)` +
-        (data.length ? ` · mostrando ${de}–${ate}` : '') + extra;
+      const regsNota = totalRegs > lista.length
+        ? ` · <span title="Há mais de uma licença ativa para alguns servidores">${totalRegs} registros no banco</span>`
+        : '';
+      cnt.innerHTML = `<strong>${data.length}</strong> servidor(es)` +
+        (data.length ? ` · mostrando ${de}–${ate}` : '') +
+        regsNota + extra;
     }
 
     const pagEl = $('lic-paginacao');
@@ -8432,7 +8478,7 @@ function renderTabelaLicencas(lista) {
       <tr${rowBg ? ` style="${rowBg}"` : ''}>
         <td>
           <div style="font-weight:600;color:var(--gov-blue-dark)">${htmlEscape(l.nome)}</div>
-          <div style="font-size:12px;color:var(--color-text-sec)">Mat: ${htmlEscape(l.matricula||'S/M')}</div>
+          <div style="font-size:12px;color:var(--color-text-sec)">Mat: ${htmlEscape(l.matricula||'S/M')}${l._outras_licencas ? ` · <span style="color:var(--gov-orange)" title="Outras licenças ativas no banco">+${l._outras_licencas} licença(s)</span>` : ''}</div>
         </td>
         <td>
           <span class="badge" style="background:#fff9e6;color:var(--gov-orange)"><i class="ti ti-activity"></i> ${htmlEscape(l.tipo_afastamento)}</span>
