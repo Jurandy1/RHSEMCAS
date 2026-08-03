@@ -874,37 +874,22 @@
     }
     .alerta-licenca-actions .btn-link-lic:hover { color: var(--gov-blue-dark); }
 
-    /* ── Licenças: layout compacto que cabe na tela sem Ctrl+- ── */
-    .content-area:has(#view-licencas.active) {
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      padding-bottom: 12px;
-    }
-    #view-licencas.active {
-      display: flex !important;
-      flex-direction: column;
-      flex: 1;
-      min-height: 0;
-      overflow: hidden;
-      gap: 8px;
-    }
+    /* ── Licenças: compacto, sem quebrar o layout da página ── */
     #view-licencas .lic-toolbar-top {
       display: flex;
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
       gap: 8px;
-      flex-shrink: 0;
+      margin-bottom: 10px;
     }
     #view-licencas .lic-toolbar-title .row-label {
       font-size: 16px;
     }
     #view-licencas .lic-kpis {
       gap: 8px;
-      margin-bottom: 0 !important;
+      margin-bottom: 10px !important;
       grid-template-columns: repeat(6, minmax(0, 1fr));
-      flex-shrink: 0;
     }
     #view-licencas .lic-kpis .stat {
       padding: 8px 10px;
@@ -920,8 +905,7 @@
       display: none;
     }
     #view-licencas .alerta-licenca-wrap {
-      margin-bottom: 0;
-      flex-shrink: 0;
+      margin-bottom: 10px;
     }
     #view-licencas .alerta-licenca {
       padding: 8px 12px;
@@ -929,12 +913,12 @@
     }
     #view-licencas .alerta-licenca-title {
       font-size: 12px;
-      margin: 0;
+      margin: 0 0 2px;
     }
     #view-licencas .alerta-licenca-msg {
       font-size: 12px;
       display: -webkit-box;
-      -webkit-line-clamp: 1;
+      -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
@@ -942,16 +926,11 @@
       margin-top: 4px;
     }
     #view-licencas .lic-filters {
-      flex-shrink: 0;
-      margin-bottom: 0;
-      padding: 8px 0;
+      margin-bottom: 10px;
+      padding: 6px 0;
       gap: 8px;
     }
     #view-licencas .lic-table-card {
-      flex: 1;
-      min-height: 0;
-      display: flex;
-      flex-direction: column;
       padding: 0;
       margin-bottom: 0;
       overflow: hidden;
@@ -966,13 +945,10 @@
       border-bottom: 1px solid var(--gov-border);
       background: #f0f4fa;
       font-size: 13px;
-      flex-shrink: 0;
     }
     #view-licencas .lic-tabela-wrap {
-      flex: 1;
-      min-height: 160px;
+      max-height: min(58vh, 560px) !important;
       overflow: auto !important;
-      max-height: none !important;
       border: none;
       border-radius: 0;
       box-shadow: none;
@@ -996,23 +972,11 @@
       }
     }
     @media (max-width: 700px) {
-      .content-area:has(#view-licencas.active) {
-        overflow-y: auto;
-      }
-      #view-licencas.active {
-        overflow: visible;
-        height: auto;
-        max-height: none;
-      }
       #view-licencas .lic-kpis {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
-      #view-licencas .lic-table-card {
-        flex: none;
-        max-height: none;
-      }
       #view-licencas .lic-tabela-wrap {
-        max-height: 70vh !important;
+        max-height: 65vh !important;
       }
     }
 
