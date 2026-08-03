@@ -310,15 +310,65 @@ function classificarNiveisSemcas(raizes) {
 const ORG_NIVEL_HEADER_STYLE = 'margin:16px 0 6px;font-weight:700;color:var(--gov-blue-dark);font-size:13px;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--gov-blue-primary);padding-bottom:4px;display:flex;align-items:center;justify-content:space-between';
 
 // ── Busca todas as linhas de uma tabela/view (o Supabase limita cada resposta a 1000) ──
-async function fetchTudo(tabela, colunas, ordem) {
+// Sempre ordena com desempate único — senão o range pula/duplica linhas no limite de 1000.
+async function fetchTudo(tabela, colunas, ordem, opts = {}) {
   const todos = [];
+  const asc = opts.asc !== false;
+  const cols = String(colunas || '*');
+  let tie = opts.idCol || null;
+  if (!tie) {
+    if (cols === '*' || /\bfuncionario_id\b/.test(cols)) tie = 'funcionario_id';
+    else if (/\bid\b/.test(cols)) tie = 'id';
+  }
   for (let de = 0; ; de += 1000) {
-    const { data, error } = await sb.from(tabela).select(colunas).order(ordem).range(de, de + 999);
-    if (error) return { data: todos.length ? todos : null, error };
+    let q = sb.from(tabela).select(colunas).order(ordem, { ascending: asc });
+    if (tie && tie !== ordem) q = q.order(tie, { ascending: true });
+    const { data, error } = await q.range(de, de + 999);
+    if (error) {
+      // Fallback se a view não tiver a coluna de desempate
+      if (tie && /funcionario_id|column/i.test(error.message || '')) {
+        const r2 = await sb.from(tabela).select(colunas).order(ordem, { ascending: asc }).range(de, de + 999);
+        if (r2.error) return { data: todos.length ? todos : null, error: r2.error };
+        todos.push(...(r2.data || []));
+        if (!r2.data || r2.data.length < 1000) break;
+        continue;
+      }
+      return { data: todos.length ? todos : null, error };
+    }
     todos.push(...(data || []));
     if (!data || data.length < 1000) break;
   }
   return { data: todos, error: null };
+}
+
+/** Autocomplete de servidores via RPC (não depende de carregar a lista inteira no browser). */
+async function buscarServidoresAutocomplete(termo, limite = 20) {
+  const q = String(termo || '').trim();
+  if (q.length < 2) return [];
+  const data = await handleErr(await sb.rpc('fn_buscar_funcionarios', {
+    p_termo: q.split(/\s+/).join('%'),
+    p_vinculo_id: null,
+    p_lotacao_id: null,
+    p_funcao: null,
+    p_turno_id: null,
+    p_limite: limite,
+    p_offset: 0,
+    p_order_by: 'nome',
+    p_order_dir: 'asc'
+  }), 'autocomplete servidores');
+  return data || [];
+}
+
+async function fetchInChunks(tabela, colunas, idCol, ids, chunkSize = 200) {
+  const out = [];
+  const uniq = [...new Set((ids || []).filter((x) => x != null))];
+  for (let i = 0; i < uniq.length; i += chunkSize) {
+    const chunk = uniq.slice(i, i + chunkSize);
+    const { data, error } = await sb.from(tabela).select(colunas).in(idCol, chunk);
+    if (error) throw error;
+    if (data?.length) out.push(...data);
+  }
+  return out;
 }
 
 // ── Ordenação por coluna ──
@@ -378,8 +428,9 @@ async function fetchLinhasFiltroContexto() {
   const todos = [];
   for (let de = 0; ; de += 1000) {
     let q = sb.from('v_funcionarios_atual')
-      .select('vinculo, funcao, lotacao_id, lotacao_nome, turno')
+      .select('funcionario_id, vinculo, funcao, lotacao_id, lotacao_nome, turno')
       .order('nome')
+      .order('funcionario_id')
       .range(de, de + 999);
     if (vinc?.categoria) q = q.eq('vinculo', vinc.categoria);
     const { data, error } = await q;
@@ -5328,8 +5379,18 @@ async function renderRelatorioApi() {
     const { count: ativos } = await sb.from('funcionarios').select('id', { count: 'exact', head: true }).eq('ativo', true);
     let semMatricula = view?.sem_matricula;
     if (semMatricula == null) {
-      const { data: all } = await sb.from('funcionarios').select('matricula').eq('ativo', true);
-      semMatricula = (all || []).filter(f => !f.matricula || !String(f.matricula).trim()).length;
+      let n = 0;
+      for (let de = 0; ; de += 1000) {
+        const { data: mats, error: eMat } = await sb.from('funcionarios')
+          .select('id, matricula')
+          .eq('ativo', true)
+          .order('id')
+          .range(de, de + 999);
+        if (eMat) break;
+        n += (mats || []).filter(f => !f.matricula || !String(f.matricula).trim()).length;
+        if (!mats || mats.length < 1000) break;
+      }
+      semMatricula = n;
     }
     const { count: naFolha } = await sb.from('folha_pmsl')
       .select('id', { count: 'exact', head: true })
@@ -7582,10 +7643,13 @@ async function carregarAuditoria() {
   $('tbody-sem-matricula').innerHTML = '<tr><td colspan="2" class="empty-state"><span class="spinner"></span> Carregando...</td></tr>';
   $('tbody-duplicados').innerHTML = '<tr><td colspan="2" class="empty-state"><span class="spinner"></span> Carregando...</td></tr>';
 
-  // Buscar todos os funcionários da view consolidada (v_funcionarios_atual traz a coluna vinculo!)
-  const data = await handleErr(await sb.from('v_funcionarios_atual').select('*').order('nome'), 'auditoria') || [];
-  
-  if (data.length === 0) return;
+  // Buscar TODOS (paginado) — select sem range corta em ~1000 no Supabase
+  const { data, error } = await fetchTudo('v_funcionarios_atual', '*', 'nome');
+  if (error) {
+    handleErr({ data: null, error }, 'auditoria');
+    return;
+  }
+  if (!data?.length) return;
 
   // 1. Sem matrícula (Ignorando terceirizados e celetistas, pois é esperado que não tenham matrícula do município)
   const semMatricula = data.filter(f => {
@@ -8046,10 +8110,14 @@ function montarHtmlAlertaLicenca(info, { compacto = false } = {}) {
 
 async function atualizarAlertasLicenca() {
   try {
-    const { data } = await sb.from('v_licencas_atuais')
-      .select('funcionario_id, nome, matricula, tipo_afastamento, data_final')
-      .not('data_final', 'is', null);
-    const info = classificarLicencasVencimento(data || []);
+    const { data: todas, error } = await fetchTudo(
+      'v_licencas_atuais',
+      'funcionario_id, nome, matricula, tipo_afastamento, data_final, licenca_id',
+      'nome'
+    );
+    if (error) throw error;
+    const data = (todas || []).filter((l) => l.data_final);
+    const info = classificarLicencasVencimento(data);
     window._licAlertasCache = info;
 
     const badge = $('badge-licencas');
@@ -8149,17 +8217,28 @@ function isLotacaoLicencasEsp(nome) {
 }
 
 async function carregarTabelaLicencas() {
-  const { data } = await sb.from('v_licencas_atuais').select('*').order('nome');
+  const { data, error } = await fetchTudo('v_licencas_atuais', '*', 'nome');
+  if (error) {
+    showToast('Erro ao carregar licenças: ' + error.message, 'error');
+    return;
+  }
   if (!data) return;
 
   // Complementa com lotação atual (para RH definir lotação original quando ainda estiver em Licenças)
   const ids = [...new Set(data.map(l => l.funcionario_id).filter(Boolean))];
   let lotMap = {};
   if (ids.length) {
-    const { data: atuais } = await sb.from('v_funcionarios_atual')
-      .select('funcionario_id, lotacao_atual_id, lotacao_id, lotacao_nome, caminho_lotacao')
-      .in('funcionario_id', ids);
-    lotMap = Object.fromEntries((atuais || []).map(a => [a.funcionario_id, a]));
+    try {
+      const atuais = await fetchInChunks(
+        'v_funcionarios_atual',
+        'funcionario_id, lotacao_atual_id, lotacao_id, lotacao_nome, caminho_lotacao',
+        'funcionario_id',
+        ids
+      );
+      lotMap = Object.fromEntries((atuais || []).map(a => [a.funcionario_id, a]));
+    } catch (e) {
+      console.warn('[licenças] lotação atual:', e.message || e);
+    }
   }
 
   const enriquecida = data.map(l => {
@@ -8505,50 +8584,49 @@ window.abrirModalLicenca = async (id = null) => {
     const func = await sb.from('funcionarios').select('nome').eq('id', id).single().then(r => r.data);
     divFunc.innerHTML = `<label class="form-label">Servidor</label><input type="text" id="lic-func-nome" class="form-control" disabled value="${func ? htmlEscape(func.nome) : ''}">`;
   } else {
-    divFunc.innerHTML = `<label class="form-label">Servidor *</label><input type="text" class="form-control" placeholder="Carregando servidores..." disabled>`;
-    
-    // Fetch data asynchronously
-    fetchTudo('v_funcionarios_atual', 'funcionario_id, nome, matricula', 'nome').then(({ data }) => {
-      window._licAutocompleteData = data || [];
-      divFunc.innerHTML = `
-        <label class="form-label">Servidor *</label>
-        <div style="position:relative">
-          <input type="text" id="lic-func-search" class="form-control" placeholder="Digite nome ou matrícula..." oninput="filtrarLicAutocomplete(this.value)" autocomplete="off">
-          <div id="lic-func-sugestoes" style="display:none; position:absolute; top:100%; left:0; right:0; max-height:200px; overflow-y:auto; background:#fff; border:1px solid var(--gov-border); z-index:999; border-radius:4px; box-shadow:var(--shadow-md)"></div>
-        </div>
-      `;
-    });
+    divFunc.innerHTML = `
+      <label class="form-label">Servidor *</label>
+      <div style="position:relative">
+        <input type="text" id="lic-func-search" class="form-control" placeholder="Digite nome ou matrícula..." oninput="filtrarLicAutocomplete(this.value)" autocomplete="off">
+        <div id="lic-func-sugestoes" style="display:none; position:absolute; top:100%; left:0; right:0; max-height:240px; overflow-y:auto; background:#fff; border:1px solid var(--gov-border); z-index:999; border-radius:4px; box-shadow:var(--shadow-md)"></div>
+      </div>
+    `;
   }
   openModal('modal-licenca');
 };
 
-window.filtrarLicAutocomplete = (val) => {
+window.filtrarLicAutocomplete = debounce(async (val) => {
   const box = $('lic-func-sugestoes');
+  if (!box) return;
   $('lic-func-id').value = '';
-  if(!val || val.length < 2) { box.style.display = 'none'; return; }
-  
-  const palavras = val.toLowerCase().trim().split(/\s+/);
-  const filtrados = window._licAutocompleteData.filter(f => {
-    const nome = f.nome.toLowerCase();
-    const mat = (f.matricula && String(f.matricula).toLowerCase()) || '';
-    return palavras.every(p => nome.includes(p) || mat.includes(p));
-  }).slice(0, 30);
-  
-  if(filtrados.length === 0) {
+  const q = String(val || '').trim();
+  if (q.length < 2) { box.style.display = 'none'; return; }
+
+  box.style.display = 'block';
+  box.innerHTML = '<div style="padding:10px; color:var(--color-text-muted); font-size:12px">Buscando…</div>';
+  const filtrados = await buscarServidoresAutocomplete(q, 25);
+
+  // Se o usuário já digitou outra coisa, ignora resposta antiga
+  if (String($('lic-func-search')?.value || '').trim() !== q) return;
+
+  if (filtrados.length === 0) {
     box.innerHTML = '<div style="padding:10px; color:var(--color-text-muted); font-size:12px">Nenhum servidor encontrado</div>';
   } else {
-    box.innerHTML = filtrados.map(f => `
+    box.innerHTML = filtrados.map(f => {
+      const id = f.funcionario_id;
+      const label = `${htmlEscape(f.nome)} - Mat: ${htmlEscape(String(f.matricula || 'S/M'))}`;
+      return `
       <div style="padding:10px; border-bottom:1px solid var(--gov-border); cursor:pointer; font-size:13px; line-height:1.4" 
            onmouseover="this.style.background='var(--gov-blue-light)'" 
            onmouseout="this.style.background='#fff'"
-           onclick="selecionarLicAutocomplete(${f.funcionario_id}, '${htmlEscape(f.nome).replace(/'/g,"\\'")} - Mat: ${htmlEscape(String(f.matricula || 'S/M')).replace(/'/g,"\\'")}')">
+           onclick="selecionarLicAutocomplete(${id}, '${label.replace(/'/g, "\\'")}')">
         <div style="font-weight:600; color:var(--gov-blue-dark)">${htmlEscape(f.nome)}</div>
-        <div style="font-size:11px; color:var(--color-text-muted)">Matrícula: ${f.matricula || 'S/M'}</div>
-      </div>
-    `).join('');
+        <div style="font-size:11px; color:var(--color-text-muted)">Matrícula: ${htmlEscape(String(f.matricula || 'S/M'))}${f.lotacao_nome ? ' · ' + htmlEscape(f.lotacao_nome) : ''}</div>
+      </div>`;
+    }).join('');
   }
   box.style.display = 'block';
-};
+}, 250);
 
 window.selecionarLicAutocomplete = (id, label) => {
   $('lic-func-id').value = id;
@@ -8619,10 +8697,21 @@ async function renderCedidos() {
 }
 
 async function carregarTabelaCedidos() {
-  const { data } = await sb.from('v_cedencias_atuais').select('*').order('created_at', { ascending: false });
-  window._cedidosCache = data || [];
+  const { data, error } = await fetchTudo('v_cedencias_atuais', '*', 'created_at', { asc: false, idCol: 'id' });
+  if (error) {
+    // View pode não ter `id` como desempate — tenta sem
+    const r2 = await sb.from('v_cedencias_atuais').select('*').order('created_at', { ascending: false }).range(0, 9999);
+    if (r2.error) {
+      showToast('Erro ao carregar cedências: ' + r2.error.message, 'error');
+      return;
+    }
+    window._cedidosCache = r2.data || [];
+  } else {
+    window._cedidosCache = data || [];
+  }
+  const lista = window._cedidosCache;
   // Popula o dropdown de órgãos com os valores realmente existentes (filtragem inteligente)
-  const orgaos = [...new Set((data || []).map(c => (c.orgao_destino_origem || '').trim()).filter(Boolean))]
+  const orgaos = [...new Set((lista || []).map(c => (c.orgao_destino_origem || '').trim()).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b));
   const sel = $('ced-orgao');
   if (sel) {
@@ -8787,48 +8876,44 @@ window.abrirModalCedido = async () => {
   cedidoAtualizarCamposTipo();
 
   const divFunc = $('cedido-func-nome-container');
-  divFunc.innerHTML = `<label class="form-label">Servidor *</label><input type="text" class="form-control" placeholder="Carregando servidores..." disabled>`;
-
-  const tk = window._cedAbrirToken = (window._cedAbrirToken || 0) + 1;
-  fetchTudo('v_funcionarios_atual', 'funcionario_id, nome, matricula', 'nome').then(({ data }) => {
-    if (tk !== window._cedAbrirToken) return;
-    window._cedAutocompleteData = data || [];
-    divFunc.innerHTML = `
-      <label class="form-label">Servidor *</label>
-      <div style="position:relative">
-        <input type="text" id="cedido-func-search" class="form-control" placeholder="Digite nome ou matrícula..." oninput="filtrarCedAutocomplete(this.value)" autocomplete="off">
-        <div id="cedido-func-sugestoes" style="display:none; position:absolute; top:100%; left:0; right:0; max-height:200px; overflow-y:auto; background:#fff; border:1px solid var(--gov-border); z-index:999; border-radius:4px; box-shadow:var(--shadow-md)"></div>
-      </div>
-    `;
-  });
+  divFunc.innerHTML = `
+    <label class="form-label">Servidor *</label>
+    <div style="position:relative">
+      <input type="text" id="cedido-func-search" class="form-control" placeholder="Digite nome ou matrícula..." oninput="filtrarCedAutocomplete(this.value)" autocomplete="off">
+      <div id="cedido-func-sugestoes" style="display:none; position:absolute; top:100%; left:0; right:0; max-height:240px; overflow-y:auto; background:#fff; border:1px solid var(--gov-border); z-index:999; border-radius:4px; box-shadow:var(--shadow-md)"></div>
+    </div>
+  `;
 
   openModal('modal-cedido');
 };
 
-window.filtrarCedAutocomplete = (val) => {
+window.filtrarCedAutocomplete = debounce(async (val) => {
   const box = $('cedido-func-sugestoes');
+  if (!box) return;
   $('cedido-func-id').value = '';
-  if (!val || val.length < 2) { box.style.display = 'none'; return; }
-  const palavras = val.toLowerCase().trim().split(/\s+/);
-  const filtrados = window._cedAutocompleteData.filter(f => {
-    const nome = f.nome.toLowerCase();
-    const mat = (f.matricula && String(f.matricula).toLowerCase()) || '';
-    return palavras.every(p => nome.includes(p) || mat.includes(p));
-  }).slice(0, 30);
+  const q = String(val || '').trim();
+  if (q.length < 2) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.innerHTML = '<div style="padding:10px; color:var(--color-text-muted); font-size:12px">Buscando…</div>';
+  const filtrados = await buscarServidoresAutocomplete(q, 25);
+  if (String($('cedido-func-search')?.value || '').trim() !== q) return;
   if (filtrados.length === 0) {
     box.innerHTML = '<div style="padding:10px; color:var(--color-text-muted); font-size:12px">Nenhum servidor encontrado</div>';
   } else {
-    box.innerHTML = filtrados.map(f => `
+    box.innerHTML = filtrados.map(f => {
+      const id = f.funcionario_id;
+      const label = `${htmlEscape(f.nome)} - Mat: ${htmlEscape(String(f.matricula || 'S/M'))}`;
+      return `
       <div style="padding:10px; border-bottom:1px solid var(--gov-border); cursor:pointer; font-size:13px; line-height:1.4" 
            onmouseover="this.style.background='var(--gov-blue-light)'" onmouseout="this.style.background='#fff'"
-           onclick="selecionarCedAutocomplete(${f.funcionario_id}, '${htmlEscape(f.nome).replace(/'/g, "\\'")} - Mat: ${htmlEscape(String(f.matricula || 'S/M')).replace(/'/g, "\\'")}')">
+           onclick="selecionarCedAutocomplete(${id}, '${label.replace(/'/g, "\\'")}')">
         <div style="font-weight:600; color:var(--gov-blue-dark)">${htmlEscape(f.nome)}</div>
-        <div style="font-size:11px; color:var(--color-text-muted)">Matrícula: ${f.matricula || 'S/M'}</div>
-      </div>
-    `).join('');
+        <div style="font-size:11px; color:var(--color-text-muted)">Matrícula: ${htmlEscape(String(f.matricula || 'S/M'))}${f.lotacao_nome ? ' · ' + htmlEscape(f.lotacao_nome) : ''}</div>
+      </div>`;
+    }).join('');
   }
   box.style.display = 'block';
-};
+}, 250);
 
 window.selecionarCedAutocomplete = (id, label) => {
   $('cedido-func-id').value = id;
