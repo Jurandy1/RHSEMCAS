@@ -8437,27 +8437,22 @@ function renderTabelaLicencas(lista) {
     }
 
     const htmlPag = data.length <= pageSize ? '' : `
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <button type="button" class="btn-secondary" style="padding:6px 12px" ${page <= 1 ? 'disabled' : ''} onclick="licIrPagina(${page - 1})">
-          <i class="ti ti-chevron-left"></i> Anterior
-        </button>
-        <span style="font-size:13px;color:var(--color-text-sec)">Página <strong>${page}</strong> de <strong>${totalPages}</strong> (${data.length} no total)</span>
-        <button type="button" class="btn-primary" style="padding:6px 12px" ${page >= totalPages ? 'disabled' : ''} onclick="licIrPagina(${page + 1})">
-          Próxima <i class="ti ti-chevron-right"></i>
-        </button>
-      </div>
-      <span style="font-size:12px;color:var(--gov-blue-primary)"><i class="ti ti-arrow-down"></i> Role a lista nesta área</span>`;
+      <button type="button" class="btn-secondary" style="padding:6px 12px" ${page <= 1 ? 'disabled' : ''} onclick="licIrPagina(${page - 1})">
+        <i class="ti ti-chevron-left"></i> Anterior
+      </button>
+      <span style="font-size:13px;color:var(--color-text-sec)">Página <strong>${page}</strong> de <strong>${totalPages}</strong> (${data.length} servidores)</span>
+      <button type="button" class="btn-primary" style="padding:6px 12px" ${page >= totalPages ? 'disabled' : ''} onclick="licIrPagina(${page + 1})">
+        Próxima <i class="ti ti-chevron-right"></i>
+      </button>`;
 
-    const pagTop = $('lic-paginacao-top');
     const pagEl = $('lic-paginacao');
-    for (const el of [pagTop, pagEl]) {
-      if (!el) continue;
+    if (pagEl) {
       if (!htmlPag) {
-        el.innerHTML = '';
-        el.style.display = 'none';
+        pagEl.innerHTML = '';
+        pagEl.style.display = 'none';
       } else {
-        el.style.display = 'flex';
-        el.innerHTML = htmlPag;
+        pagEl.style.display = 'flex';
+        pagEl.innerHTML = htmlPag;
       }
     }
 
@@ -8649,9 +8644,7 @@ function renderTabelaLicencas(lista) {
 window.licIrPagina = function licIrPagina(p) {
   window._licPage = Math.max(1, Number(p) || 1);
   if (window._licencasCache) renderTabelaLicencas(window._licencasCache);
-  const wrap = $('lic-tabela-wrap');
-  if (wrap) wrap.scrollTop = 0;
-  $('lic-paginacao-top')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  $('view-licencas')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
 
 window.definirLotacaoLicenca = async (funcionario_id) => {
