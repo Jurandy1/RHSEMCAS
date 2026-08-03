@@ -8108,14 +8108,53 @@ function montarHtmlAlertaLicenca(info, { compacto = false } = {}) {
     </div>`;
 }
 
+/** Carrega licenças ativas pela tabela (fonte da verdade).
+ *  A view v_licencas_atuais antiga filtrava por lotação e escondia a maioria. */
+async function carregarLicencasAtivasRaw() {
+  const todos = [];
+  for (let de = 0; ; de += 1000) {
+    const { data, error } = await sb.from('funcionario_licencas')
+      .select('id, funcionario_id, tipo_afastamento, data_inicial, data_final, portaria, num_sei, observacao, ativo, created_at')
+      .eq('ativo', true)
+      .order('id')
+      .range(de, de + 999);
+    if (error) throw error;
+    todos.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
+  if (!todos.length) return [];
+
+  const ids = [...new Set(todos.map((l) => l.funcionario_id).filter(Boolean))];
+  const nomeMap = {};
+  try {
+    const funcs = await fetchInChunks('funcionarios', 'id, nome, matricula', 'id', ids);
+    for (const f of funcs || []) nomeMap[f.id] = f;
+  } catch (e) {
+    console.warn('[licenças] nomes:', e.message || e);
+  }
+
+  return todos.map((l) => {
+    const f = nomeMap[l.funcionario_id] || {};
+    return {
+      licenca_id: l.id,
+      funcionario_id: l.funcionario_id,
+      nome: f.nome || `Funcionário #${l.funcionario_id}`,
+      matricula: f.matricula || null,
+      tipo_afastamento: l.tipo_afastamento,
+      data_inicial: l.data_inicial,
+      data_final: l.data_final,
+      portaria: l.portaria,
+      num_sei: l.num_sei,
+      observacao: l.observacao,
+      ativo: l.ativo,
+      created_at: l.created_at
+    };
+  });
+}
+
 async function atualizarAlertasLicenca() {
   try {
-    const { data: todas, error } = await fetchTudo(
-      'v_licencas_atuais',
-      'funcionario_id, nome, matricula, tipo_afastamento, data_final, licenca_id',
-      'nome'
-    );
-    if (error) throw error;
+    const todas = await carregarLicencasAtivasRaw();
     const data = (todas || []).filter((l) => l.data_final);
     const info = classificarLicencasVencimento(data);
     window._licAlertasCache = info;
@@ -8217,10 +8256,18 @@ function isLotacaoLicencasEsp(nome) {
 }
 
 async function carregarTabelaLicencas() {
-  const { data, error } = await fetchTudo('v_licencas_atuais', '*', 'nome');
-  if (error) {
-    showToast('Erro ao carregar licenças: ' + error.message, 'error');
-    return;
+  let data;
+  try {
+    data = await carregarLicencasAtivasRaw();
+  } catch (e) {
+    // Fallback: view (pode estar desatualizada / filtrar por lotação)
+    console.warn('[licenças] fallback view:', e.message || e);
+    const r = await fetchTudo('v_licencas_atuais', '*', 'nome', { idCol: 'licenca_id' });
+    if (r.error) {
+      showToast('Erro ao carregar licenças: ' + (r.error.message || e.message), 'error');
+      return;
+    }
+    data = r.data || [];
   }
   if (!data) return;
 
