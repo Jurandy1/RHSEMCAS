@@ -8040,10 +8040,26 @@ window._licVencFiltro = ''; // '' | 'proximas' | 'vencidas'
 
 function diasAteData(dataStr) {
   if (!dataStr) return null;
-  const fim = new Date(dataStr + 'T00:00:00');
+  // Aceita 'YYYY-MM-DD' ou ISO completo; ignora datas inválidas / ano sentinela (0001)
+  const raw = String(dataStr).trim();
+  const ymd = raw.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
+  const ano = Number(ymd.slice(0, 4));
+  if (ano < 1900 || ano > 2100) return null;
+  const fim = new Date(ymd + 'T12:00:00');
+  if (Number.isNaN(fim.getTime())) return null;
   const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
+  hoje.setHours(12, 0, 0, 0);
   return Math.round((fim - hoje) / 86400000);
+}
+
+function fmtDataLicenca(dataStr) {
+  if (!dataStr) return 'Indeterminado';
+  const ymd = String(dataStr).trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return 'Indeterminado';
+  const ano = Number(ymd.slice(0, 4));
+  if (ano < 1900 || ano > 2100) return 'Indeterminado';
+  return ymd.split('-').reverse().join('/');
 }
 
 function classificarLicencasVencimento(lista) {
@@ -8191,6 +8207,7 @@ async function atualizarAlertasLicenca() {
 window.abrirLicencasComAlerta = (filtro) => {
   window._licVencFiltro = filtro || 'proximas';
   window._licKpiFiltro = '';
+  window._licPage = 1;
   if (location.hash === '#licencas') {
     renderLicencas();
   } else {
@@ -8223,6 +8240,7 @@ window.filtrarLicencasPorKpi = (kpiKey) => {
   // Clique no mesmo card ativo limpa o filtro
   window._licKpiFiltro = (window._licKpiFiltro === kpiKey) ? '' : (kpiKey || '');
   window._licVencFiltro = '';
+  window._licPage = 1;
   if ($('lic-tipo-filtro')) $('lic-tipo-filtro').value = '';
   atualizarDestaqueCardsLicenca();
   if (window._licencasCache) renderTabelaLicencas(window._licencasCache);
@@ -8300,6 +8318,7 @@ async function carregarTabelaLicencas() {
   });
 
   window._licencasCache = enriquecida;
+  window._licPage = 1;
   // Popula o filtro de tipo com os tipos realmente presentes (filtragem inteligente)
   const tipos = [...new Set(enriquecida.map(l => (l.tipo_afastamento || '').trim()).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b));
@@ -8344,8 +8363,19 @@ function renderTabelaLicencas(lista) {
       const prioB = (b.precisa_definir_lotacao ? 2 : 0) + (db != null && db <= LIC_AVISO_DIAS ? 1 : 0);
       if (prioB !== prioA) return prioB - prioA;
       if (da != null && db != null && da !== db) return da - db;
+      if (da != null && db == null) return -1;
+      if (da == null && db != null) return 1;
       return (a.nome || '').localeCompare(b.nome || '');
     });
+
+    const pageSize = 20;
+    const totalPages = Math.max(1, Math.ceil(data.length / pageSize) || 1);
+    let page = Math.max(1, Number(window._licPage || 1));
+    if (page > totalPages) page = totalPages;
+    window._licPage = page;
+    const start = (page - 1) * pageSize;
+    const pagina = data.slice(start, start + pageSize);
+
     const pendentes = lista.filter(l => l.precisa_definir_lotacao).length;
     const cnt = $('lic-count');
     if (cnt) {
@@ -8354,13 +8384,35 @@ function renderTabelaLicencas(lista) {
         extra += ` · <span style="color:var(--gov-orange);font-weight:700">filtro: ${vencFiltro === 'vencidas' ? 'vencidas' : 'próximas do vencimento'}</span>`;
       }
       if (pendentes) extra += ` · <span style="color:var(--gov-orange);font-weight:700">${pendentes} pendente(s) de lotação</span>`;
-      cnt.innerHTML = `<strong>${data.length}</strong> de ${lista.length} afastado(s)` + extra;
+      const de = data.length === 0 ? 0 : start + 1;
+      const ate = Math.min(start + pageSize, data.length);
+      cnt.innerHTML = `<strong>${data.length}</strong> de ${lista.length} afastado(s)` +
+        (data.length ? ` · mostrando ${de}–${ate}` : '') + extra;
     }
+
+    const pagEl = $('lic-paginacao');
+    if (pagEl) {
+      if (data.length <= pageSize) {
+        pagEl.innerHTML = '';
+        pagEl.style.display = 'none';
+      } else {
+        pagEl.style.display = 'flex';
+        pagEl.innerHTML = `
+          <button type="button" class="btn-secondary" style="padding:6px 12px" ${page <= 1 ? 'disabled' : ''} onclick="licIrPagina(${page - 1})">
+            <i class="ti ti-chevron-left"></i> Anterior
+          </button>
+          <span style="font-size:13px;color:var(--color-text-sec)">Página <strong>${page}</strong> de <strong>${totalPages}</strong></span>
+          <button type="button" class="btn-secondary" style="padding:6px 12px" ${page >= totalPages ? 'disabled' : ''} onclick="licIrPagina(${page + 1})">
+            Próxima <i class="ti ti-chevron-right"></i>
+          </button>`;
+      }
+    }
+
     if (data.length === 0) {
       $('tbody-licencas').innerHTML = `<tr><td colspan="6"><div class="empty-state">${lista.length === 0 ? 'Nenhum afastamento encontrado' : 'Nenhum afastamento corresponde aos filtros'}</div></td></tr>`;
       return;
     }
-    $('tbody-licencas').innerHTML = data.map(l => {
+    $('tbody-licencas').innerHTML = pagina.map(l => {
       const dias = diasAteData(l.data_final);
       let vencHtml = '';
       let rowBg = l.precisa_definir_lotacao ? 'background:#fff8f0' : '';
@@ -8374,6 +8426,8 @@ function renderTabelaLicencas(lista) {
         vencHtml = `<div style="font-size:11px;color:var(--gov-orange);font-weight:600"><i class="ti ti-clock"></i> Vence em ${dias} dia(s)</div>`;
         rowBg = rowBg || 'background:#fffaf3';
       }
+      const fid = Number(l.funcionario_id) || 0;
+      const lid = l.licenca_id != null ? Number(l.licenca_id) : 'null';
       return `
       <tr${rowBg ? ` style="${rowBg}"` : ''}>
         <td>
@@ -8390,8 +8444,8 @@ function renderTabelaLicencas(lista) {
             : `<div style="font-size:12px">${htmlEscape(l.lotacao_nome || '—')}</div>`}
         </td>
         <td>
-          <div style="font-size:12px">${l.data_inicial ? l.data_inicial.split('-').reverse().join('/') : 'Indeterminado'}</div>
-          <div style="font-size:12px">${l.data_final ? l.data_final.split('-').reverse().join('/') : 'Indeterminado'}</div>
+          <div style="font-size:12px">${fmtDataLicenca(l.data_inicial)}</div>
+          <div style="font-size:12px">${fmtDataLicenca(l.data_final)}</div>
           ${vencHtml}
         </td>
         <td>
@@ -8399,31 +8453,31 @@ function renderTabelaLicencas(lista) {
           <div style="font-size:12px">SEI: ${htmlEscape(l.num_sei||'-')}</div>
         </td>
         <td>
-          <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">
-            <span style="color:var(--gov-orange);font-weight:600;font-size:12px"><i class="ti ti-clock"></i> Afastado</span>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+            <span style="color:var(--gov-orange);font-weight:600;font-size:12px;margin-right:4px"><i class="ti ti-clock"></i> Afastado</span>
             ${l.precisa_definir_lotacao
-              ? `<button class="btn-primary" style="padding:6px 10px;font-size:12px" onclick="definirLotacaoLicenca(${l.funcionario_id})" title="RH: informar a lotação original do servidor">
-                   <i class="ti ti-building"></i> Definir lotação
+              ? `<button class="btn-primary" style="padding:5px 8px;font-size:12px" onclick="definirLotacaoLicenca(${fid})" title="Definir lotação original">
+                   <i class="ti ti-building"></i> Lotação
                  </button>`
-              : `<button class="btn-secondary" style="padding:6px 10px;font-size:12px" onclick="enviarLicencaParaSemLotacao(${l.funcionario_id}, ${l.licenca_id || 'null'})" title="Remove a lotação atual; o servidor vai para Sem Lotação e o histórico guarda de onde veio">
+              : `<button class="btn-secondary" style="padding:5px 8px;font-size:12px" onclick="enviarLicencaParaSemLotacao(${fid}, ${lid})" title="Enviar para Sem Lotação">
                    <i class="ti ti-map-off"></i> Sem Lotação
                  </button>`}
             ${l.licenca_id
-              ? `<button class="btn-icon" onclick="abrirEditarTipoLicenca(${l.licenca_id})" title="Editar esta licença">
-                   <i class="ti ti-edit"></i> Editar
-                 </button>`
+              ? `<button class="btn-icon" onclick="abrirEditarTipoLicenca(${lid})" title="Editar"><i class="ti ti-edit"></i></button>`
               : ''}
-            <button class="btn-icon" onclick="retornarAtiva(${l.licenca_id || 'null'}, ${l.funcionario_id})" title="Encerrar e Retornar à Ativa">
-              <i class="ti ti-arrow-back-up"></i> Retornar à Ativa
-            </button>
-            <button class="btn-icon" onclick="verHistorico(${l.funcionario_id})" title="Ver histórico de lotações">
-              <i class="ti ti-history"></i> Histórico
-            </button>
+            <button class="btn-icon" onclick="retornarAtiva(${lid}, ${fid})" title="Retornar à Ativa"><i class="ti ti-arrow-back-up"></i></button>
+            <button class="btn-icon" onclick="verHistorico(${fid})" title="Histórico"><i class="ti ti-history"></i></button>
           </div>
         </td>
       </tr>`;
     }).join('');
 }
+
+window.licIrPagina = function licIrPagina(p) {
+  window._licPage = Math.max(1, Number(p) || 1);
+  if (window._licencasCache) renderTabelaLicencas(window._licencasCache);
+  $('tbody-licencas')?.closest('.card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
 
 window.definirLotacaoLicenca = async (funcionario_id) => {
   // Usa a mesma árvore da Gestão de Lotações e permite servidor sem lotação ativa
@@ -8491,16 +8545,19 @@ window.enviarLicencaParaSemLotacao = async (funcionario_id, licenca_id) => {
 };
 
 $('lic-search')?.addEventListener('input', debounce(() => {
+  window._licPage = 1;
   if (window._licencasCache) renderTabelaLicencas(window._licencasCache);
 }, 200));
 $('lic-tipo-filtro')?.addEventListener('change', () => {
   // Select de tipo exato prevalece sobre o filtro do card
   window._licKpiFiltro = '';
   window._licVencFiltro = '';
+  window._licPage = 1;
   atualizarDestaqueCardsLicenca();
   if (window._licencasCache) renderTabelaLicencas(window._licencasCache);
 });
 $('lic-periodo-filtro')?.addEventListener('change', () => {
+  window._licPage = 1;
   if (window._licencasCache) renderTabelaLicencas(window._licencasCache);
 });
 $('lic-limpar')?.addEventListener('click', () => {
@@ -8509,6 +8566,7 @@ $('lic-limpar')?.addEventListener('click', () => {
   if ($('lic-periodo-filtro')) $('lic-periodo-filtro').value = '';
   window._licKpiFiltro = '';
   window._licVencFiltro = '';
+  window._licPage = 1;
   atualizarDestaqueCardsLicenca();
   if (window._licencasCache) renderTabelaLicencas(window._licencasCache);
 });
