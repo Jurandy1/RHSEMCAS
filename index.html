@@ -979,27 +979,23 @@
           <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;align-items:end">
             <div class="form-group" style="margin:0">
               <label class="form-label" for="aud-escopo">Quem auditar</label>
-              <select id="aud-escopo" class="form-control">
-                <option value="nao_identificados" selected>Só não identificados (fora da folha atual)</option>
-                <option value="todos_ativos">Todos os servidores ativos do RH</option>
+              <select id="aud-escopo" class="form-control" title="Ativos do RH inteiro grava também os que estão na folha da competência de referência (não some da lista, só marca como 'ativo'). Só faltantes é o modo enxuto: gera linha apenas para quem sumiu.">
+                <option value="nao_identificados" selected>Só faltantes na folha de referência</option>
+                <option value="todos_ativos">Todos os ativos do RH (inclui ATIVOS na tabela)</option>
               </select>
             </div>
             <div class="form-group" style="margin:0">
               <label class="form-label" for="aud-comp-ref">Competência de referência</label>
-              <input type="number" id="aud-comp-ref" class="form-control" placeholder="202607">
+              <input type="number" id="aud-comp-ref" class="form-control" placeholder="202607" title="Mês mais recente. Quem aparece na folha deste mês = ATIVO (sem scrape).">
             </div>
             <div class="form-group" style="margin:0">
               <label class="form-label" for="aud-comp-piso">Vasculhar até</label>
-              <input type="number" id="aud-comp-piso" class="form-control" value="202501" title="Piso YYYYMM — padrão janeiro/2025">
+              <input type="number" id="aud-comp-piso" class="form-control" value="202501" title="Mês mais antigo (YYYYMM). Faltantes são procurados por nome mês a mês, do referência-1 até este piso, parando na 1ª aparição.">
             </div>
-            <div class="form-group" style="margin:0">
-              <label class="form-label" for="aud-fase">Modo</label>
-              <select id="aud-fase" class="form-control">
-                <option value="inteligente" selected>Inteligente (usa banco; baixa só competências vazias)</option>
-                <option value="so_banco">Só banco (rápido, sem baixar folha)</option>
-                <option value="forcar_api">Forçar download de todas as competências do intervalo</option>
-              </select>
-            </div>
+          </div>
+          <div style="font-size:12px;color:var(--color-text-muted,#718096);margin-top:-4px;margin-bottom:8px">
+            <i class="ti ti-info-circle"></i>
+            Auditoria roda no Render em segundo plano — pode fechar a aba após iniciar; o resultado aparece nesta tela quando você voltar.
           </div>
           <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:18px;align-items:center">
             <button type="button" class="btn-primary" id="aud-btn-iniciar" onclick="audIniciarRastreio()">
