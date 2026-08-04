@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
   
-  <link rel="stylesheet" href="css/styles.css?v=20260803e">
+  <link rel="stylesheet" href="css/styles.css?v=20260803i">
 </head>
 <body>
 
@@ -961,8 +961,6 @@
             </div>
           </div>
         </div>
-
-        </div>
       </section>
 
       <!-- ===== AUDITORIA DE SAÍDAS GIAP (coordenadora) ===== -->
@@ -1114,7 +1112,16 @@
           </div>
           <span class="filter-result-count" id="remun-count"></span>
         </div>
-        <div class="pagination" style="margin-bottom:10px;position:sticky;top:0;z-index:4;background:#eef4fb;border:1px solid var(--gov-border);border-radius:6px;padding:10px 14px">
+        <div class="pagination remun-pagination-bar">
+          <div class="remun-pag-size">
+            <label for="remun-page-size">Por página</label>
+            <select id="remun-page-size" onchange="mudarPageSizeRemuneracoes(this.value)">
+              <option value="15">15</option>
+              <option value="25">25</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
           <div class="page-info" id="remun-page-info">—</div>
           <div class="page-controls" id="remun-page-controls"></div>
         </div>
@@ -1697,7 +1704,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20260803k"></script>
+  <script type="module" src="js/app.js?v=20260803m"></script>
 
 
 

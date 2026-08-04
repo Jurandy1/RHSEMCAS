@@ -282,14 +282,14 @@
       letter-spacing: 0.08em;
       text-transform: uppercase;
       color: rgba(255,255,255,0.45);
-      padding: 22px 24px 8px;
+      padding: 14px 24px 6px;
     }
 
     .nav-item {
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 11px 24px;
+      padding: 9px 24px;
       cursor: pointer;
       color: rgba(255,255,255,0.78);
       font-size: 14px;
@@ -320,9 +320,19 @@
 
     .sidebar-nav {
       flex: 1;
-      padding: 8px 0;
+      min-height: 0;
+      padding: 6px 0 10px;
       overflow-y: auto;
+      scrollbar-gutter: stable;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.28) transparent;
     }
+    .sidebar-nav::-webkit-scrollbar { width: 8px; }
+    .sidebar-nav::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.25);
+      border-radius: 4px;
+    }
+    .sidebar-nav::-webkit-scrollbar-track { background: transparent; }
 
     .sidebar-footer {
       padding: 14px 20px;
@@ -916,7 +926,7 @@
     #view-licencas .lic-table-card { padding: 0; margin-bottom: 0; }
     #view-licencas .lic-paginacao-bar {
       display: flex;
-      justify-content: center;
+      justify-content: space-between;
       align-items: center;
       gap: 12px;
       flex-wrap: wrap;
@@ -931,10 +941,112 @@
       z-index: 4;
       box-shadow: 0 1px 0 rgba(0,0,0,.04);
     }
-    #view-licencas .lic-paginacao-bar .btn-primary,
-    #view-licencas .lic-paginacao-bar .btn-secondary {
+    #view-licencas .lic-pag-size {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--color-text-sec);
+    }
+    #view-licencas .lic-pag-size label { font-weight: 600; }
+    #view-licencas .lic-pag-size select {
+      padding: 4px 8px;
+      border: 1px solid var(--gov-border);
+      border-radius: 4px;
+      background: #fff;
+      font-size: 13px;
+      min-height: 32px;
+    }
+    #view-licencas .lic-pag-nav {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1 1 auto;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+    #view-licencas .lic-pag-info {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      font-size: 13px;
+      color: var(--color-text-sec);
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+    #view-licencas .lic-pag-info .lic-pag-page {
+      font-size: 12px;
+      color: var(--color-text-muted);
+      padding-left: 8px;
+      border-left: 1px solid var(--gov-border);
+    }
+    @media (max-width: 720px) {
+      #view-licencas .lic-pag-info .lic-pag-page { display: none; }
+    }
+
+    /* --- Barra de paginação de Remunerações --- */
+    .remun-pagination-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 10px 14px;
+      margin-bottom: 10px;
+      background: #eef4fb;
+      border: 1px solid var(--gov-border);
+      border-radius: 6px;
+      font-size: 13px;
+      position: sticky;
+      top: 0;
+      z-index: 4;
+      box-shadow: 0 1px 0 rgba(0,0,0,.04);
+    }
+    .remun-pag-size {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--color-text-sec);
+    }
+    .remun-pag-size label { font-weight: 600; }
+    .remun-pag-size select {
+      padding: 4px 8px;
+      border: 1px solid var(--gov-border);
+      border-radius: 4px;
+      background: #fff;
+      font-size: 13px;
+      min-height: 32px;
+    }
+    .remun-pagination-bar .page-info { color: var(--color-text-sec); }
+    .remun-pagination-bar .page-controls {
+      display: inline-flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    @media (max-width: 560px) {
+      .remun-pagination-bar { justify-content: center; padding: 8px 10px; gap: 8px; }
+      .remun-pagination-bar .page-info { font-size: 12px; }
+    }
+    #view-licencas .lic-paginacao-bar .lic-pag-btn {
       min-height: 36px;
+      padding: 8px 14px;
       font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    /* Mobile / larguras estreitas: esconder rótulos e deixar só ícones */
+    @media (max-width: 560px) {
+      #view-licencas .lic-paginacao-bar {
+        justify-content: center;
+        padding: 8px 10px;
+        gap: 8px;
+      }
+      #view-licencas .lic-pag-nav { justify-content: center; gap: 8px; }
+      #view-licencas .lic-pag-lbl { display: none; }
+      #view-licencas .lic-paginacao-bar .lic-pag-btn { padding: 8px 10px; }
+      #view-licencas .lic-pag-info { min-width: 90px; font-size: 12px; }
     }
     #view-licencas .gov-table td,
     #view-licencas .gov-table th {

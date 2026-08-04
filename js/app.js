@@ -3613,11 +3613,19 @@ window.irPaginaRemuneracoes = function irPaginaRemuneracoes(p) {
   if (area) area.scrollTop = 0;
 };
 
+window.mudarPageSizeRemuneracoes = function mudarPageSizeRemuneracoes(v) {
+  const n = Number(v);
+  if (![15, 25, 50, 100].includes(n)) return;
+  window._remunPageSize = n;
+  window._remunPage = 1;
+  renderTabelaRemuneracoes();
+};
+
 function renderPaginacaoRemuneracoes(filtradoTotal) {
   const info = $('remun-page-info');
   const controls = $('remun-page-controls');
   if (!info || !controls) return;
-  const pageSize = window._remunPageSize || 15;
+  const pageSize = window._remunPageSize || 50;
   const totalPages = Math.max(1, Math.ceil(filtradoTotal / pageSize) || 1);
   if (window._remunPage > totalPages) window._remunPage = totalPages;
   const page = window._remunPage || 1;
@@ -3650,7 +3658,7 @@ window.renderTabelaRemuneracoes = function renderTabelaRemuneracoes() {
   const lotToolbar = ($('remun-lotacao')?.value || '').trim();
   const compFiltro = Number($('remun-comp')?.value || 0);
   const s = window._remunSort || { col: 'nome', dir: 'asc' };
-  const pageSize = window._remunPageSize || 15;
+  const pageSize = window._remunPageSize || 50;
 
   let lista = [...(window._remunCache || [])];
   if (compFiltro) lista = lista.filter((r) => Number(r.competencia) === compFiltro);
@@ -8440,7 +8448,10 @@ function renderTabelaLicencas(lista) {
       return (a.nome || '').localeCompare(b.nome || '');
     });
 
-    const pageSize = 12;
+    const OPTS_PAGE_SIZE_LIC = [10, 25, 50, 100];
+    let pageSize = Number(window._licPageSize);
+    if (!OPTS_PAGE_SIZE_LIC.includes(pageSize)) pageSize = 25;
+    window._licPageSize = pageSize;
     const totalPages = Math.max(1, Math.ceil(data.length / pageSize) || 1);
     let page = Math.max(1, Number(window._licPage || 1));
     if (page > totalPages) page = totalPages;
@@ -8467,17 +8478,25 @@ function renderTabelaLicencas(lista) {
         regsNota + extra;
     }
 
-    const htmlPag = data.length <= pageSize ? '' : `
-      <button type="button" class="btn-secondary" style="padding:8px 14px" ${page <= 1 ? 'disabled' : ''} onclick="licIrPagina(${page - 1})">
-        <i class="ti ti-chevron-left"></i> Anterior
-      </button>
-      <span style="font-size:13px;color:var(--color-text-sec);text-align:center">
-        Página <strong>${page}</strong> de <strong>${totalPages}</strong>
-        <span style="display:block;font-size:12px;margin-top:2px">${data.length} servidores · use <strong>Próxima</strong> para ver mais</span>
-      </span>
-      <button type="button" class="btn-primary" style="padding:8px 16px" ${page >= totalPages ? 'disabled' : ''} onclick="licIrPagina(${page + 1})">
-        Próxima página <i class="ti ti-chevron-right"></i>
-      </button>`;
+    const optsPageSize = OPTS_PAGE_SIZE_LIC.map(n =>
+      `<option value="${n}" ${n === pageSize ? 'selected' : ''}>${n}</option>`).join('');
+    const htmlPag = data.length <= 10 ? '' : `
+      <div class="lic-pag-size">
+        <label for="lic-page-size">Por página</label>
+        <select id="lic-page-size" onchange="licMudarPageSize(this.value)">${optsPageSize}</select>
+      </div>
+      <div class="lic-pag-nav">
+        <button type="button" class="btn-secondary lic-pag-btn" ${page <= 1 ? 'disabled' : ''} onclick="licIrPagina(${page - 1})" title="Página anterior">
+          <i class="ti ti-chevron-left"></i><span class="lic-pag-lbl"> Anterior</span>
+        </button>
+        <span class="lic-pag-info">
+          <strong>${de}–${ate}</strong> de <strong>${data.length}</strong>
+          <span class="lic-pag-page">Página ${page} de ${totalPages}</span>
+        </span>
+        <button type="button" class="btn-primary lic-pag-btn" ${page >= totalPages ? 'disabled' : ''} onclick="licIrPagina(${page + 1})" title="Próxima página">
+          <span class="lic-pag-lbl">Próxima </span><i class="ti ti-chevron-right"></i>
+        </button>
+      </div>`;
 
     const pagEl = $('lic-paginacao');
     if (pagEl) {
@@ -8680,6 +8699,14 @@ window.licIrPagina = function licIrPagina(p) {
   if (window._licencasCache) renderTabelaLicencas(window._licencasCache);
   const area = document.querySelector('.content-area');
   if (area) area.scrollTop = 0;
+};
+
+window.licMudarPageSize = function licMudarPageSize(v) {
+  const n = Number(v);
+  if (![10, 25, 50, 100].includes(n)) return;
+  window._licPageSize = n;
+  window._licPage = 1;
+  if (window._licencasCache) renderTabelaLicencas(window._licencasCache);
 };
 
 window.definirLotacaoLicenca = async (funcionario_id) => {
