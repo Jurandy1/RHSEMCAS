@@ -6190,200 +6190,52 @@ window.audPagina = function audPagina(delta) {
   audRenderTabela();
 };
 
-async function audCarregarAlvos(escopo, compRef) {
-  // Preferir a view (tem GRANT para authenticated) — evita 42501 em funcionarios
-  const all = [];
-  const viewProbe = await sb.from('v_funcionarios_atual').select('funcionario_id').limit(1);
-  if (!viewProbe.error) {
+/** Carrega o último job de auditoria e, se houver, hidrata a tabela com os resultados persistidos. */
+async function audCarregarUltimaExecucao() {
+  try {
+    const { data: jobs } = await sb.from('giap_jobs')
+      .select('id, status, resumo, finished_at, progresso_pct')
+      .eq('tipo', 'auditoria_saidas')
+      .order('id', { ascending: false })
+      .limit(1);
+    const job = jobs?.[0];
+    if (!job) return null;
+    const jobRaiz = Number(job.resumo?.auditoria?.job_raiz || job.id);
+    const linhas = [];
     for (let from = 0; ; from += 1000) {
-      const { data, error } = await sb.from('v_funcionarios_atual')
-        .select('funcionario_id, nome, matricula, vinculo')
+      const { data, error } = await sb.from('giap_auditoria_saidas')
+        .select('funcionario_id, matricula, nome, status, competencia, demissao, fonte')
+        .eq('job_id', jobRaiz)
         .order('nome')
         .range(from, from + 999);
       if (error) throw error;
       if (data?.length) {
-        all.push(...data.map((r) => ({
+        linhas.push(...data.map((r) => ({
           id: r.funcionario_id,
-          nome: r.nome,
           matricula: r.matricula,
-          vinculo: r.vinculo
+          nome: r.nome,
+          status: r.status,
+          competencia: r.competencia,
+          demissao: r.demissao,
+          fonte: r.fonte
         })));
       }
       if (!data || data.length < 1000) break;
     }
-  } else {
-    const { data: sess } = await sb.auth.getSession();
-    if (!sess?.session) throw new Error('Sessão expirada. Faça login novamente.');
-    for (let from = 0; ; from += 1000) {
-      const { data, error } = await sb.from('funcionarios')
-        .select('id, nome, matricula')
-        .eq('ativo', true)
-        .order('nome')
-        .range(from, from + 999);
-      if (error) throw error;
-      if (data?.length) all.push(...data.map((r) => ({ ...r, vinculo: null })));
-      if (!data || data.length < 1000) break;
-    }
+    _audSaidas.rows = linhas
+      // Ativos em compRef não interessam para a lista final
+      .filter((r) => r.status !== 'ativo_compref')
+      .sort((a, b) => {
+        const ord = { candidato_exo: 0, sumiu: 1, sem_historico: 2, pendente: 3 };
+        return (ord[a.status] ?? 9) - (ord[b.status] ?? 9) ||
+          String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR');
+      });
+    _audSaidas.page = 1;
+    return job;
+  } catch (e) {
+    console.warn('[aud] carregar última execução', e.message);
+    return null;
   }
-
-  let alvos = all.filter((r) => {
-    if ((r.nome || '').trim().split(/\s+/).length < 2) return false;
-    if (giapFaltandoExcluido(r.vinculo)) return false;
-    return true;
-  });
-
-  const mapRow = (r) => ({
-    id: r.id,
-    nome: r.nome,
-    matricula: r.matricula,
-    status: 'pendente',
-    competencia: null,
-    demissao: null,
-    fonte: null
-  });
-
-  if (escopo !== 'nao_identificados') return alvos.map(mapRow);
-
-  const mats = new Set();
-  const nomes = new Set();
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await sb.from('folha_pmsl')
-      .select('matricula, funcionario, funcionario_norm')
-      .eq('competencia', Number(compRef))
-      .range(from, from + 999);
-    if (error) throw error;
-    for (const f of data || []) {
-      const mk = giapMatKey(f.matricula);
-      if (mk) mats.add(mk);
-      const nn = f.funcionario_norm || giapNormNome(f.funcionario);
-      if (nn) nomes.add(nn);
-    }
-    if (!data || data.length < 1000) break;
-  }
-  return alvos
-    .filter((r) => {
-      const mk = giapMatKey(r.matricula);
-      if (mk && mats.has(mk)) return false;
-      if (nomes.has(giapNormNome(r.nome))) return false;
-      return true;
-    })
-    .map(mapRow);
-}
-
-async function audContagemFolha(comp) {
-  const { count, error } = await sb.from('folha_pmsl')
-    .select('id', { count: 'exact', head: true })
-    .eq('competencia', Number(comp));
-  if (error) throw error;
-  return count || 0;
-}
-
-/** Espera job GIAP terminar (poll no banco + fallback proxy). */
-async function audAguardarJob(jobId, comp, basePct, spanPct) {
-  const pause = (ms) => new Promise((r) => setTimeout(r, ms));
-  const lerJob = async () => {
-    // Preferir tabela giap_jobs (mesmo formato da Conferência)
-    try {
-      const { data } = await sb.from('giap_jobs').select('*').eq('id', jobId).maybeSingle();
-      if (data) return data;
-    } catch (_) { /* fallback proxy */ }
-    const data = await giapProxy('job_status', { jobId });
-    // Proxy devolve { job: {...} } — sem unwrap o poll nunca sai do 0%
-    return data?.job || data;
-  };
-  while (!_audSaidas.parar) {
-    const job = await lerJob();
-    const jp = Number(job?.progresso_pct || 0);
-    const st = job?.status || '—';
-    const etapa = job?.resumo?.etapa ? ` · ${job.resumo.etapa}` : '';
-    audProgresso(
-      basePct + (jp / 100) * spanPct,
-      `Folha ${comp} · job #${jobId} · ${st} · ${jp}%${etapa}`
-    );
-    if (st === 'done') return job;
-    if (st === 'error') throw new Error(job.erro || `Job ${jobId} falhou`);
-    if (st === 'cancelled') throw new Error(`Job ${jobId} cancelado`);
-    await pause(3000);
-  }
-  throw new Error('Parado pelo usuário');
-}
-
-/**
- * Snapshot da folha SEMCAS da competência (órgão + A–Z).
- * Sem fila de 900 buscas por nome (isso é da Conferência, não da auditoria).
- */
-async function audBaixarFolhaCompetencia(comp, basePct, spanPct) {
-  try { await giapProxy('parar_cadeia', {}); } catch (_) { /* ok */ }
-  const data = await giapProxy('start_job', {
-    tipo: 'sync_orgao',
-    competencia: Number(comp),
-    dryRun: false,
-    filtros: {
-      continuarAteCompletar: false,
-      forcarLetras: true,
-      pularBuscasNome: true
-    }
-  });
-  const job = data.job || data;
-  if (!job?.id) throw new Error(`Não iniciou job para ${comp}`);
-  _audSaidas.scrapes += 1;
-  return audAguardarJob(job.id, comp, basePct, spanPct);
-}
-
-/** Índice local folha_pmsl nas competências (1 competência por vez — leve na memória). */
-async function audIndexarCompLocal(comp, byMat, byNome) {
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await sb.from('folha_pmsl')
-      .select('matricula, funcionario, funcionario_norm, demissao, competencia')
-      .eq('competencia', Number(comp))
-      .range(from, from + 999);
-    if (error) throw error;
-    for (const f of data || []) {
-      const row = {
-        competencia: f.competencia,
-        demissao: f.demissao || null,
-        funcionario: f.funcionario,
-        matricula: f.matricula
-      };
-      const mk = giapMatKey(f.matricula);
-      if (mk) {
-        const prev = byMat.get(mk);
-        if (!prev || Number(row.competencia) > Number(prev.competencia)) byMat.set(mk, row);
-        if (row.demissao && (!prev?.demissao || Number(row.competencia) >= Number(prev.competencia))) {
-          byMat.set(mk, row);
-        }
-      }
-      const nn = f.funcionario_norm || giapNormNome(f.funcionario);
-      if (nn) {
-        const prev = byNome.get(nn);
-        if (!prev || Number(row.competencia) > Number(prev.competencia)) byNome.set(nn, row);
-        if (row.demissao && (!prev?.demissao || Number(row.competencia) >= Number(prev.competencia))) {
-          byNome.set(nn, row);
-        }
-      }
-    }
-    if (!data || data.length < 1000) break;
-  }
-}
-
-function audMatchLocal(r, byMat, byNome) {
-  const mk = giapMatKey(r.matricula);
-  if (mk && byMat.has(mk)) return byMat.get(mk);
-  const nn = giapNormNome(r.nome);
-  if (nn && byNome.has(nn)) return byNome.get(nn);
-  return null;
-}
-
-function audAplicarHit(r, hit, fonte) {
-  if (!hit) {
-    r.status = 'sem_historico';
-    r.fonte = fonte;
-    return;
-  }
-  r.competencia = hit.competencia;
-  r.demissao = hit.demissao || null;
-  r.fonte = fonte;
-  r.status = hit.demissao ? 'candidato_exo' : 'sumiu';
 }
 
 window.renderGiapAuditoriaSaidas = async function renderGiapAuditoriaSaidas() {
@@ -6391,24 +6243,93 @@ window.renderGiapAuditoriaSaidas = async function renderGiapAuditoriaSaidas() {
   const sug = Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
   if ($('aud-comp-ref') && !$('aud-comp-ref').value) $('aud-comp-ref').value = String(sug);
   if ($('aud-comp-piso') && !$('aud-comp-piso').value) $('aud-comp-piso').value = '202501';
+
+  const job = await audCarregarUltimaExecucao();
   audAtualizarKpis();
   audRenderTabela();
+
+  if (job) {
+    const meta = job.resumo?.auditoria || {};
+    const label = job.status === 'running' || job.status === 'pending'
+      ? `Auditoria em andamento no Render · lote #${job.id} · ${job.progresso_pct || 0}%`
+      : `Última auditoria: ${meta.comp_piso || '?'} → ${meta.comp_ref || '?'} · concluída em ${job.finished_at ? new Date(job.finished_at).toLocaleString('pt-BR') : '—'}`;
+    audProgresso(job.progresso_pct || (job.status === 'done' ? 100 : 0), label);
+    if (job.status === 'running' || job.status === 'pending') {
+      // Retoma o polling — se fecharem a aba de novo, o Render segue sozinho
+      audMonitorarJobRaiz(Number(job.resumo?.auditoria?.job_raiz || job.id)).catch((e) => {
+        console.warn('[aud] monitor', e.message);
+      });
+    }
+  }
 };
 
-window.audPararRastreio = function audPararRastreio() {
+/**
+ * Segue o job (e as continuações da mesma auditoria) até tudo terminar.
+ * Rehidrata a tabela quando houver mudanças. Pode ser interrompido fechando a aba
+ * — o Render continua sozinho via agendarProximoLote.
+ */
+async function audMonitorarJobRaiz(jobRaiz) {
+  if (_audSaidas.monitorando) return;
+  _audSaidas.monitorando = true;
+  _audSaidas.parar = false;
+  const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+  try {
+    while (!_audSaidas.parar) {
+      const { data: jobs } = await sb.from('giap_jobs')
+        .select('id, status, resumo, progresso_pct, finished_at')
+        .eq('tipo', 'auditoria_saidas')
+        .or(`id.eq.${jobRaiz},resumo->auditoria->>job_raiz.eq.${jobRaiz}`)
+        .order('id', { ascending: false })
+        .limit(1);
+      const atual = jobs?.[0];
+      const st = atual?.status || '—';
+      const pct = Number(atual?.progresso_pct || 0);
+      const etapa = atual?.resumo?.etapa ? ` · ${atual.resumo.etapa}` : '';
+      audProgresso(pct, `Render · lote #${atual?.id} · ${st} · ${pct}%${etapa}`);
+
+      // Rehidrata resultados parciais
+      await audCarregarUltimaExecucao();
+      audAtualizarKpis();
+      audRenderTabela();
+
+      // Só sai quando o último lote deu done E não há continuação pendente
+      const concluido =
+        st === 'done' && !(atual?.resumo?.auditoria?.pendentes_ids?.length);
+      if (concluido) {
+        audProgresso(100, 'Auditoria concluída.');
+        break;
+      }
+      if (st === 'error' || st === 'cancelled') {
+        showToast(`Lote #${atual?.id} terminou com ${st}: ${atual?.resumo?.etapa || 'sem detalhes'}. O Render pode ter reiniciado; clique em Iniciar para retomar de onde parou.`, 'warning');
+        break;
+      }
+      await pause(4000);
+    }
+  } finally {
+    _audSaidas.monitorando = false;
+  }
+}
+
+window.audPararRastreio = async function audPararRastreio() {
   _audSaidas.parar = true;
   _giapPuxarTodos.parar = true;
-  audProgresso(null, 'Parando após a competência atual…');
+  audProgresso(null, 'Parando cadeia no Render — o lote atual termina, os próximos não iniciam…');
+  try {
+    await giapProxy('parar_cadeia', {});
+    showToast('Cadeia de lotes cancelada no Render.', 'info');
+  } catch (e) {
+    console.warn('[aud] parar_cadeia', e.message);
+    showToast('Não deu para avisar o Render; o lote atual ainda vai terminar.', 'warning');
+  }
 };
 
 window.audIniciarRastreio = async function audIniciarRastreio() {
   if (_audSaidas.rodando || _giapPuxarTodos.rodando) {
     return showToast('Já há uma auditoria/puxar em andamento.', 'info');
   }
-  const escopo = $('aud-escopo')?.value || 'nao_identificados';
+  const escopo = $('aud-escopo')?.value || 'todos_ativos';
   const compRef = Number($('aud-comp-ref')?.value || giapCompetenciaPadrao());
   const compPiso = Number($('aud-comp-piso')?.value || 202501);
-  const fase = $('aud-fase')?.value || 'inteligente';
   if (!compRef || !compPiso || compPiso > compRef) {
     return showToast('Informe competência de referência e piso válidos (piso ≤ referência).', 'warning');
   }
@@ -6418,9 +6339,10 @@ window.audIniciarRastreio = async function audIniciarRastreio() {
   const ok = confirm(
     `Iniciar auditoria de saídas?\n\n` +
     `• Escopo: ${escopo === 'todos_ativos' ? 'todos ativos' : 'só não identificados'}\n` +
-    `• Intervalo: ${comps[0]} → ${comps[comps.length - 1]} (${comps.length} competências)\n` +
-    `• Estratégia: baixar a folha SEMCAS por MÊS (1 job = muitos servidores) e cruzar todos de uma vez\n` +
-    `• Não usa busca 1 a 1 (muito mais rápido e leve no Render)\n\n` +
+    `• Intervalo: ${compRef} → ${compPiso} (${comps.length} competências)\n` +
+    `• Estratégia: quem aparecer na folha de ${compRef} = ATIVO (sem scrape).\n` +
+    `  Só os faltantes viram consulta por nome no GIAP mês a mês, parando na 1ª aparição.\n` +
+    `• O trabalho roda no Render em SEGUNDO PLANO — você pode fechar esta aba.\n\n` +
     `Continuar?`
   );
   if (!ok) return;
@@ -6434,113 +6356,25 @@ window.audIniciarRastreio = async function audIniciarRastreio() {
   if ($('aud-btn-iniciar')) $('aud-btn-iniciar').disabled = true;
   if ($('aud-btn-parar')) $('aud-btn-parar').style.display = '';
 
-  const pause = (ms) => new Promise((r) => setTimeout(r, ms));
-  /** Mínimo de linhas para considerar a competência “já baixada”. */
-  const MIN_LINHAS_COMP = 30;
-
   try {
-    audProgresso(2, 'Carregando alvos do RH…');
-    const alvos = await audCarregarAlvos(escopo, compRef);
-    _audSaidas.rows = alvos;
-    _audSaidas.page = 1;
-    audAtualizarKpis();
-    audRenderTabela();
-    if (!alvos.length) {
-      showToast('Nenhum alvo para auditar neste escopo.', 'info');
-      return;
-    }
-
-    // 1) Decide quais competências precisam de download em lote
-    const compsBaixar = [];
-    if (fase !== 'so_banco') {
-      audProgresso(5, 'Verificando quais competências já estão no banco…');
-      for (let i = 0; i < comps.length; i++) {
-        if (_audSaidas.parar) break;
-        const comp = comps[i];
-        const n = await audContagemFolha(comp);
-        const precisa = fase === 'forcar_api' || n < MIN_LINHAS_COMP;
-        if (precisa) compsBaixar.push(comp);
-        audProgresso(
-          5 + ((i + 1) / comps.length) * 10,
-          `Checando ${comp}: ${n} linha(s)${precisa ? ' → baixar' : ' · ok'}`
-        );
-      }
-    }
-
-    // 2) Baixa folha por competência (órgão + A–Z; sem cadeia de 900 nomes)
-    if (compsBaixar.length && !_audSaidas.parar) {
-      try { await giapProxy('parar_cadeia', {}); } catch (_) { /* ok */ }
-      showToast(
-        `Baixando ${compsBaixar.length} competência(s) em snapshot (A–Z). Cada mês leva alguns minutos.`,
-        'info'
-      );
-      for (let i = 0; i < compsBaixar.length; i++) {
-        if (_audSaidas.parar) break;
-        const comp = compsBaixar[i];
-        const base = 15 + (i / compsBaixar.length) * 55;
-        const span = 55 / compsBaixar.length;
-        try {
-          await audBaixarFolhaCompetencia(comp, base, span);
-          // Pausa entre competências para o Chrome do Render liberar RAM
-          if (i < compsBaixar.length - 1 && !_audSaidas.parar) {
-            audProgresso(base + span, `Pausa entre competências (Render)…`);
-            await pause(8000);
-          }
-        } catch (e) {
-          if (_audSaidas.parar) break;
-          console.warn('[AUD] falha ao baixar', comp, e);
-          showToast(`Competência ${comp}: ${e.message || e} — seguindo…`, 'warning');
-          await pause(3000);
-        }
-      }
-    }
-
-    if (_audSaidas.parar) {
-      audProgresso(100, 'Parado.');
-      showToast('Auditoria interrompida.', 'info');
-      return;
-    }
-
-    // 3) Cruzamento local de TODOS os alvos × todas as competências
-    audProgresso(75, 'Cruzando RH × folhas baixadas…');
-    const byMat = new Map();
-    const byNome = new Map();
-    for (let ci = 0; ci < comps.length; ci++) {
-      if (_audSaidas.parar) break;
-      const comp = comps[ci];
-      audProgresso(75 + (ci / comps.length) * 20, `Indexando banco · ${comp}…`);
-      await audIndexarCompLocal(comp, byMat, byNome);
-    }
-
-    for (const r of alvos) {
-      const hit = audMatchLocal(r, byMat, byNome);
-      audAplicarHit(r, hit, hit ? (compsBaixar.includes(Number(hit.competencia)) ? 'folha+api' : 'banco') : 'banco');
-    }
-
-    alvos.sort((a, b) => {
-      const ord = { candidato_exo: 0, sumiu: 1, sem_historico: 2, pendente: 3 };
-      return (ord[a.status] ?? 9) - (ord[b.status] ?? 9) ||
-        String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR');
+    audProgresso(1, 'Enviando job para o Render…');
+    try { await giapProxy('parar_cadeia', {}); } catch (_) { /* ok */ }
+    const data = await giapProxy('start_job', {
+      tipo: 'auditoria_saidas',
+      competencia: compRef,
+      dryRun: false,
+      filtros: { compRef, compPiso, escopo }
     });
-    _audSaidas.rows = alvos;
-    audAtualizarKpis();
-    audRenderTabela();
-
-    const msg =
-      `Concluído. ${_audSaidas.stats.dem} com demissão · ${_audSaidas.stats.sumiu} na folha sem demissão · ` +
-      `${_audSaidas.stats.sem} sem histórico · ${_audSaidas.scrapes} competência(s) baixada(s) em lote.`;
-    audProgresso(100, msg);
-    showToast(msg, _audSaidas.stats.dem ? 'warning' : 'success');
-    await registrarLog('GIAP — AUDITORIA SAÍDAS LOTE', null, 'Auditoria', {
-      escopo,
-      compRef,
-      compPiso,
-      fase,
-      comps,
-      comps_baixadas: compsBaixar,
-      scrapes: _audSaidas.scrapes,
-      stats: _audSaidas.stats
+    const job = data.job || data;
+    if (!job?.id) throw new Error('Render não devolveu id do job.');
+    _audSaidas.scrapes = 0;
+    audProgresso(3, `Job #${job.id} criado. Auditoria roda no Render em 2º plano — pode fechar a aba.`);
+    showToast(`Auditoria iniciada (job #${job.id}). Pode fechar esta aba — o Render continua e o resultado aparece aqui quando você voltar.`, 'success');
+    await registrarLog('GIAP — AUDITORIA SAÍDAS INICIADA', null, 'Auditoria', {
+      escopo, compRef, compPiso, comps, job_id: job.id
     });
+    // Enquanto a aba estiver aberta, acompanha
+    await audMonitorarJobRaiz(job.id);
   } catch (e) {
     console.error('[AUD]', e);
     showToast(e.message || String(e), 'error');
