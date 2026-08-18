@@ -776,6 +776,102 @@
     }
     .form-group.full-width { grid-column: span 2; }
 
+    /* Foto do servidor — editor e lista */
+    .func-foto-row {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .func-foto-preview {
+      width: 96px;
+      height: 96px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--gov-border);
+      background: var(--gov-bg-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .func-foto-preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .func-foto-placeholder {
+      font-size: 40px;
+      color: var(--color-text-muted);
+      line-height: 1;
+    }
+    .func-foto-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: 1;
+      min-width: 200px;
+    }
+    .func-foto-hint {
+      font-size: 11px;
+      color: var(--color-text-muted);
+      line-height: 1.35;
+    }
+    .func-foto-info {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--gov-blue-primary);
+      line-height: 1.35;
+      min-height: 1.2em;
+    }
+    .func-foto-wrap--edit {
+      padding: 12px;
+      border: 1px solid var(--gov-border);
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+    .func-foto-preview--edit {
+      width: 112px;
+      height: 112px;
+    }
+    .func-foto-webcam {
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid var(--gov-border);
+      border-radius: 8px;
+      background: #111;
+    }
+    .func-foto-webcam video {
+      width: 100%;
+      max-height: 260px;
+      border-radius: 4px;
+      display: block;
+      background: #000;
+    }
+    .func-foto-webcam-btns {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .func-lista-foto {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 1px solid var(--gov-border);
+      display: block;
+    }
+    .func-lista-foto--empty {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--gov-bg-light);
+      color: var(--color-text-muted);
+      font-size: 18px;
+    }
+
     .form-label {
       display: block;
       font-size: 13px;

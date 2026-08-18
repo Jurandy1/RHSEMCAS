@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
   
-  <link rel="stylesheet" href="css/styles.css?v=20260803i">
+  <link rel="stylesheet" href="css/styles.css?v=20260818b">
 </head>
 <body>
 
@@ -296,6 +296,7 @@
             <thead>
               <tr>
                 <th style="width:90px">Matrícula</th>
+                <th style="width:48px" title="Foto do servidor">Foto</th>
                 <th class="sortable" data-sort="nome" onclick="sortTable('nome')">Nome do Servidor</th>
                 <th class="sortable" data-sort="vinculo" onclick="sortTable('vinculo')">Vínculo</th>
                 <th class="sortable" data-sort="funcao" onclick="sortTable('funcao')">Função</th>
@@ -305,7 +306,7 @@
                 <th style="width:140px;text-align:center">Ações</th>
               </tr>
             </thead>
-            <tbody id="table-body"><tr><td colspan="8" class="empty-state"><span class="spinner"></span> Carregando…</td></tr></tbody>
+            <tbody id="table-body"><tr><td colspan="9" class="empty-state"><span class="spinner"></span> Carregando…</td></tr></tbody>
           </table>
           <div class="pagination">
             <div class="page-info" id="page-info">—</div>
@@ -1324,6 +1325,30 @@
           <label class="form-label">Nome Completo *</label>
           <input type="text" class="form-control" id="add-nome">
         </div>
+        <div class="form-group full-width func-foto-wrap">
+          <label class="form-label">Foto do servidor</label>
+          <div class="func-foto-row">
+            <div class="func-foto-preview" aria-hidden="true">
+              <img id="add-foto-img" alt="Prévia da foto" hidden>
+              <span class="func-foto-placeholder" id="add-foto-placeholder"><i class="ti ti-user"></i></span>
+            </div>
+            <div class="func-foto-actions">
+              <input type="file" id="add-foto-file" accept="image/jpeg,image/png,image/webp,image/*" capture="user" hidden>
+              <button type="button" class="btn-secondary" onclick="document.getElementById('add-foto-file').click()"><i class="ti ti-upload"></i> Selecionar foto</button>
+              <button type="button" class="btn-secondary" id="add-foto-webcam-btn"><i class="ti ti-camera"></i> Tirar com webcam</button>
+              <button type="button" class="btn-outline" id="add-foto-remover" style="display:none"><i class="ti ti-trash"></i> Remover foto</button>
+              <small class="func-foto-hint">Qualquer JPG/PNG/WebP do celular ou PC · convertido automaticamente para JPG (~180 KB) antes de enviar</small>
+              <span class="func-foto-info" id="add-foto-info" aria-live="polite"></span>
+            </div>
+          </div>
+          <div id="add-foto-webcam-panel" class="func-foto-webcam" hidden>
+            <video id="add-foto-video" autoplay playsinline muted></video>
+            <div class="func-foto-webcam-btns">
+              <button type="button" class="btn-primary" id="add-foto-capturar"><i class="ti ti-camera"></i> Capturar</button>
+              <button type="button" class="btn-secondary" id="add-foto-webcam-cancel">Cancelar</button>
+            </div>
+          </div>
+        </div>
         <div class="form-group">
           <label class="form-label">CPF</label>
           <input type="text" class="form-control" id="add-cpf" placeholder="000.000.000-00">
@@ -1501,6 +1526,30 @@
     <div class="modal-body">
       <form id="edit-form" class="form-grid" autocomplete="off">
         <input type="hidden" id="edit-id">
+        <div class="form-group full-width func-foto-wrap func-foto-wrap--edit">
+          <label class="form-label">Foto do servidor</label>
+          <div class="func-foto-row">
+            <div class="func-foto-preview func-foto-preview--edit" aria-hidden="true">
+              <img id="edit-foto-img" alt="Foto atual do servidor" hidden>
+              <span class="func-foto-placeholder" id="edit-foto-placeholder"><i class="ti ti-user"></i></span>
+            </div>
+            <div class="func-foto-actions">
+              <input type="file" id="edit-foto-file" accept="image/jpeg,image/png,image/webp,image/*" capture="user" hidden>
+              <button type="button" class="btn-secondary" onclick="document.getElementById('edit-foto-file').click()"><i class="ti ti-upload"></i> Trocar foto</button>
+              <button type="button" class="btn-secondary" id="edit-foto-webcam-btn"><i class="ti ti-camera"></i> Tirar com webcam</button>
+              <button type="button" class="btn-outline" id="edit-foto-remover" style="display:none"><i class="ti ti-trash"></i> Remover foto</button>
+              <small class="func-foto-hint">A foto salva aparece aqui · novas fotos viram JPG otimizado (~180 KB) para não encher o Supabase</small>
+              <span class="func-foto-info" id="edit-foto-info" aria-live="polite"></span>
+            </div>
+          </div>
+          <div id="edit-foto-webcam-panel" class="func-foto-webcam" hidden>
+            <video id="edit-foto-video" autoplay playsinline muted></video>
+            <div class="func-foto-webcam-btns">
+              <button type="button" class="btn-primary" id="edit-foto-capturar"><i class="ti ti-camera"></i> Capturar</button>
+              <button type="button" class="btn-secondary" id="edit-foto-webcam-cancel">Cancelar</button>
+            </div>
+          </div>
+        </div>
         <div class="form-group full-width">
           <label class="form-label">Nome Completo *</label>
           <input type="text" class="form-control" id="edit-nome">
@@ -1700,7 +1749,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20260803m"></script>
+  <script type="module" src="js/app.js?v=20260818b"></script>
 
 
 

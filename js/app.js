@@ -34,6 +34,305 @@ function popularSelectSimbologia(selectId, valor = '') {
   el.value = valor && SIMBOLOGIAS.includes(valor) ? valor : '';
 }
 
+// ── Fotos dos servidores (Supabase Storage) ──
+const FOTO_BUCKET = 'funcionarios-fotos';
+const FOTO_MAX_LADO = 512;           // px — suficiente para avatar em telas retina
+const FOTO_ALVO_KB = 180;            // meta ~180 KB por foto
+const FOTO_TETO_KB = 280;            // teto após compressão
+const FOTO_ENTRADA_MAX_MB = 12;      // aceita foto grande do celular; converte antes de enviar
+const _fotoUi = {
+  edit: { file: null, remove: false, pathAtual: null, stream: null, previewUrl: null, info: '' },
+  add:  { file: null, remove: false, pathAtual: null, stream: null, previewUrl: null, info: '' },
+};
+let _fotoCacheBust = Date.now();
+
+function urlPublicaFoto(path) {
+  if (!path) return null;
+  const base = sb.storage.from(FOTO_BUCKET).getPublicUrl(path).data?.publicUrl;
+  if (!base) return null;
+  const sep = base.includes('?') ? '&' : '?';
+  return `${base}${sep}v=${_fotoCacheBust}`;
+}
+
+function formatarTamanhoFoto(bytes) {
+  if (!bytes || bytes < 1024) return `${bytes || 0} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function canvasParaJpeg(canvas, qualidade) {
+  return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', qualidade));
+}
+
+/** Redimensiona + converte sempre para JPG, reduzindo qualidade até ~180 KB. */
+async function otimizarImagemFoto(file) {
+  const bmp = await createImageBitmap(file);
+  let maxLado = FOTO_MAX_LADO;
+  let blob = null;
+
+  for (let tentativa = 0; tentativa < 4; tentativa++) {
+    let w = bmp.width;
+    let h = bmp.height;
+    if (w > maxLado || h > maxLado) {
+      if (w >= h) { h = Math.round(h * maxLado / w); w = maxLado; }
+      else { w = Math.round(w * maxLado / h); h = maxLado; }
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(bmp, 0, 0, w, h);
+
+    let q = 0.9;
+    blob = await canvasParaJpeg(canvas, q);
+    while (blob && blob.size > FOTO_ALVO_KB * 1024 && q > 0.52) {
+      q -= 0.07;
+      blob = await canvasParaJpeg(canvas, q);
+    }
+    if (blob && blob.size <= FOTO_TETO_KB * 1024) break;
+    maxLado = Math.round(maxLado * 0.82);
+  }
+
+  bmp.close?.();
+  if (!blob) throw new Error('Não foi possível processar a imagem.');
+  return new File([blob], 'foto.jpg', { type: 'image/jpeg', lastModified: Date.now() });
+}
+
+function validarArquivoFoto(file) {
+  if (!file) return 'Nenhum arquivo selecionado.';
+  if (!/^image\//.test(file.type)) return 'Selecione um arquivo de imagem (JPG, PNG ou WebP).';
+  if (file.size > FOTO_ENTRADA_MAX_MB * 1024 * 1024) {
+    return `A foto original deve ter no máximo ${FOTO_ENTRADA_MAX_MB} MB.`;
+  }
+  return null;
+}
+
+function liberarPreviewFoto(prefix) {
+  const ui = _fotoUi[prefix];
+  if (ui?.previewUrl?.startsWith('blob:')) {
+    URL.revokeObjectURL(ui.previewUrl);
+    ui.previewUrl = null;
+  }
+}
+
+function atualizarInfoFoto(prefix, texto) {
+  const el = $(`${prefix}-foto-info`);
+  if (el) el.textContent = texto || '';
+  if (_fotoUi[prefix]) _fotoUi[prefix].info = texto || '';
+}
+
+function atualizarPreviewFoto(prefix, url, infoExtra = '') {
+  const img = $(`${prefix}-foto-img`);
+  const ph = $(`${prefix}-foto-placeholder`);
+  const btnRem = $(`${prefix}-foto-remover`);
+  if (!img) return;
+  liberarPreviewFoto(prefix);
+  if (url) {
+    _fotoUi[prefix].previewUrl = url.startsWith('blob:') ? url : null;
+    img.onerror = () => {
+      img.hidden = true;
+      img.removeAttribute('src');
+      if (ph) ph.hidden = false;
+      atualizarInfoFoto(prefix, 'Não foi possível carregar a foto salva.');
+    };
+    img.onload = () => {
+      img.removeAttribute('hidden');
+      img.hidden = false;
+      if (ph) ph.hidden = true;
+    };
+    img.src = url;
+    if (img.complete && img.naturalWidth > 0) {
+      img.removeAttribute('hidden');
+      img.hidden = false;
+      if (ph) ph.hidden = true;
+    }
+    if (btnRem) btnRem.style.display = '';
+    if (infoExtra) atualizarInfoFoto(prefix, infoExtra);
+  } else {
+    img.onerror = null;
+    img.onload = null;
+    img.hidden = true;
+    img.removeAttribute('src');
+    if (ph) ph.hidden = false;
+    if (btnRem) btnRem.style.display = 'none';
+    atualizarInfoFoto(prefix, '');
+  }
+}
+
+function pararWebcamFoto(prefix) {
+  const ui = _fotoUi[prefix];
+  if (ui?.stream) {
+    ui.stream.getTracks().forEach((t) => t.stop());
+    ui.stream = null;
+  }
+  const video = $(`${prefix}-foto-video`);
+  if (video) video.srcObject = null;
+}
+
+function fecharWebcamFoto(prefix) {
+  pararWebcamFoto(prefix);
+  const panel = $(`${prefix}-foto-webcam-panel`);
+  if (panel) panel.hidden = true;
+}
+
+function resetFotoUi(prefix) {
+  fecharWebcamFoto(prefix);
+  liberarPreviewFoto(prefix);
+  _fotoUi[prefix] = { file: null, remove: false, pathAtual: null, stream: null, previewUrl: null, info: '' };
+  atualizarPreviewFoto(prefix, null);
+  const fileIn = $(`${prefix}-foto-file`);
+  if (fileIn) fileIn.value = '';
+}
+
+function carregarFotoExistenteEdicao(fotoPath) {
+  fecharWebcamFoto('edit');
+  liberarPreviewFoto('edit');
+  _fotoUi.edit = {
+    file: null,
+    remove: false,
+    pathAtual: fotoPath || null,
+    stream: null,
+    previewUrl: null,
+    info: '',
+  };
+  if (fotoPath) {
+    atualizarPreviewFoto('edit', urlPublicaFoto(fotoPath), 'Foto atual do cadastro (convertida para JPG ao salvar)');
+  } else {
+    atualizarPreviewFoto('edit', null);
+    atualizarInfoFoto('edit', 'Nenhuma foto cadastrada');
+  }
+}
+
+async function abrirWebcamFoto(prefix) {
+  const panel = $(`${prefix}-foto-webcam-panel`);
+  const video = $(`${prefix}-foto-video`);
+  if (!panel || !video) return;
+  if (!navigator.mediaDevices?.getUserMedia) {
+    showToast('Webcam não disponível neste dispositivo. Use “Selecionar foto”.', 'warning');
+    return;
+  }
+  try {
+    pararWebcamFoto(prefix);
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+      audio: false,
+    });
+    _fotoUi[prefix].stream = stream;
+    video.srcObject = stream;
+    panel.hidden = false;
+  } catch (_) {
+    showToast('Não foi possível acessar a webcam. Use “Selecionar foto”.', 'warning');
+  }
+}
+
+async function capturarWebcamFoto(prefix) {
+  const video = $(`${prefix}-foto-video`);
+  if (!video?.videoWidth) return;
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.88));
+  if (!blob) return;
+  let file = new File([blob], 'webcam.jpg', { type: 'image/jpeg' });
+  try {
+    file = await otimizarImagemFoto(file);
+    _fotoUi[prefix].file = file;
+    _fotoUi[prefix].remove = false;
+    fecharWebcamFoto(prefix);
+    atualizarPreviewFoto(
+      prefix,
+      URL.createObjectURL(file),
+      `Capturada · ${formatarTamanhoFoto(file.size)} · JPG otimizado`
+    );
+  } catch (e) {
+    showToast('Erro ao processar foto da webcam: ' + (e.message || e), 'error');
+  }
+  const fileIn = $(`${prefix}-foto-file`);
+  if (fileIn) fileIn.value = '';
+}
+
+async function uploadFotoFuncionario(funcionarioId, file) {
+  const path = `${funcionarioId}/avatar.jpg`;
+  const { error } = await sb.storage.from(FOTO_BUCKET).upload(path, file, {
+    upsert: true,
+    contentType: 'image/jpeg',
+  });
+  if (error) throw error;
+  _fotoCacheBust = Date.now();
+  return path;
+}
+
+async function removerFotoFuncionarioStorage(path) {
+  if (!path) return;
+  await sb.storage.from(FOTO_BUCKET).remove([path]);
+}
+
+/** undefined = sem alteração; null = remover; string = novo path */
+async function processarFotoSalvar(funcionarioId, prefix) {
+  const ui = _fotoUi[prefix];
+  if (!ui) return undefined;
+  if (ui.remove) {
+    if (ui.pathAtual) await removerFotoFuncionarioStorage(ui.pathAtual);
+    return null;
+  }
+  if (ui.file) {
+    if (ui.pathAtual) await removerFotoFuncionarioStorage(ui.pathAtual);
+    return uploadFotoFuncionario(funcionarioId, ui.file);
+  }
+  return undefined;
+}
+
+function htmlFotoLista(path) {
+  const url = path ? urlPublicaFoto(path) : null;
+  if (url) {
+    return `<img class="func-lista-foto" src="${htmlEscape(url)}" alt="" loading="lazy" width="40" height="40">`;
+  }
+  return `<span class="func-lista-foto func-lista-foto--empty" aria-hidden="true"><i class="ti ti-user"></i></span>`;
+}
+
+function bindFotoUi(prefix) {
+  const fileIn = $(`${prefix}-foto-file`);
+  if (!fileIn || fileIn._fotoBound) return;
+  fileIn._fotoBound = true;
+
+  fileIn.addEventListener('change', async () => {
+    let file = fileIn.files?.[0];
+    if (!file) return;
+    const err = validarArquivoFoto(file);
+    if (err) { showToast(err, 'warning'); fileIn.value = ''; return; }
+    try {
+      const antes = file.size;
+      file = await otimizarImagemFoto(file);
+      _fotoUi[prefix].file = file;
+      _fotoUi[prefix].remove = false;
+      const info = `Pronta para salvar · ${formatarTamanhoFoto(file.size)} (era ${formatarTamanhoFoto(antes)}) · JPG otimizado`;
+      atualizarPreviewFoto(prefix, URL.createObjectURL(file), info);
+    } catch (e) {
+      showToast('Erro ao processar imagem: ' + (e.message || e), 'error');
+      fileIn.value = '';
+    }
+  });
+
+  $(`${prefix}-foto-webcam-btn`)?.addEventListener('click', () => abrirWebcamFoto(prefix));
+  $(`${prefix}-foto-capturar`)?.addEventListener('click', () => capturarWebcamFoto(prefix));
+  $(`${prefix}-foto-webcam-cancel`)?.addEventListener('click', () => fecharWebcamFoto(prefix));
+  $(`${prefix}-foto-remover`)?.addEventListener('click', () => {
+    _fotoUi[prefix].file = null;
+    _fotoUi[prefix].remove = true;
+    fileIn.value = '';
+    atualizarPreviewFoto(prefix, null);
+    atualizarInfoFoto(prefix, 'Foto será removida ao salvar');
+  });
+}
+
+function initFuncionarioFotoUi() {
+  bindFotoUi('edit');
+  bindFotoUi('add');
+}
+
 const state = {
   vinculos: [], turnos: [], lotacoes: [], funcoes: [],
   filtros: { busca: '', vinculo_id: null, lotacao_id: null, funcoes: [], turno_id: null },
@@ -119,6 +418,7 @@ async function bootApp() {
     if (!location.hash || location.hash === '#') location.hash = '#painel';
     navigate();
     instalarScrollConteudo();
+    initFuncionarioFotoUi();
     const { data } = await sb.from('v_pendentes_kpis').select('pendentes').single();
     if (data && $('badge-pendentes')) {
       // Menu Dados incompletos removido — badge legado ignorado
@@ -698,6 +998,8 @@ window.closeModal = (id) => {
     state._trfFromLicencas = false;
     state._trfFromSemLotacao = false;
   }
+  if (id === 'modal-edit') fecharWebcamFoto('edit');
+  if (id === 'modal-add-funcionario') fecharWebcamFoto('add');
   // Restaura scroll só se nenhum outro modal continuar aberto
   if (!document.querySelector('.modal-overlay[style*="flex"]')) {
     document.body.style.overflow = '';
@@ -1678,18 +1980,17 @@ async function buscarFuncionariosRpc({ paginar = true } = {}) {
 }
 
 async function carregarFuncionarios() {
-  $('table-body').innerHTML = `<tr><td colspan="8" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>`;
+  $('table-body').innerHTML = `<tr><td colspan="9" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>`;
   const resultado = await buscarFuncionariosRpc({ paginar: true });
   if (!resultado) return;
   const { rows: data, total } = resultado;
   state.total = total;
 
   if (data.length === 0) {
-    $('table-body').innerHTML = `<tr><td colspan="8"><div class="empty-state">Nenhum funcionário encontrado</div></td></tr>`;
+    $('table-body').innerHTML = `<tr><td colspan="9"><div class="empty-state">Nenhum funcionário encontrado</div></td></tr>`;
   } else {
-    // Busca matrícula + admissão em paralelo (não vem da RPC)
     const ids = data.map(d => d.funcionario_id);
-    const { data: extras } = await sb.from('funcionarios').select('id, matricula, data_admissao').in('id', ids);
+    const { data: extras } = await sb.from('funcionarios').select('id, matricula, data_admissao, foto_url').in('id', ids);
     const mapEx = Object.fromEntries((extras || []).map(x => [x.id, x]));
     const fmtDt = (s) => s ? new Date(s + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
 
@@ -1698,6 +1999,7 @@ async function carregarFuncionarios() {
       return `
       <tr>
         <td style="font-family:monospace;font-size:12px;color:var(--color-text-sec)">${htmlEscape(ex.matricula || '—')}</td>
+        <td>${htmlFotoLista(ex.foto_url)}</td>
         <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(f.nome)}</td>
         <td>${htmlEscape(f.vinculo || '-')}</td>
         <td>${htmlEscape(f.funcao || '—')}</td>
@@ -2137,8 +2439,10 @@ $('btn-confirmar-remover')?.addEventListener('click', async () => {
         btn.disabled = false;
         return;
       }
+      const { data: funcRow } = await sb.from('funcionarios').select('foto_url').eq('id', id).maybeSingle();
       const res = await sb.rpc('fn_excluir_funcionario', { p_id: id });
       if (res.error) throw res.error;
+      if (funcRow?.foto_url) await removerFotoFuncionarioStorage(funcRow.foto_url);
       await registrarLog('EXCLUSÃO DE SERVIDOR (CADASTRO ERRADO)', id, nome, {});
       showToast('Cadastro errado excluído.', 'success');
     } else {
@@ -2194,6 +2498,8 @@ $('btn-confirmar-remover')?.addEventListener('click', async () => {
 
 window.abrirModalAddFuncionario = () => {
   window._addFuncionarioOrigemGiap = false;
+  resetFotoUi('add');
+  atualizarInfoFoto('add', 'Opcional — será otimizada antes de enviar');
   $('add-nome').value = '';
   $('add-cpf').value = '';
   $('add-matricula').value = '';
@@ -2343,6 +2649,16 @@ $('btn-salvar-add').onclick = async () => {
     return showToast('Servidor criado, mas erro na lotação: ' + histError.message, 'error');
   }
 
+  try {
+    const novoPath = await processarFotoSalvar(funcData.id, 'add');
+    if (novoPath) {
+      const { error: fotoErr } = await sb.from('funcionarios').update({ foto_url: novoPath }).eq('id', funcData.id);
+      if (fotoErr) showToast('Servidor criado, mas a foto não foi salva: ' + fotoErr.message, 'warning');
+    }
+  } catch (e) {
+    showToast('Servidor criado, mas erro ao enviar foto: ' + (e.message || e), 'warning');
+  }
+
   // Recebido de outra secretaria → menu Cedidos/Recebidos
   if (outraSec) {
     const { error: cedErr } = await sb.from('funcionario_cedencias').insert([{
@@ -2389,9 +2705,11 @@ window.abrirEdicao = async (id) => {
   const data = await handleErr(await sb.from('v_funcionarios_atual').select('*').eq('funcionario_id', id).limit(1).single(), 'editar');
   if (!data) return;
   // Busca matrícula + admissão + observação + simbologia (não vêm na view)
-  const ext = await handleErr(await sb.from('funcionarios').select('matricula, data_admissao, observacao, simbologia').eq('id', id).single(), 'edit extras');
+  const ext = await handleErr(await sb.from('funcionarios').select('matricula, data_admissao, observacao, simbologia, foto_url').eq('id', id).single(), 'edit extras');
   state.funcionarioAtual = data;
-  
+
+  carregarFotoExistenteEdicao(ext?.foto_url || null);
+
   $('edit-id').value = id;
   $('edit-nome').value      = data.nome || '';
   $('edit-cpf').value       = data.cpf ? mascaraCPF(data.cpf) : '';
@@ -2497,12 +2815,26 @@ $('btn-salvar-edit').onclick = async () => {
       p_ano_concurso:  $('edit-ano').value     ? Number($('edit-ano').value)     : null,
     });
   }
-  btn.disabled = false;
-  
   if (r1.error || r1b.error || r2.error || r2b.error) {
+    btn.disabled = false;
     showToast('Erro ao salvar: ' + (r1.error?.message || r1b.error?.message || r2.error?.message || r2b.error?.message), 'error');
     return;
   }
+
+  try {
+    const novoPath = await processarFotoSalvar(id, 'edit');
+    if (novoPath !== undefined) {
+      const { error: fotoErr } = await sb.from('funcionarios').update({ foto_url: novoPath }).eq('id', id);
+      if (fotoErr) throw fotoErr;
+    }
+  } catch (e) {
+    btn.disabled = false;
+    showToast('Dados salvos, mas erro na foto: ' + (e.message || e), 'error');
+    return;
+  }
+
+  btn.disabled = false;
+  
   await registrarLog('EDIÇÃO DE SERVIDOR', id, $('edit-nome').value.trim() || 'Servidor(a)', {
     matricula: $('edit-matricula').value.trim() || null,
     regularizou_lotacao: semLotacao

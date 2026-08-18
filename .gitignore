@@ -2,3 +2,5 @@ APY KEY.txt
 node_modules/
 .claude/
 *.xlsx
+
+.vercel
