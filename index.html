@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
   
-  <link rel="stylesheet" href="css/styles.css?v=20260818b">
+  <link rel="stylesheet" href="css/styles.css?v=20260819a">
 </head>
 <body>
 
@@ -583,38 +583,140 @@
       </section>
 
       <!-- ===== FÉRIAS ===== -->
-      <section id="view-ferias" class="view-section">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-          <div class="row-label" style="margin:0">Controle de Férias</div>
-          <button class="btn-primary" onclick="abrirAgendarFerias()"><i class="ti ti-plus"></i> Agendar Férias</button>
+      <!-- ===== CONTROLE DE FÉRIAS (v2) ===== -->
+      <section id="view-ferias" class="view-section ferias-v2">
+        <div class="fer-v2-head">
+          <div>
+            <div class="row-label" style="margin:0"><i class="ti ti-beach"></i> Programação e Escala de Gozo</div>
+            <p class="view-help" style="margin:6px 0 0">Controle integrado à base de funcionários da SEMCAS.</p>
+          </div>
+          <button class="btn-primary" onclick="abrirAgendarFerias()"><i class="ti ti-plus"></i> Novo Registro de Férias</button>
         </div>
-        <div class="stats-grid" id="ferias-kpis"></div>
-        <div style="display:flex;gap:4px;border-bottom:2px solid var(--gov-border);margin:20px 0 16px" id="ferias-tabs">
-          <button class="fer-tab active" data-aba="atuais">Em férias agora <span class="badge-cnt" id="cnt-atuais">0</span></button>
-          <button class="fer-tab" data-aba="proximas">Próximas (60d) <span class="badge-cnt" id="cnt-proximas">0</span></button>
-          <button class="fer-tab" data-aba="pendentes">Pendentes <span class="badge-cnt" id="cnt-pendentes">0</span></button>
-          <button class="fer-tab" data-aba="historico">Histórico</button>
+
+        <div class="fer-v2-summary">
+          <div class="fer-v2-kpi green">
+            <div class="fer-v2-kpi-lbl">Em Gozo Hoje</div>
+            <div class="fer-v2-kpi-val" id="kpiEmGozo">0</div>
+            <div class="fer-v2-kpi-sub">Servidores em fruição ativa</div>
+          </div>
+          <div class="fer-v2-kpi">
+            <div class="fer-v2-kpi-lbl">Próximas em 60 Dias</div>
+            <div class="fer-v2-kpi-val" id="kpiProgramados">0</div>
+            <div class="fer-v2-kpi-sub">Com escala definida no sistema</div>
+          </div>
+          <div class="fer-v2-kpi orange">
+            <div class="fer-v2-kpi-lbl">Pendentes (+12M sem Férias)</div>
+            <div class="fer-v2-kpi-val" id="kpiPendentes">0</div>
+            <div class="fer-v2-kpi-sub">Períodos a programar</div>
+          </div>
+          <div class="fer-v2-kpi red">
+            <div class="fer-v2-kpi-lbl">Risco de Dobra / Acúmulo</div>
+            <div class="fer-v2-kpi-val" id="kpiRisco">0</div>
+            <div class="fer-v2-kpi-sub">Prioridade para marcação imediata</div>
+          </div>
         </div>
-        <div class="toolbar-filters">
-          <div class="filter-field" style="flex:1;min-width:220px">
-            <label for="fer-filtro-busca">Buscar</label>
-            <input type="text" id="fer-filtro-busca" placeholder="Nome, função ou lotação…">
+
+        <div class="fer-v2-panel">
+          <div class="fer-v2-view-switcher" id="ferias-tabs">
+            <button type="button" class="fer-v2-view-tab active" data-view="tabela" onclick="ferSwitchView('tabela')">
+              Tabela Geral <span class="fer-v2-tab-badge" id="badgeTotalTable">0</span>
+            </button>
+            <button type="button" class="fer-v2-view-tab" data-view="mensal" onclick="ferSwitchView('mensal')">Escala Mensal</button>
+            <button type="button" class="fer-v2-view-tab" data-view="unidade" onclick="ferSwitchView('unidade')">Por Lotação / Unidade SUAS</button>
+            <button type="button" class="fer-v2-view-tab" data-view="pendencias" onclick="ferSwitchView('pendencias')">
+              Apenas Pendências <span class="fer-v2-tab-badge" id="badgePendencies">0</span>
+            </button>
           </div>
-          <div class="filter-field">
-            <label for="fer-filtro-lotacao">Lotação</label>
-            <select id="fer-filtro-lotacao"><option value="">Todas as lotações</option></select>
+
+          <div class="fer-v2-filters toolbar-filters">
+            <div class="filter-field" style="flex:1;min-width:220px">
+              <label for="fer-filtro-busca">Buscar Servidor</label>
+              <input type="text" id="fer-filtro-busca" placeholder="Nome, matrícula ou lotação…">
+            </div>
+            <div class="filter-field">
+              <label for="fer-filtro-lotacao">Lotação / Unidade SUAS</label>
+              <select id="fer-filtro-lotacao"><option value="">Todas as Unidades</option></select>
+            </div>
+            <div class="filter-field">
+              <label for="fer-filtro-status">Status das Férias</label>
+              <select id="fer-filtro-status">
+                <option value="">Todos os Status</option>
+                <option value="Programado">Programado</option>
+                <option value="Em Gozo">Em Gozo</option>
+                <option value="Pendente">Pendente</option>
+                <option value="Concluído">Concluído</option>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label for="fer-filtro-mes">Mês de Gozo</label>
+              <select id="fer-filtro-mes">
+                <option value="">Todos os Meses</option>
+                <option value="01">Janeiro</option><option value="02">Fevereiro</option>
+                <option value="03">Março</option><option value="04">Abril</option>
+                <option value="05">Maio</option><option value="06">Junho</option>
+                <option value="07">Julho</option><option value="08">Agosto</option>
+                <option value="09">Setembro</option><option value="10">Outubro</option>
+                <option value="11">Novembro</option><option value="12">Dezembro</option>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label>&nbsp;</label>
+              <button type="button" id="fer-filtro-limpar" class="btn btn-outline" style="padding:8px 14px"><i class="ti ti-filter-off"></i> Limpar</button>
+            </div>
+            <span class="filter-result-count" id="fer-count"></span>
           </div>
-          <div class="filter-field">
-            <label for="fer-filtro-tipo">Tipo</label>
-            <select id="fer-filtro-tipo"><option value="">Todos os tipos</option></select>
+
+          <div class="fer-v2-pane active" id="fer-pane-tabela">
+            <div class="table-container">
+              <table class="gov-table fer-v2-table">
+                <thead>
+                  <tr>
+                    <th>Servidor / Matrícula</th>
+                    <th>Lotação / Unidade</th>
+                    <th>Período Aquisitivo</th>
+                    <th>Período de Gozo</th>
+                    <th>Pendências</th>
+                    <th>Documento / Link</th>
+                    <th>Situação</th>
+                    <th style="width:120px">Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="fer-table-body"><tr><td colspan="8" class="empty-state"><span class="spinner"></span> Carregando…</td></tr></tbody>
+              </table>
+            </div>
+            <div class="fer-v2-pagination pagination">
+              <div class="page-info" id="fer-page-info">—</div>
+              <div class="page-controls" id="fer-page-controls"></div>
+            </div>
           </div>
-          <div class="filter-field">
-            <label>&nbsp;</label>
-            <button id="fer-filtro-limpar" class="btn btn-outline" style="padding:8px 14px" title="Limpar filtros"><i class="ti ti-filter-off"></i> Limpar</button>
+
+          <div class="fer-v2-pane" id="fer-pane-mensal">
+            <div class="fer-v2-month-grid" id="fer-month-grid"></div>
           </div>
-          <span class="filter-result-count" id="fer-count"></span>
+
+          <div class="fer-v2-pane" id="fer-pane-unidade">
+            <div class="fer-v2-unit-grid" id="fer-unit-grid"></div>
+          </div>
+
+          <div class="fer-v2-pane" id="fer-pane-pendencias">
+            <div class="table-container">
+              <table class="gov-table fer-v2-table">
+                <thead>
+                  <tr>
+                    <th>Servidor / Matrícula</th>
+                    <th>Lotação / Unidade</th>
+                    <th>Situação / Período Pendente</th>
+                    <th>Documento / Link</th>
+                    <th style="width:140px">Ação</th>
+                  </tr>
+                </thead>
+                <tbody id="fer-pend-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="empty-state" id="fer-empty-state" hidden>Nenhum registro encontrado com os filtros selecionados.</div>
         </div>
-        <div id="ferias-aba-conteudo"><span class="spinner"></span> Carregando…</div>
       </section>
 
       <!-- ===== DADOS INCOMPLETOS (removido do menu — legado) ===== -->
@@ -1748,29 +1850,40 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20260818b"></script>
+  <script type="module" src="js/app.js?v=20260819b"></script>
 
 
 
 <!-- MODAL · AGENDAR FÉRIAS -->
 <div class="modal-overlay" id="modal-ferias">
-  <div class="modal-content">
+  <div class="modal-content" style="max-width:640px">
     <div class="modal-header">
-      <div class="modal-title"><i class="ti ti-beach"></i> Agendar Férias</div>
+      <div class="modal-title" id="fer-modal-title"><i class="ti ti-beach"></i> Lançamento de Férias do Servidor</div>
       <button class="modal-close" onclick="closeModal('modal-ferias')"><i class="ti ti-x"></i></button>
     </div>
     <div class="modal-body">
-      <div class="form-grid">
-        <div class="form-group full-width">
-          <label class="form-label">Servidor *</label>
-          <input type="text" id="fer-search" class="form-control" placeholder="Digite o nome…">
+      <form id="fer-form" class="form-grid" autocomplete="off" onsubmit="return false">
+        <input type="hidden" id="fer-edit-id">
+        <div class="form-group full-width" style="position:relative">
+          <label class="form-label">Servidor (nome ou matrícula) *</label>
+          <input type="text" id="fer-search" class="form-control" placeholder="Digite o nome…" autocomplete="off">
           <input type="hidden" id="fer-func-id">
           <div id="fer-suggest" style="position:relative"></div>
         </div>
-        <div class="form-group"><label class="form-label">Início *</label><input type="date" id="fer-inicio" class="form-control"></div>
-        <div class="form-group"><label class="form-label">Término *</label><input type="date" id="fer-fim" class="form-control"></div>
         <div class="form-group">
-          <label class="form-label">Tipo</label>
+          <label class="form-label">Matrícula</label>
+          <input type="text" id="fer-matricula" class="form-control" readonly style="background:var(--gov-bg-light)">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Lotação / Unidade SUAS</label>
+          <input type="text" id="fer-lotacao-display" class="form-control" readonly style="background:var(--gov-bg-light)">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Período Aquisitivo *</label>
+          <input type="text" id="fer-aquisitivo" class="form-control" placeholder="Ex.: 2024/2025">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tipo de Concessão</label>
           <select id="fer-tipo" class="form-control">
             <option value="regular">Férias Regulares</option>
             <option value="premio">Licença-Prêmio</option>
@@ -1778,13 +1891,44 @@
             <option value="abono">Abono</option>
           </select>
         </div>
-        <div class="form-group"><label class="form-label">Dias</label><input type="text" id="fer-dias" class="form-control" readonly></div>
-        <div class="form-group full-width"><label class="form-label">Observação</label><textarea id="fer-obs" class="form-control" rows="2"></textarea></div>
-      </div>
+        <div class="form-group">
+          <label class="form-label">Data de Início do Gozo *</label>
+          <input type="date" id="fer-inicio" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data de Término do Gozo *</label>
+          <input type="date" id="fer-fim" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Dias</label>
+          <input type="text" id="fer-dias" class="form-control" readonly style="background:var(--gov-bg-light)">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Período Pendente</label>
+          <input type="text" id="fer-pendente" class="form-control" placeholder="Ex.: 2023/2024 ou —">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Status das Férias</label>
+          <select id="fer-status" class="form-control">
+            <option value="Programado">Programado</option>
+            <option value="Em Gozo">Em Gozo</option>
+            <option value="Pendente">Pendente</option>
+            <option value="Concluído">Concluído</option>
+          </select>
+        </div>
+        <div class="form-group full-width">
+          <label class="form-label">Link do E-mail / Solicitação (URL SEI ou e-mail)</label>
+          <input type="url" id="fer-email" class="form-control" placeholder="https://…">
+        </div>
+        <div class="form-group full-width">
+          <label class="form-label">Observação / Detalhes</label>
+          <textarea id="fer-obs" class="form-control" rows="2" placeholder="Ex.: Aprovado pela Coordenação"></textarea>
+        </div>
+      </form>
     </div>
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal('modal-ferias')">Cancelar</button>
-      <button class="btn-primary" id="btn-salvar-ferias">Agendar</button>
+      <button class="btn-primary" id="btn-salvar-ferias">Salvar no Banco</button>
     </div>
   </div>
 </div>

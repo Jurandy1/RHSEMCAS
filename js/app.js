@@ -7442,225 +7442,464 @@ window.giapIgnorarRevisao = async function giapIgnorarRevisao(revisaoId) {
 };
 
 // ╔══════════════════════════════════════════════════════════════╗
-// ║                          FÉRIAS                               ║
+// ║                    FÉRIAS (UI v2 + Supabase)                  ║
 // ╚══════════════════════════════════════════════════════════════╝
-const stateFer = { aba: 'atuais' };
-const _ferCache = { rows: [], render: null };
+const FERIAS_TIPOS = { regular: 'Regulamentar', premio: 'Licença-Prêmio', licenca: 'Licença', abono: 'Abono' };
+const FERIAS_TIPOS_REV = Object.fromEntries(Object.entries(FERIAS_TIPOS).map(([k, v]) => [v, k]));
 
-async function renderFerias() {
-  const kpis = await handleErr(await sb.from('v_ferias_kpis').select('*').single(), 'KPIs férias');
-  if (kpis) {
-    $('ferias-kpis').innerHTML = [
-      ['Em férias hoje',  kpis.em_ferias_hoje,    'Servidores ausentes agora', 'var(--gov-green)'],
-      ['Próximas (60d)',  kpis.proximas_60_dias,  'Agendadas pros próximos 60 dias', 'var(--gov-yellow)'],
-      ['Pendentes',       kpis.pendentes,         '+12 meses sem férias', 'var(--gov-red)'],
-      ['Concluídas (12m)',kpis.concluidas_ultimo_ano, 'Último ano', 'var(--gov-blue-primary)'],
-    ].map(([lbl, val, sub, cor]) => `
-      <div class="stat" style="border-left-color:${cor}">
-        <div class="stat-lbl">${lbl}</div>
-        <div class="stat-val">${(val||0).toLocaleString('pt-BR')}</div>
-        <div class="stat-sub">${sub}</div>
-      </div>`).join('');
-    $('cnt-atuais').textContent    = kpis.em_ferias_hoje || 0;
-    $('cnt-proximas').textContent  = kpis.proximas_60_dias || 0;
-    $('cnt-pendentes').textContent = kpis.pendentes || 0;
-  }
-  carregarAbaFerias(stateFer.aba);
+const _ferV2 = { view: 'tabela', page: 1, pageSize: 8, rows: [], bound: false };
+
+const fmtDtFer = (s) => s ? new Date(String(s).slice(0, 10) + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+
+function ferStatusClass(st) {
+  if (st === 'Em Gozo') return 'gozo';
+  if (st === 'Pendente') return 'pendente';
+  if (st === 'Concluído') return 'concluido';
+  return 'programado';
 }
 
-$$('.fer-tab').forEach(t => t.onclick = () => {
-  $$('.fer-tab').forEach(x => x.classList.remove('active'));
-  t.classList.add('active');
-  stateFer.aba = t.dataset.aba;
-  // Reseta filtros ao trocar de aba (colunas mudam entre abas)
-  if ($('fer-filtro-busca')) $('fer-filtro-busca').value = '';
-  if ($('fer-filtro-lotacao')) $('fer-filtro-lotacao').value = '';
-  if ($('fer-filtro-tipo')) $('fer-filtro-tipo').value = '';
-  carregarAbaFerias(stateFer.aba);
-});
-
-const fmtDt = (s) => s ? new Date(s + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
-
-async function carregarAbaFerias(aba) {
-  $('ferias-aba-conteudo').innerHTML = '<span class="spinner"></span> Carregando…';
-  let view, render;
-  if (aba === 'atuais') {
-    view = 'v_ferias_atuais';
-    render = (rows) => rows.length === 0
-      ? `<div class="empty-state">Nenhum servidor de férias hoje</div>`
-      : `<table class="gov-table">
-          <thead><tr><th>Nome</th><th>Lotação</th><th>Função</th><th>Início</th><th>Término</th><th>Dias restantes</th><th>Tipo</th><th style="width:80px">Ações</th></tr></thead>
-          <tbody>${rows.map(r => `
-            <tr>
-              <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(r.nome)}</td>
-              <td>${htmlEscape(r.lotacao_nome || '—')}</td>
-              <td>${htmlEscape(r.funcao || '—')}</td>
-              <td>${fmtDt(r.data_inicio)}</td>
-              <td>${fmtDt(r.data_fim)}</td>
-              <td><strong>${r.dias_restantes}</strong> dias</td>
-              <td>${r.tipo}</td>
-              <td style="text-align:center"><button class="btn-icon" onclick="cancelarFerias(${r.ferias_id})">Cancelar</button></td>
-            </tr>`).join('')}</tbody></table>`;
-  } else if (aba === 'proximas') {
-    view = 'v_ferias_proximas';
-    render = (rows) => rows.length === 0
-      ? `<div class="empty-state">Sem férias agendadas pros próximos 60 dias</div>`
-      : `<table class="gov-table">
-          <thead><tr><th>Nome</th><th>Lotação</th><th>Função</th><th>Início</th><th>Término</th><th>Em quantos dias</th><th>Tipo</th><th style="width:80px">Ações</th></tr></thead>
-          <tbody>${rows.map(r => `
-            <tr>
-              <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(r.nome)}</td>
-              <td>${htmlEscape(r.lotacao_nome || '—')}</td>
-              <td>${htmlEscape(r.funcao || '—')}</td>
-              <td>${fmtDt(r.data_inicio)}</td>
-              <td>${fmtDt(r.data_fim)}</td>
-              <td><strong>${r.dias_para_iniciar}</strong> dias</td>
-              <td>${r.tipo}</td>
-              <td style="text-align:center"><button class="btn-icon" onclick="cancelarFerias(${r.ferias_id})">Cancelar</button></td>
-            </tr>`).join('')}</tbody></table>`;
-  } else if (aba === 'pendentes') {
-    view = 'v_ferias_pendentes';
-    render = (rows) => rows.length === 0
-      ? `<div class="empty-state">Todos os servidores tiraram férias nos últimos 12 meses ✓</div>`
-      : `<table class="gov-table">
-          <thead><tr><th>Nome</th><th>Lotação</th><th>Função</th><th>Vínculo</th><th>Situação</th><th>Dias sem férias</th><th style="width:140px">Ações</th></tr></thead>
-          <tbody>${rows.map(r => `
-            <tr>
-              <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(r.nome)}</td>
-              <td>${htmlEscape(r.lotacao_nome || '—')}</td>
-              <td>${htmlEscape(r.funcao || '—')}</td>
-              <td>${htmlEscape(r.vinculo || '—')}</td>
-              <td>${htmlEscape(r.situacao)}</td>
-              <td><strong>${r.dias_sem_ferias === 999 ? '∞' : r.dias_sem_ferias}</strong></td>
-              <td style="text-align:center"><button class="btn-secondary" style="font-size:11px;padding:4px 8px" onclick="abrirAgendarFeriasPara(${r.funcionario_id}, '${htmlEscape(r.nome).replace(/'/g,'&#39;')}')">Agendar</button></td>
-            </tr>`).join('')}</tbody></table>`;
-  } else {
-    view = 'v_ferias_historico';
-    render = (rows) => rows.length === 0
-      ? `<div class="empty-state">Nenhum registro de férias ainda</div>`
-      : `<table class="gov-table">
-          <thead><tr><th>Nome</th><th>Início</th><th>Término</th><th>Dias</th><th>Tipo</th><th>Status</th><th>Observação</th></tr></thead>
-          <tbody>${rows.map(r => `
-            <tr>
-              <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(r.nome)}</td>
-              <td>${fmtDt(r.data_inicio)}</td>
-              <td>${fmtDt(r.data_fim)}</td>
-              <td>${r.dias_ferias}</td>
-              <td>${r.tipo}</td>
-              <td>${r.status_ferias}</td>
-              <td style="font-size:12px;color:var(--color-text-muted)">${htmlEscape(r.observacao || '—')}</td>
-            </tr>`).join('')}</tbody></table>`;
-  }
-  const rows = await handleErr(await fetchTudo(view, '*', 'nome'), `aba ${aba}`) || [];
-  _ferCache.rows = rows;
-  _ferCache.render = render;
-  ferPopularFiltros(rows);
-  ferAplicarFiltros();
+function ferCalcStatus(r) {
+  if (r.status_ferias) return r.status_ferias;
+  const hoje = new Date().toISOString().slice(0, 10);
+  if (!r.data_inicio) return 'Pendente';
+  if (r.data_inicio <= hoje && r.data_fim && r.data_fim >= hoje) return 'Em Gozo';
+  if (r.data_inicio > hoje) return 'Programado';
+  if (r.data_fim && r.data_fim < hoje) return 'Concluído';
+  return 'Programado';
 }
 
-// Popula os dropdowns de Lotação e Tipo com os valores presentes na aba atual (filtragem inteligente)
-function ferPopularFiltros(rows) {
-  const selLot = $('fer-filtro-lotacao');
-  const selTipo = $('fer-filtro-tipo');
-  if (selLot) {
-    const lots = [...new Set(rows.map(r => (r.lotacao_nome || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    selLot.innerHTML = '<option value="">Todas as lotações</option>' +
-      lots.map(l => `<option value="${htmlEscape(l)}">${htmlEscape(l)}</option>`).join('');
-    selLot.disabled = lots.length === 0;
-  }
-  if (selTipo) {
-    const tipos = [...new Set(rows.map(r => (r.tipo || '').toString().trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    selTipo.innerHTML = '<option value="">Todos os tipos</option>' +
-      tipos.map(t => `<option value="${htmlEscape(t)}">${htmlEscape(t)}</option>`).join('');
-    selTipo.disabled = tipos.length === 0;
-  }
+function ferGozoTexto(r) {
+  if (!r.data_inicio || !r.data_fim) return null;
+  return `${fmtDtFer(r.data_inicio)} a ${fmtDtFer(r.data_fim)}`;
 }
 
-function ferAplicarFiltros() {
-  const { rows, render } = _ferCache;
-  if (!render) return;
-  const busca = ($('fer-filtro-busca')?.value || '').toLowerCase().trim();
+function ferNorm(s) {
+  return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function ferMapRow(raw, funcMap, matMap) {
+  const f = funcMap[raw.funcionario_id] || {};
+  const mat = matMap[raw.funcionario_id] || f.matricula || '';
+  const status = ferCalcStatus(raw);
+  return {
+    id: raw.id,
+    funcionario_id: raw.funcionario_id,
+    servidor: f.nome || raw.servidor || '—',
+    matricula: mat,
+    lotacao: f.lotacao_nome || raw.lotacao || '—',
+    aquisitivo: raw.periodo_aquisitivo || raw.aquisitivo || '—',
+    data_inicio: raw.data_inicio || '',
+    data_fim: raw.data_fim || '',
+    tipo: raw.tipo || 'Regulamentar',
+    pendente: raw.periodo_pendente || raw.pendente || '—',
+    email: raw.link_solicitacao || raw.email || '',
+    status,
+    observacao: raw.observacao || '',
+    ativo: raw.ativo !== false,
+  };
+}
+
+async function ferCarregarDados() {
+  const res = await sb.from('funcionario_ferias')
+    .select('id, funcionario_id, data_inicio, data_fim, tipo, observacao, ativo, periodo_aquisitivo, periodo_pendente, link_solicitacao, status_ferias')
+    .eq('ativo', true)
+    .order('data_inicio', { ascending: false, nullsFirst: true });
+  if (res.error && /column|periodo_aquisitivo|link_solicitacao|status_ferias/i.test(res.error.message || '')) {
+    const fallback = await sb.from('funcionario_ferias')
+      .select('id, funcionario_id, data_inicio, data_fim, tipo, observacao, ativo')
+      .eq('ativo', true)
+      .order('data_inicio', { ascending: false, nullsFirst: true });
+    if (fallback.error) throw fallback.error;
+    res.data = fallback.data;
+  } else if (res.error) {
+    throw res.error;
+  }
+
+  const ids = [...new Set((res.data || []).map((r) => r.funcionario_id).filter(Boolean))];
+  let funcMap = {};
+  let matMap = {};
+  if (ids.length) {
+    const { data: funcs } = await sb.from('v_funcionarios_atual')
+      .select('funcionario_id, nome, matricula, lotacao_nome, funcao, vinculo')
+      .in('funcionario_id', ids);
+    funcMap = Object.fromEntries((funcs || []).map((x) => [x.funcionario_id, x]));
+    const { data: mats } = await sb.from('funcionarios').select('id, matricula').in('id', ids);
+    matMap = Object.fromEntries((mats || []).map((x) => [x.id, x.matricula]));
+  }
+
+  _ferV2.rows = (res.data || []).map((r) => ferMapRow(r, funcMap, matMap));
+  return _ferV2.rows;
+}
+
+function ferFiltradas() {
+  const busca = ferNorm($('fer-filtro-busca')?.value);
   const lot = $('fer-filtro-lotacao')?.value || '';
-  const tipo = $('fer-filtro-tipo')?.value || '';
-  const filtradas = rows.filter(r => {
-    if (lot && (r.lotacao_nome || '').trim() !== lot) return false;
-    if (tipo && (r.tipo || '').toString().trim() !== tipo) return false;
-    if (busca) {
-      const alvo = `${r.nome || ''} ${r.funcao || ''} ${r.lotacao_nome || ''} ${r.vinculo || ''}`.toLowerCase();
-      if (!busca.split(/\s+/).every(p => alvo.includes(p))) return false;
+  const status = $('fer-filtro-status')?.value || '';
+  const mes = $('fer-filtro-mes')?.value || '';
+  return _ferV2.rows.filter((r) => {
+    if (!r.ativo) return false;
+    const text = ferNorm([r.servidor, r.matricula, r.lotacao, r.funcionario_id].join(' '));
+    if (busca && !busca.split(/\s+/).every((p) => text.includes(p))) return false;
+    if (lot && r.lotacao !== lot) return false;
+    if (status && r.status !== status) return false;
+    if (mes) {
+      if (!r.data_inicio) return false;
+      if (String(r.data_inicio).slice(5, 7) !== mes) return false;
     }
     return true;
   });
-  $('ferias-aba-conteudo').innerHTML = `<div class="table-container">${render(filtradas)}</div>`;
-  const cnt = $('fer-count');
-  if (cnt) cnt.innerHTML = `<strong>${filtradas.length}</strong> de ${rows.length} registro(s)`;
 }
 
-$('fer-filtro-busca')?.addEventListener('input', debounce(ferAplicarFiltros, 200));
-$('fer-filtro-lotacao')?.addEventListener('change', ferAplicarFiltros);
-$('fer-filtro-tipo')?.addEventListener('change', ferAplicarFiltros);
-$('fer-filtro-limpar')?.addEventListener('click', () => {
-  if ($('fer-filtro-busca')) $('fer-filtro-busca').value = '';
-  if ($('fer-filtro-lotacao')) $('fer-filtro-lotacao').value = '';
-  if ($('fer-filtro-tipo')) $('fer-filtro-tipo').value = '';
-  ferAplicarFiltros();
-});
+function ferAtualizarKpis(rows) {
+  const emGozo = rows.filter((r) => r.status === 'Em Gozo').length;
+  const programados = rows.filter((r) => r.status === 'Programado').length;
+  const pendentes = rows.filter((r) => r.status === 'Pendente' || (r.pendente && r.pendente !== '—')).length;
+  const risco = rows.filter((r) => ferNorm(r.pendente).includes('acumulado') || ferNorm(r.observacao).includes('risco')).length;
+  if ($('kpiEmGozo')) $('kpiEmGozo').textContent = emGozo;
+  if ($('kpiProgramados')) $('kpiProgramados').textContent = programados;
+  if ($('kpiPendentes')) $('kpiPendentes').textContent = pendentes;
+  if ($('kpiRisco')) $('kpiRisco').textContent = risco;
+}
+
+function ferPopularLotacaoSelect(rows) {
+  const sel = $('fer-filtro-lotacao');
+  if (!sel) return;
+  const lots = [...new Set(rows.map((r) => r.lotacao).filter((l) => l && l !== '—'))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Todas as Unidades</option>' +
+    lots.map((l) => `<option value="${htmlEscape(l)}">${htmlEscape(l)}</option>`).join('');
+  if (cur && lots.includes(cur)) sel.value = cur;
+}
+
+window.ferSwitchView = function ferSwitchView(view) {
+  _ferV2.view = view;
+  $$('#view-ferias .fer-v2-view-tab').forEach((t) => t.classList.toggle('active', t.dataset.view === view));
+  $$('#view-ferias .fer-v2-pane').forEach((p) => p.classList.remove('active'));
+  $(`fer-pane-${view}`)?.classList.add('active');
+  ferRender();
+};
+
+function ferRenderTabela(data) {
+  const total = data.length;
+  const pages = Math.max(1, Math.ceil(total / _ferV2.pageSize) || 1);
+  if (_ferV2.page > pages) _ferV2.page = pages;
+  const start = (_ferV2.page - 1) * _ferV2.pageSize;
+  const slice = data.slice(start, start + _ferV2.pageSize);
+  const tb = $('fer-table-body');
+  if (!tb) return;
+  if (!slice.length) {
+    tb.innerHTML = '<tr><td colspan="8" class="empty-state">Nenhum registro encontrado</td></tr>';
+  } else {
+    tb.innerHTML = slice.map((r) => {
+      const gozo = ferGozoTexto(r);
+      const stCls = ferStatusClass(r.status);
+      const link = r.email ? `<a class="fer-email-link" href="${htmlEscape(r.email)}" target="_blank" rel="noopener">Abrir link</a>` : '<span class="fer-vazio">Sem link</span>';
+      const pend = r.pendente && r.pendente !== '—'
+        ? `<span style="color:var(--gov-orange);font-weight:700">${htmlEscape(r.pendente)}</span>`
+        : '<span class="fer-vazio">Nenhuma</span>';
+      return `<tr>
+        <td><div class="fer-serv-nome">${htmlEscape(r.servidor)}</div><div class="fer-serv-mat">Mat.: ${htmlEscape(r.matricula || '—')} · Cód: ${r.funcionario_id}</div></td>
+        <td><span class="fer-lot-badge">${htmlEscape(r.lotacao)}</span></td>
+        <td>${htmlEscape(r.aquisitivo)}</td>
+        <td>${gozo ? `<span class="fer-periodo">${htmlEscape(gozo)}</span>` : '<span class="fer-vazio">Não agendado</span>'}</td>
+        <td>${pend}</td>
+        <td>${link}</td>
+        <td><span class="fer-status ${stCls}">${htmlEscape(r.status)}</span></td>
+        <td style="text-align:center;white-space:nowrap">
+          <button class="btn-icon" onclick="ferEditarRegistro(${r.id})">Editar</button>
+          <button class="btn-icon" style="color:var(--gov-red)" onclick="cancelarFerias(${r.id})">Cancelar</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+  const info = $('fer-page-info');
+  const ctrl = $('fer-page-controls');
+  if (info) {
+    info.textContent = total === 0 ? 'Nenhum registro' : `Exibindo ${start + 1}–${Math.min(start + _ferV2.pageSize, total)} de ${total}`;
+  }
+  if (ctrl) {
+    const btn = (label, p, dis, active = false) =>
+      `<button class="page-btn ${active ? 'active' : ''}" ${dis ? 'disabled' : ''} data-page="${p}">${label}</button>`;
+    let html = btn('«', _ferV2.page - 1, _ferV2.page === 1);
+    const s = Math.max(1, _ferV2.page - 2);
+    const e = Math.min(pages, s + 4);
+    for (let i = s; i <= e; i++) html += btn(i, i, false, i === _ferV2.page);
+    html += btn('»', _ferV2.page + 1, _ferV2.page === pages);
+    ctrl.innerHTML = html;
+    $$('#fer-page-controls .page-btn').forEach((b) => {
+      b.onclick = () => { if (!b.disabled) { _ferV2.page = Number(b.dataset.page); ferRender(); } };
+    });
+  }
+}
+
+function ferRenderMensal(data) {
+  const meses = [
+    ['01', 'Janeiro'], ['02', 'Fevereiro'], ['03', 'Março'], ['04', 'Abril'],
+    ['05', 'Maio'], ['06', 'Junho'], ['07', 'Julho'], ['08', 'Agosto'],
+    ['09', 'Setembro'], ['10', 'Outubro'], ['11', 'Novembro'], ['12', 'Dezembro'],
+  ];
+  const grid = $('fer-month-grid');
+  if (!grid) return;
+  grid.innerHTML = meses.map(([num, nome]) => {
+    const noMes = data.filter((r) => r.data_inicio && String(r.data_inicio).slice(5, 7) === num);
+    return `<div class="fer-month-card">
+      <div class="fer-month-head"><span>${nome}</span><span>${noMes.length}</span></div>
+      <div class="fer-month-body">${noMes.length ? noMes.map((s) => `
+        <div class="fer-month-item">
+          <div class="fer-serv-nome">${htmlEscape(s.servidor)}</div>
+          <div class="fer-serv-mat">${htmlEscape(s.lotacao)} · Início: ${fmtDtFer(s.data_inicio)}</div>
+        </div>`).join('') : '<span class="fer-vazio">Nenhum servidor no mês</span>'}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function ferRenderUnidades(data) {
+  const map = {};
+  data.forEach((r) => { if (!map[r.lotacao]) map[r.lotacao] = []; map[r.lotacao].push(r); });
+  const grid = $('fer-unit-grid');
+  if (!grid) return;
+  grid.innerHTML = Object.keys(map).sort((a, b) => a.localeCompare(b, 'pt-BR')).map((u) => `
+    <div class="fer-unit-card">
+      <div class="fer-unit-head"><span>${htmlEscape(u)}</span><span class="fer-v2-tab-badge">${map[u].length}</span></div>
+      <div class="fer-unit-body">${map[u].map((m) => `
+        <div class="fer-unit-row">
+          <div><strong>${htmlEscape(m.servidor)}</strong>
+            <div class="fer-serv-mat">${m.data_inicio ? `${fmtDtFer(m.data_inicio)} a ${fmtDtFer(m.data_fim)}` : 'Sem data'}</div></div>
+          <span class="fer-status ${ferStatusClass(m.status)}">${htmlEscape(m.status)}</span>
+        </div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+function ferRenderPendencias(data) {
+  const pend = data.filter((r) => r.status === 'Pendente' || (r.pendente && r.pendente !== '—'));
+  const tb = $('fer-pend-body');
+  if (!tb) return;
+  if (!pend.length) {
+    tb.innerHTML = '<tr><td colspan="5" class="empty-state">Nenhuma pendência encontrada</td></tr>';
+    return;
+  }
+  tb.innerHTML = pend.map((r) => `
+    <tr>
+      <td><div class="fer-serv-nome">${htmlEscape(r.servidor)}</div><div class="fer-serv-mat">Mat.: ${htmlEscape(r.matricula || '—')}</div></td>
+      <td><span class="fer-lot-badge">${htmlEscape(r.lotacao)}</span></td>
+      <td><strong style="color:var(--gov-orange)">${htmlEscape(r.pendente !== '—' ? r.pendente : r.aquisitivo)}</strong></td>
+      <td>${r.email ? `<a class="fer-email-link" href="${htmlEscape(r.email)}" target="_blank" rel="noopener">Abrir link</a>` : '<span class="fer-vazio">Sem link</span>'}</td>
+      <td><button class="btn-primary" style="font-size:11px;padding:4px 10px" onclick="ferEditarRegistro(${r.id})">Programar Agora</button></td>
+    </tr>`).join('');
+}
+
+function ferRender() {
+  const filtradas = ferFiltradas();
+  ferAtualizarKpis(_ferV2.rows);
+  ferPopularLotacaoSelect(_ferV2.rows);
+  if ($('badgeTotalTable')) $('badgeTotalTable').textContent = filtradas.length;
+  if ($('badgePendencies')) {
+    $('badgePendencies').textContent = filtradas.filter((r) => r.status === 'Pendente' || (r.pendente && r.pendente !== '—')).length;
+  }
+  const cnt = $('fer-count');
+  if (cnt) cnt.innerHTML = `<strong>${filtradas.length}</strong> de ${_ferV2.rows.length} registro(s)`;
+  const empty = $('fer-empty-state');
+  if (empty) empty.hidden = filtradas.length > 0;
+  if (_ferV2.view === 'tabela') ferRenderTabela(filtradas);
+  else if (_ferV2.view === 'mensal') ferRenderMensal(filtradas);
+  else if (_ferV2.view === 'unidade') ferRenderUnidades(filtradas);
+  else ferRenderPendencias(filtradas);
+}
+
+async function renderFerias() {
+  const tb = $('fer-table-body');
+  if (tb) tb.innerHTML = '<tr><td colspan="8" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
+  try {
+    await ferCarregarDados();
+    const kpis = await handleErr(await sb.from('v_ferias_kpis').select('*').single(), 'KPIs férias');
+    if (kpis) {
+      if ($('kpiEmGozo')) $('kpiEmGozo').textContent = kpis.em_ferias_hoje || 0;
+      if ($('kpiProgramados')) $('kpiProgramados').textContent = kpis.proximas_60_dias || 0;
+      if ($('kpiPendentes')) $('kpiPendentes').textContent = kpis.pendentes || 0;
+    }
+    ferBindUiOnce();
+    ferRender();
+  } catch (e) {
+    showToast('Erro ao carregar férias: ' + (e.message || e), 'error');
+    if (tb) tb.innerHTML = '<tr><td colspan="8" class="empty-state">Erro ao carregar dados</td></tr>';
+  }
+}
+
+function ferBindUiOnce() {
+  if (_ferV2.bound) return;
+  _ferV2.bound = true;
+  $('fer-filtro-busca')?.addEventListener('input', debounce(() => { _ferV2.page = 1; ferRender(); }, 200));
+  $('fer-filtro-lotacao')?.addEventListener('change', () => { _ferV2.page = 1; ferRender(); });
+  $('fer-filtro-status')?.addEventListener('change', () => { _ferV2.page = 1; ferRender(); });
+  $('fer-filtro-mes')?.addEventListener('change', () => { _ferV2.page = 1; ferRender(); });
+  $('fer-filtro-limpar')?.addEventListener('click', () => {
+    ['fer-filtro-busca', 'fer-filtro-lotacao', 'fer-filtro-status', 'fer-filtro-mes'].forEach((id) => { if ($(id)) $(id).value = ''; });
+    _ferV2.page = 1;
+    ferRender();
+  });
+}
 
 window.cancelarFerias = async (id) => {
   const motivo = prompt('Motivo do cancelamento (opcional):');
-  if (motivo === null) return; // usuário desistiu
+  if (motivo === null) return;
   const { data: atual } = await sb.from('funcionario_ferias').select('observacao').eq('id', id).single();
   const obs = ((atual?.observacao ? atual.observacao + '\n' : '') + '[CANCELADA]' + (motivo ? ' ' + motivo : '')).trim();
-  const { error } = await sb.from('funcionario_ferias').update({ ativo: false, observacao: obs }).eq('id', id);
+  const upd = { ativo: false, observacao: obs, status_ferias: 'Cancelado' };
+  let { error } = await sb.from('funcionario_ferias').update(upd).eq('id', id);
+  if (error && /column|status_ferias/i.test(error.message || '')) {
+    ({ error } = await sb.from('funcionario_ferias').update({ ativo: false, observacao: obs }).eq('id', id));
+  }
   if (error) return showToast('Erro: ' + error.message, 'error');
   await registrarLog('FÉRIAS CANCELADA', null, 'Servidor', { ferias_id: id, motivo });
   showToast('Férias canceladas', 'success');
   renderFerias();
 };
 
+function ferLimparModal() {
+  ['fer-edit-id', 'fer-func-id', 'fer-search', 'fer-inicio', 'fer-fim', 'fer-dias', 'fer-obs',
+    'fer-aquisitivo', 'fer-pendente', 'fer-email', 'fer-matricula', 'fer-lotacao-display'].forEach((id) => {
+    if ($(id)) $(id).value = '';
+  });
+  if ($('fer-tipo')) $('fer-tipo').value = 'regular';
+  if ($('fer-status')) $('fer-status').value = 'Programado';
+  if ($('fer-suggest')) $('fer-suggest').innerHTML = '';
+  if ($('fer-modal-title')) $('fer-modal-title').innerHTML = '<i class="ti ti-beach"></i> Lançamento de Férias do Servidor';
+}
+
 window.abrirAgendarFerias = () => {
-  ['fer-func-id','fer-search','fer-inicio','fer-fim','fer-dias','fer-obs'].forEach(id => $(id).value = '');
-  $('fer-tipo').value = 'regular';
+  ferLimparModal();
   openModal('modal-ferias');
-  setTimeout(() => $('fer-search').focus(), 100);
+  setTimeout(() => $('fer-search')?.focus(), 100);
 };
-window.abrirAgendarFeriasPara = (funcId, nome) => {
+
+window.abrirAgendarFeriasPara = async (funcId, nome) => {
   abrirAgendarFerias();
   $('fer-func-id').value = funcId;
-  $('fer-search').value = nome;
+  $('fer-search').value = nome || '';
+  const { data } = await sb.from('v_funcionarios_atual').select('funcionario_id, nome, lotacao_nome, matricula').eq('funcionario_id', funcId).maybeSingle();
+  if (data) {
+    $('fer-lotacao-display').value = data.lotacao_nome || '';
+    $('fer-matricula').value = data.matricula || '';
+  }
+};
+
+window.ferEditarRegistro = function ferEditarRegistro(id) {
+  const r = _ferV2.rows.find((x) => x.id === id);
+  if (!r) return;
+  ferLimparModal();
+  if ($('fer-modal-title')) $('fer-modal-title').innerHTML = '<i class="ti ti-beach"></i> Editar Registro de Férias';
+  $('fer-edit-id').value = r.id;
+  $('fer-func-id').value = r.funcionario_id;
+  $('fer-search').value = r.servidor;
+  $('fer-matricula').value = r.matricula || '';
+  $('fer-lotacao-display').value = r.lotacao || '';
+  $('fer-aquisitivo').value = r.aquisitivo !== '—' ? r.aquisitivo : '';
+  $('fer-inicio').value = r.data_inicio || '';
+  $('fer-fim').value = r.data_fim || '';
+  $('fer-pendente').value = r.pendente !== '—' ? r.pendente : '';
+  $('fer-email').value = r.email || '';
+  $('fer-status').value = r.status || 'Programado';
+  $('fer-obs').value = r.observacao || '';
+  $('fer-tipo').value = FERIAS_TIPOS_REV[r.tipo] || 'regular';
+  if (r.data_inicio && r.data_fim) {
+    const d = Math.floor((new Date(r.data_fim) - new Date(r.data_inicio)) / 86400000) + 1;
+    $('fer-dias').value = d > 0 ? `${d} dia(s)` : '';
+  }
+  openModal('modal-ferias');
 };
 
 document.addEventListener('input', debounce(async (e) => {
   if (e.target.id !== 'fer-search') return;
   const q = e.target.value.trim();
-  if (q.length < 2) { $('fer-suggest').innerHTML = ''; return; }
+  if (q.length < 2) { if ($('fer-suggest')) $('fer-suggest').innerHTML = ''; return; }
   const termoRPC = q.split(/\s+/).join('%');
   const data = await handleErr(await sb.rpc('fn_buscar_funcionarios', {
     p_termo: termoRPC, p_vinculo_id: null, p_lotacao_id: null, p_funcao: null, p_turno_id: null,
     p_limite: 8, p_offset: 0, p_order_by: 'nome', p_order_dir: 'asc'
-  }), 'autocomp');
-  if (!data || data.length === 0) { $('fer-suggest').innerHTML = '<div style="padding:8px;font-size:12px;color:var(--color-text-muted)">Nenhum resultado</div>'; return; }
+  }), 'autocomp ferias');
+  if (!data?.length) {
+    $('fer-suggest').innerHTML = '<div style="padding:8px;font-size:12px;color:var(--color-text-muted)">Nenhum resultado</div>';
+    return;
+  }
   $('fer-suggest').innerHTML = `<div style="position:absolute;background:#fff;border:1px solid var(--gov-border);border-radius:4px;max-height:200px;overflow-y:auto;z-index:10;width:100%;box-shadow:var(--shadow-md)">
-    ${data.map(d => `<div class="lotacao-tree-item" data-id="${d.funcionario_id}" data-nome="${htmlEscape(d.nome)}" style="padding:8px 10px">
+    ${data.map((d) => `<div class="lotacao-tree-item" data-id="${d.funcionario_id}" data-nome="${htmlEscape(d.nome)}" data-lot="${htmlEscape(d.lotacao_nome || '')}" data-mat="${htmlEscape(d.matricula || '')}" style="padding:8px 10px;cursor:pointer">
       <strong>${htmlEscape(d.nome)}</strong> · <small>${htmlEscape(d.lotacao_nome || '')}</small>
     </div>`).join('')}
   </div>`;
-  $$('#fer-suggest .lotacao-tree-item').forEach(el => el.onclick = () => {
-    $('fer-func-id').value = el.dataset.id;
-    $('fer-search').value = el.dataset.nome;
-    $('fer-suggest').innerHTML = '';
+  $$('#fer-suggest .lotacao-tree-item').forEach((el) => {
+    el.onclick = () => {
+      $('fer-func-id').value = el.dataset.id;
+      $('fer-search').value = el.dataset.nome;
+      $('fer-lotacao-display').value = el.dataset.lot || '';
+      $('fer-matricula').value = el.dataset.mat || '';
+      $('fer-suggest').innerHTML = '';
+    };
   });
 }, 250));
 
 document.addEventListener('change', (e) => {
   if (e.target.id === 'fer-inicio' || e.target.id === 'fer-fim') {
-    const ini = $('fer-inicio').value, fim = $('fer-fim').value;
+    const ini = $('fer-inicio')?.value;
+    const fim = $('fer-fim')?.value;
     if (ini && fim) {
       const d = Math.floor((new Date(fim) - new Date(ini)) / 86400000) + 1;
-      $('fer-dias').value = d > 0 ? `${d} dia(s)` : 'Data inválida';
+      if ($('fer-dias')) $('fer-dias').value = d > 0 ? `${d} dia(s)` : 'Data inválida';
     }
   }
 });
+
+async function salvarFerias() {
+  const funcId = Number($('fer-func-id')?.value);
+  if (!funcId) return showToast('Selecione um servidor', 'warning');
+  const inicio = $('fer-inicio')?.value;
+  const fim = $('fer-fim')?.value;
+  const aquisitivo = ($('fer-aquisitivo')?.value || '').trim();
+  if (!aquisitivo) return showToast('Informe o período aquisitivo', 'warning');
+  if (!inicio || !fim) return showToast('Datas de gozo obrigatórias', 'warning');
+  if (fim < inicio) return showToast('A data de término deve ser depois do início', 'warning');
+
+  const btn = $('btn-salvar-ferias');
+  if (btn) btn.disabled = true;
+  const payload = {
+    funcionario_id: funcId,
+    data_inicio: inicio,
+    data_fim: fim,
+    tipo: FERIAS_TIPOS[$('fer-tipo')?.value] || 'Regulamentar',
+    observacao: ($('fer-obs')?.value || '').trim() || null,
+    periodo_aquisitivo: aquisitivo,
+    periodo_pendente: ($('fer-pendente')?.value || '').trim() || null,
+    link_solicitacao: ($('fer-email')?.value || '').trim() || null,
+    status_ferias: $('fer-status')?.value || 'Programado',
+    ativo: true,
+  };
+  const editId = Number($('fer-edit-id')?.value);
+  let error;
+  if (editId) {
+    ({ error } = await sb.from('funcionario_ferias').update(payload).eq('id', editId));
+  } else {
+    ({ error } = await sb.from('funcionario_ferias').insert([payload]));
+  }
+  if (error && /column|periodo_aquisitivo|link_solicitacao|status_ferias/i.test(error.message || '')) {
+    const basico = {
+      funcionario_id: funcId,
+      data_inicio: inicio,
+      data_fim: fim,
+      tipo: payload.tipo,
+      observacao: [payload.observacao, aquisitivo ? `Aquisitivo: ${aquisitivo}` : '', payload.periodo_pendente ? `Pendente: ${payload.periodo_pendente}` : '', payload.link_solicitacao ? `Link: ${payload.link_solicitacao}` : ''].filter(Boolean).join(' · ') || null,
+      ativo: true,
+    };
+    if (editId) ({ error } = await sb.from('funcionario_ferias').update(basico).eq('id', editId));
+    else ({ error } = await sb.from('funcionario_ferias').insert([basico]));
+  }
+  if (btn) btn.disabled = false;
+  if (error) return showToast('Erro: ' + error.message, 'error');
+  await registrarLog(editId ? 'FÉRIAS EDITADA' : 'FÉRIAS AGENDADA', funcId, $('fer-search')?.value || 'Servidor(a)', { inicio, fim, aquisitivo });
+  showToast(editId ? 'Registro atualizado' : 'Férias registradas', 'success');
+  closeModal('modal-ferias');
+  renderFerias();
+}
 
 // ╔══════════════════════════════════════════════════════════════╗
 // ║                       PENDENTES                               ║
@@ -8182,31 +8421,6 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('#btn-confirmar-mover'))       window.confirmarMoverLotacao();
   if (e.target.closest('#btn-cadastrar-pendente'))    salvarCadastrarPendente();
 });
-
-const FERIAS_TIPOS = { regular: 'Regulamentar', premio: 'Licença-Prêmio', licenca: 'Licença', abono: 'Abono' };
-
-async function salvarFerias() {
-  const funcId = Number($('fer-func-id').value);
-  if (!funcId) return showToast('Selecione um servidor', 'warning');
-  const inicio = $('fer-inicio').value, fim = $('fer-fim').value;
-  if (!inicio || !fim) return showToast('Datas obrigatórias', 'warning');
-  if (fim < inicio) return showToast('A data de término deve ser depois do início', 'warning');
-  const btn = $('btn-salvar-ferias'); btn.disabled = true;
-  const { error } = await sb.from('funcionario_ferias').insert([{
-    funcionario_id: funcId,
-    data_inicio: inicio,
-    data_fim:    fim,
-    tipo:        FERIAS_TIPOS[$('fer-tipo').value] || 'Regulamentar',
-    observacao:  $('fer-obs').value.trim() || null,
-    ativo: true
-  }]);
-  btn.disabled = false;
-  if (error) return showToast('Erro: ' + error.message, 'error');
-  await registrarLog('FÉRIAS AGENDADA', funcId, $('fer-search').value || 'Servidor(a)', { inicio, fim });
-  showToast('Férias agendadas', 'success');
-  closeModal('modal-ferias');
-  renderFerias();
-}
 
 async function salvarCadastrarPendente() {
   const pendId = Number($('cad-pend-id').value);

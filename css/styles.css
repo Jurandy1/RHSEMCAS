@@ -2080,3 +2080,199 @@
   .fer-tab.active { color: var(--gov-blue-primary); border-bottom-color: var(--gov-blue-primary); font-weight: 600; }
   .badge-cnt { background: var(--gov-blue-light); color: var(--gov-blue-dark); padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
   .fer-tab.active .badge-cnt { background: var(--gov-blue-primary); color: #fff; }
+
+/* ===== Controle de Férias v2 ===== */
+#view-ferias.ferias-v2 .fer-v2-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+#view-ferias.ferias-v2 .fer-v2-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+#view-ferias.ferias-v2 .fer-v2-kpi {
+  background: #fff;
+  border: 1px solid var(--gov-border);
+  border-radius: var(--br-sm, 4px);
+  padding: 12px 14px;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+#view-ferias.ferias-v2 .fer-v2-kpi::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  background: var(--gov-blue-primary);
+}
+#view-ferias.ferias-v2 .fer-v2-kpi.green::before { background: var(--gov-green, #107c41); }
+#view-ferias.ferias-v2 .fer-v2-kpi.orange::before { background: var(--gov-orange, #c05621); }
+#view-ferias.ferias-v2 .fer-v2-kpi.red::before { background: var(--gov-red, #c53030); }
+#view-ferias.ferias-v2 .fer-v2-kpi-lbl {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+#view-ferias.ferias-v2 .fer-v2-kpi-val {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--gov-blue-dark);
+  line-height: 1.1;
+  margin: 4px 0;
+  font-family: monospace;
+}
+#view-ferias.ferias-v2 .fer-v2-kpi-sub { font-size: 11px; color: var(--color-text-muted); }
+#view-ferias.ferias-v2 .fer-v2-panel {
+  background: #fff;
+  border: 1px solid var(--gov-border);
+  border-radius: var(--br-sm, 4px);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+#view-ferias.ferias-v2 .fer-v2-view-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 0 12px;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--gov-border);
+}
+#view-ferias.ferias-v2 .fer-v2-view-tab {
+  height: 42px;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+}
+#view-ferias.ferias-v2 .fer-v2-view-tab:hover { color: var(--gov-blue-primary); background: #f1f5f9; }
+#view-ferias.ferias-v2 .fer-v2-view-tab.active {
+  color: var(--gov-blue-primary);
+  border-bottom-color: var(--gov-blue-primary);
+  font-weight: 800;
+  background: #fff;
+}
+#view-ferias.ferias-v2 .fer-v2-tab-badge {
+  background: #e2e8f0;
+  color: #334155;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: monospace;
+}
+#view-ferias.ferias-v2 .fer-v2-view-tab.active .fer-v2-tab-badge {
+  background: var(--gov-blue-light);
+  color: var(--gov-blue-primary);
+}
+#view-ferias.ferias-v2 .fer-v2-filters {
+  border-bottom: 1px solid var(--gov-border);
+  margin-bottom: 0;
+  padding: 12px 14px;
+}
+#view-ferias.ferias-v2 .fer-v2-pane { display: none; padding: 0; }
+#view-ferias.ferias-v2 .fer-v2-pane.active { display: block; }
+#view-ferias.ferias-v2 .fer-v2-table { min-width: 920px; }
+#view-ferias.ferias-v2 .fer-serv-nome { font-weight: 700; color: var(--gov-blue-dark); }
+#view-ferias.ferias-v2 .fer-serv-mat { font-size: 11px; color: var(--color-text-muted); font-family: monospace; }
+#view-ferias.ferias-v2 .fer-lot-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--gov-bg-light);
+  border: 1px solid var(--gov-border);
+  font-size: 12px;
+  font-weight: 600;
+}
+#view-ferias.ferias-v2 .fer-periodo { font-weight: 700; font-family: monospace; }
+#view-ferias.ferias-v2 .fer-vazio { color: var(--color-text-muted); font-style: italic; }
+#view-ferias.ferias-v2 .fer-email-link { color: var(--gov-blue-primary); font-weight: 700; font-size: 12px; }
+#view-ferias.ferias-v2 .fer-status {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+#view-ferias.ferias-v2 .fer-status.programado { background: #e6f4ea; color: #107c41; border: 1px solid #b7ebc6; }
+#view-ferias.ferias-v2 .fer-status.gozo { background: #e8f0fe; color: var(--gov-blue-primary); border: 1px solid #c3dafe; }
+#view-ferias.ferias-v2 .fer-status.pendente { background: #feebc8; color: #c05621; border: 1px solid #fbd38d; }
+#view-ferias.ferias-v2 .fer-status.concluido { background: #edf2f7; color: #4a5568; border: 1px solid #cbd5e0; }
+#view-ferias.ferias-v2 .fer-v2-pagination { margin: 0; border-top: 1px solid var(--gov-border); background: #f8fafc; }
+#view-ferias.ferias-v2 .fer-v2-month-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  padding: 14px;
+}
+#view-ferias.ferias-v2 .fer-month-card {
+  border: 1px solid var(--gov-border);
+  border-radius: 4px;
+  background: #fff;
+}
+#view-ferias.ferias-v2 .fer-month-head {
+  padding: 8px 12px;
+  background: #f1f5f9;
+  border-bottom: 1px solid var(--gov-border);
+  font-weight: 800;
+  font-size: 11px;
+  display: flex;
+  justify-content: space-between;
+  text-transform: uppercase;
+}
+#view-ferias.ferias-v2 .fer-month-body { padding: 8px 12px; max-height: 220px; overflow-y: auto; font-size: 12px; }
+#view-ferias.ferias-v2 .fer-month-item { padding: 6px 0; border-bottom: 1px dashed var(--gov-border); }
+#view-ferias.ferias-v2 .fer-month-item:last-child { border-bottom: 0; }
+#view-ferias.ferias-v2 .fer-v2-unit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  padding: 14px;
+}
+#view-ferias.ferias-v2 .fer-unit-card { border: 1px solid var(--gov-border); border-radius: 4px; background: #fff; }
+#view-ferias.ferias-v2 .fer-unit-head {
+  padding: 10px 12px;
+  background: #f1f5f9;
+  border-bottom: 1px solid var(--gov-border);
+  font-weight: 800;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+#view-ferias.ferias-v2 .fer-unit-body { padding: 10px 12px; }
+#view-ferias.ferias-v2 .fer-unit-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--gov-border);
+  font-size: 12px;
+}
+#view-ferias.ferias-v2 .fer-unit-row:last-child { border-bottom: 0; }
+@media (max-width: 900px) {
+  #view-ferias.ferias-v2 .fer-v2-summary { grid-template-columns: repeat(2, 1fr); }
+  #view-ferias.ferias-v2 .fer-v2-month-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  #view-ferias.ferias-v2 .fer-v2-summary,
+  #view-ferias.ferias-v2 .fer-v2-month-grid { grid-template-columns: 1fr; }
+}
