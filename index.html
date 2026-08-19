@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
   
-  <link rel="stylesheet" href="css/styles.css?v=20260819a">
+  <link rel="stylesheet" href="css/styles.css?v=20260819e">
 </head>
 <body>
 
@@ -628,42 +628,48 @@
             </button>
           </div>
 
-          <div class="fer-v2-filters toolbar-filters">
-            <div class="filter-field" style="flex:1;min-width:220px">
-              <label for="fer-filtro-busca">Buscar Servidor</label>
-              <input type="text" id="fer-filtro-busca" placeholder="Nome, matrícula ou lotação…">
+          <div class="fer-v2-filters-wrap">
+            <button type="button" id="fer-filtro-toggle" class="fer-filtro-toggle" aria-expanded="true" aria-controls="fer-filtro-panel">
+              <i class="ti ti-filter"></i> Filtros <span class="fer-filtro-resumo" id="fer-filtro-resumo"></span>
+              <i class="ti ti-chevron-down fer-filtro-chevron"></i>
+            </button>
+            <div class="fer-v2-filters toolbar-filters" id="fer-filtro-panel">
+              <div class="filter-field" style="flex:1;min-width:220px">
+                <label for="fer-filtro-busca">Buscar Servidor</label>
+                <input type="text" id="fer-filtro-busca" placeholder="Nome, matrícula ou lotação…">
+              </div>
+              <div class="filter-field">
+                <label for="fer-filtro-lotacao">Lotação / Unidade SUAS</label>
+                <select id="fer-filtro-lotacao"><option value="">Todas as Unidades</option></select>
+              </div>
+              <div class="filter-field">
+                <label for="fer-filtro-status">Status das Férias</label>
+                <select id="fer-filtro-status">
+                  <option value="">Todos os Status</option>
+                  <option value="Programado">Programado</option>
+                  <option value="Em Gozo">Em Gozo</option>
+                  <option value="Pendente">Pendente</option>
+                  <option value="Concluído">Concluído</option>
+                </select>
+              </div>
+              <div class="filter-field">
+                <label for="fer-filtro-mes">Mês de Gozo</label>
+                <select id="fer-filtro-mes">
+                  <option value="">Todos os Meses</option>
+                  <option value="01">Janeiro</option><option value="02">Fevereiro</option>
+                  <option value="03">Março</option><option value="04">Abril</option>
+                  <option value="05">Maio</option><option value="06">Junho</option>
+                  <option value="07">Julho</option><option value="08">Agosto</option>
+                  <option value="09">Setembro</option><option value="10">Outubro</option>
+                  <option value="11">Novembro</option><option value="12">Dezembro</option>
+                </select>
+              </div>
+              <div class="filter-field">
+                <label>&nbsp;</label>
+                <button type="button" id="fer-filtro-limpar" class="btn btn-outline" style="padding:8px 14px"><i class="ti ti-filter-off"></i> Limpar</button>
+              </div>
+              <span class="filter-result-count" id="fer-count"></span>
             </div>
-            <div class="filter-field">
-              <label for="fer-filtro-lotacao">Lotação / Unidade SUAS</label>
-              <select id="fer-filtro-lotacao"><option value="">Todas as Unidades</option></select>
-            </div>
-            <div class="filter-field">
-              <label for="fer-filtro-status">Status das Férias</label>
-              <select id="fer-filtro-status">
-                <option value="">Todos os Status</option>
-                <option value="Programado">Programado</option>
-                <option value="Em Gozo">Em Gozo</option>
-                <option value="Pendente">Pendente</option>
-                <option value="Concluído">Concluído</option>
-              </select>
-            </div>
-            <div class="filter-field">
-              <label for="fer-filtro-mes">Mês de Gozo</label>
-              <select id="fer-filtro-mes">
-                <option value="">Todos os Meses</option>
-                <option value="01">Janeiro</option><option value="02">Fevereiro</option>
-                <option value="03">Março</option><option value="04">Abril</option>
-                <option value="05">Maio</option><option value="06">Junho</option>
-                <option value="07">Julho</option><option value="08">Agosto</option>
-                <option value="09">Setembro</option><option value="10">Outubro</option>
-                <option value="11">Novembro</option><option value="12">Dezembro</option>
-              </select>
-            </div>
-            <div class="filter-field">
-              <label>&nbsp;</label>
-              <button type="button" id="fer-filtro-limpar" class="btn btn-outline" style="padding:8px 14px"><i class="ti ti-filter-off"></i> Limpar</button>
-            </div>
-            <span class="filter-result-count" id="fer-count"></span>
           </div>
 
           <div class="fer-v2-pane active" id="fer-pane-tabela">
@@ -671,14 +677,14 @@
               <table class="gov-table fer-v2-table">
                 <thead>
                   <tr>
-                    <th>Servidor / Matrícula</th>
-                    <th>Lotação / Unidade</th>
-                    <th>Período Aquisitivo</th>
-                    <th>Período de Gozo</th>
-                    <th>Pendências</th>
-                    <th>Documento / Link</th>
-                    <th>Situação</th>
-                    <th style="width:120px">Ações</th>
+                    <th class="sortable fer-sortable" data-fer-sort="servidor" onclick="ferSortBy('servidor')">Servidor / Matrícula <i class="ti ti-arrows-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="lotacao" onclick="ferSortBy('lotacao')">Lotação / Unidade <i class="ti ti-arrows-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="aquisitivo" onclick="ferSortBy('aquisitivo')">Período Aquisitivo <i class="ti ti-arrows-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="gozo" onclick="ferSortBy('gozo')">Período de Gozo <i class="ti ti-arrows-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="pendente" onclick="ferSortBy('pendente')">Pendências <i class="ti ti-arrows-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="documento" onclick="ferSortBy('documento')">Documento / Link <i class="ti ti-arrows-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="status" onclick="ferSortBy('status')">Situação <i class="ti ti-arrows-sort sort-icon"></i></th>
+                    <th style="width:140px">Ações</th>
                   </tr>
                 </thead>
                 <tbody id="fer-table-body"><tr><td colspan="8" class="empty-state"><span class="spinner"></span> Carregando…</td></tr></tbody>
@@ -691,6 +697,10 @@
           </div>
 
           <div class="fer-v2-pane" id="fer-pane-mensal">
+            <div class="fer-month-toolbar">
+              <label for="fer-filtro-ano">Ano da escala</label>
+              <select id="fer-filtro-ano" class="form-control" style="width:auto;min-width:100px"></select>
+            </div>
             <div class="fer-v2-month-grid" id="fer-month-grid"></div>
           </div>
 
@@ -703,10 +713,10 @@
               <table class="gov-table fer-v2-table">
                 <thead>
                   <tr>
-                    <th>Servidor / Matrícula</th>
-                    <th>Lotação / Unidade</th>
-                    <th>Situação / Período Pendente</th>
-                    <th>Documento / Link</th>
+                    <th class="sortable fer-sortable" data-fer-sort="servidor" onclick="ferSortBy('servidor')">Servidor / Matrícula <i class="ti ti-arrows-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="lotacao" onclick="ferSortBy('lotacao')">Lotação / Unidade <i class="ti ti-arrows-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="pendente" onclick="ferSortBy('pendente')">Situação / Período Pendente <i class="ti ti-arrows-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="documento" onclick="ferSortBy('documento')">Documento / Link <i class="ti ti-arrows-sort sort-icon"></i></th>
                     <th style="width:140px">Ação</th>
                   </tr>
                 </thead>
@@ -1850,7 +1860,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20260819b"></script>
+  <script type="module" src="js/app.js?v=20260819e"></script>
 
 
 
@@ -1879,8 +1889,9 @@
           <input type="text" id="fer-lotacao-display" class="form-control" readonly style="background:var(--gov-bg-light)">
         </div>
         <div class="form-group">
-          <label class="form-label">Período Aquisitivo *</label>
-          <input type="text" id="fer-aquisitivo" class="form-control" placeholder="Ex.: 2024/2025">
+          <label class="form-label">Período Aquisitivo</label>
+          <input type="text" id="fer-aquisitivo" class="form-control" placeholder="Ex.: 2024/2025 (opcional)">
+          <small class="form-hint">Opcional por enquanto — o cadastro desse dado está começando agora.</small>
         </div>
         <div class="form-group">
           <label class="form-label">Tipo de Concessão</label>
@@ -1892,12 +1903,15 @@
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">Data de Início do Gozo *</label>
+          <label class="form-label">Data de Início do Gozo</label>
           <input type="date" id="fer-inicio" class="form-control">
         </div>
         <div class="form-group">
-          <label class="form-label">Data de Término do Gozo *</label>
+          <label class="form-label">Data de Término do Gozo</label>
           <input type="date" id="fer-fim" class="form-control">
+        </div>
+        <div class="form-group full-width">
+          <small class="form-hint">Deixe as datas em branco para registrar apenas pendência ou período aquisitivo sem gozo programado.</small>
         </div>
         <div class="form-group">
           <label class="form-label">Dias</label>
@@ -1929,6 +1943,20 @@
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal('modal-ferias')">Cancelar</button>
       <button class="btn-primary" id="btn-salvar-ferias">Salvar no Banco</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · HISTÓRICO DE FÉRIAS -->
+<div class="modal-overlay" id="modal-ferias-historico">
+  <div class="modal-content large">
+    <div class="modal-header">
+      <div class="modal-title" id="fer-hist-title"><i class="ti ti-history"></i> Histórico de Férias</div>
+      <button class="modal-close" onclick="closeModal('modal-ferias-historico')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body" id="fer-hist-content"><span class="spinner"></span> Carregando…</div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal('modal-ferias-historico')">Fechar</button>
     </div>
   </div>
 </div>

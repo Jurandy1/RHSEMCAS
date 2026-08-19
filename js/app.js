@@ -711,7 +711,7 @@ window.sortTable = function(col) {
 };
 
 function atualizarIconesSort() {
-  $$('.sortable').forEach(th => {
+  $$('.sortable:not(.fer-sortable)').forEach(th => {
     const icon = th.querySelector('.sort-icon');
     if (!icon) return;
     if (th.dataset.sort === state.sort.col) {
@@ -7447,15 +7447,68 @@ window.giapIgnorarRevisao = async function giapIgnorarRevisao(revisaoId) {
 const FERIAS_TIPOS = { regular: 'Regulamentar', premio: 'Licença-Prêmio', licenca: 'Licença', abono: 'Abono' };
 const FERIAS_TIPOS_REV = Object.fromEntries(Object.entries(FERIAS_TIPOS).map(([k, v]) => [v, k]));
 
-const _ferV2 = { view: 'tabela', page: 1, pageSize: 8, rows: [], bound: false };
+const _ferV2 = { view: 'tabela', page: 1, pageSize: 8, rows: [], bound: false, ano: new Date().getFullYear(), sort: { col: 'servidor', dir: 'asc' } };
 
 const fmtDtFer = (s) => s ? new Date(String(s).slice(0, 10) + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
 
 function ferStatusClass(st) {
   if (st === 'Em Gozo') return 'gozo';
   if (st === 'Pendente') return 'pendente';
-  if (st === 'Concluído') return 'concluido';
+  if (st === 'Concluído' || st === 'Cancelado') return 'concluido';
   return 'programado';
+}
+
+function ferStatusIcon(st) {
+  if (st === 'Em Gozo') return 'ti-beach';
+  if (st === 'Pendente') return 'ti-alert-circle';
+  if (st === 'Concluído') return 'ti-circle-check';
+  if (st === 'Cancelado') return 'ti-ban';
+  return 'ti-calendar-event';
+}
+
+function ferStatusHtml(status) {
+  const cls = ferStatusClass(status);
+  return `<span class="fer-status ${cls}"><i class="ti ${ferStatusIcon(status)}"></i> ${htmlEscape(status)}</span>`;
+}
+
+function ferLinkTipo(url) {
+  const u = String(url || '').toLowerCase();
+  if (u.startsWith('mailto:') || (u.includes('@') && !u.startsWith('http'))) return 'email';
+  if (/sei|processo|\.gov\.br/i.test(u)) return 'sei';
+  return 'link';
+}
+
+function ferLinkHtml(url) {
+  if (!url) return '<span class="fer-vazio">Sem documento</span>';
+  const tipo = ferLinkTipo(url);
+  const meta = {
+    email: { icon: 'ti-mail', label: 'E-mail' },
+    sei: { icon: 'ti-file-certificate', label: 'SEI' },
+    link: { icon: 'ti-link', label: 'Link' },
+  }[tipo];
+  let href = url;
+  if (tipo === 'email' && !url.startsWith('mailto:')) href = `mailto:${url}`;
+  return `<a class="fer-doc-link ${tipo}" href="${htmlEscape(href)}" target="_blank" rel="noopener" title="${htmlEscape(url)}"><i class="ti ${meta.icon}"></i> ${meta.label}</a>`;
+}
+
+function ferFotoHtml(path) {
+  const url = path ? urlPublicaFoto(path) : null;
+  if (url) {
+    return `<img class="fer-serv-foto" src="${htmlEscape(url)}" alt="" loading="lazy" width="36" height="36">`;
+  }
+  return `<span class="fer-serv-foto--empty" aria-hidden="true"><i class="ti ti-user"></i></span>`;
+}
+
+function ferServidorCell(r) {
+  return `<div class="fer-serv-cell">${ferFotoHtml(r.foto_url)}<div><div class="fer-serv-nome">${htmlEscape(r.servidor)}</div><div class="fer-serv-mat">Mat.: ${htmlEscape(r.matricula || '—')}</div></div></div>`;
+}
+
+function ferAcoesHtml(r) {
+  return `<div class="fer-actions">
+    <button class="btn-icon" title="Editar" onclick="ferEditarRegistro(${r.id})"><i class="ti ti-pencil"></i></button>
+    <button class="btn-icon" title="Histórico" onclick="ferVerHistorico(${r.funcionario_id})"><i class="ti ti-history"></i></button>
+    <button class="btn-icon" title="Cancelar" style="color:var(--gov-red)" onclick="cancelarFerias(${r.id})"><i class="ti ti-x"></i></button>
+  </div>`;
 }
 
 function ferCalcStatus(r) {
@@ -7477,7 +7530,7 @@ function ferNorm(s) {
   return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
-function ferMapRow(raw, funcMap, matMap) {
+function ferMapRow(raw, funcMap, matMap, fotoMap) {
   const f = funcMap[raw.funcionario_id] || {};
   const mat = matMap[raw.funcionario_id] || f.matricula || '';
   const status = ferCalcStatus(raw);
@@ -7486,6 +7539,7 @@ function ferMapRow(raw, funcMap, matMap) {
     funcionario_id: raw.funcionario_id,
     servidor: f.nome || raw.servidor || '—',
     matricula: mat,
+    foto_url: fotoMap[raw.funcionario_id] || null,
     lotacao: f.lotacao_nome || raw.lotacao || '—',
     aquisitivo: raw.periodo_aquisitivo || raw.aquisitivo || '—',
     data_inicio: raw.data_inicio || '',
@@ -7518,16 +7572,18 @@ async function ferCarregarDados() {
   const ids = [...new Set((res.data || []).map((r) => r.funcionario_id).filter(Boolean))];
   let funcMap = {};
   let matMap = {};
+  let fotoMap = {};
   if (ids.length) {
     const { data: funcs } = await sb.from('v_funcionarios_atual')
       .select('funcionario_id, nome, matricula, lotacao_nome, funcao, vinculo')
       .in('funcionario_id', ids);
     funcMap = Object.fromEntries((funcs || []).map((x) => [x.funcionario_id, x]));
-    const { data: mats } = await sb.from('funcionarios').select('id, matricula').in('id', ids);
+    const { data: mats } = await sb.from('funcionarios').select('id, matricula, foto_url').in('id', ids);
     matMap = Object.fromEntries((mats || []).map((x) => [x.id, x.matricula]));
+    fotoMap = Object.fromEntries((mats || []).map((x) => [x.id, x.foto_url]));
   }
 
-  _ferV2.rows = (res.data || []).map((r) => ferMapRow(r, funcMap, matMap));
+  _ferV2.rows = (res.data || []).map((r) => ferMapRow(r, funcMap, matMap, fotoMap));
   return _ferV2.rows;
 }
 
@@ -7536,9 +7592,9 @@ function ferFiltradas() {
   const lot = $('fer-filtro-lotacao')?.value || '';
   const status = $('fer-filtro-status')?.value || '';
   const mes = $('fer-filtro-mes')?.value || '';
-  return _ferV2.rows.filter((r) => {
+  const filtradas = _ferV2.rows.filter((r) => {
     if (!r.ativo) return false;
-    const text = ferNorm([r.servidor, r.matricula, r.lotacao, r.funcionario_id].join(' '));
+    const text = ferNorm([r.servidor, r.matricula, r.lotacao].join(' '));
     if (busca && !busca.split(/\s+/).every((p) => text.includes(p))) return false;
     if (lot && r.lotacao !== lot) return false;
     if (status && r.status !== status) return false;
@@ -7547,6 +7603,58 @@ function ferFiltradas() {
       if (String(r.data_inicio).slice(5, 7) !== mes) return false;
     }
     return true;
+  });
+  return ferOrdenar(filtradas);
+}
+
+function ferSortValor(r, col) {
+  if (col === 'servidor') return ferNorm(r.servidor);
+  if (col === 'lotacao') return ferNorm(r.lotacao);
+  if (col === 'aquisitivo') return ferNorm(r.aquisitivo === '—' ? '' : r.aquisitivo);
+  if (col === 'gozo') return r.data_inicio || '';
+  if (col === 'pendente') return ferNorm(r.pendente === '—' ? '' : r.pendente);
+  if (col === 'documento') return ferNorm(r.email || '');
+  if (col === 'status') return ferNorm(r.status);
+  return '';
+}
+
+function ferOrdenar(rows) {
+  const { col, dir } = _ferV2.sort;
+  const mul = dir === 'desc' ? -1 : 1;
+  return [...rows].sort((a, b) => {
+    const va = ferSortValor(a, col);
+    const vb = ferSortValor(b, col);
+    const emptyA = !va;
+    const emptyB = !vb;
+    if (emptyA && emptyB) return ferNorm(a.servidor).localeCompare(ferNorm(b.servidor), 'pt-BR');
+    if (emptyA) return 1;
+    if (emptyB) return -1;
+    const cmp = String(va).localeCompare(String(vb), 'pt-BR', { numeric: true, sensitivity: 'base' });
+    if (cmp !== 0) return cmp * mul;
+    return ferNorm(a.servidor).localeCompare(ferNorm(b.servidor), 'pt-BR');
+  });
+}
+
+window.ferSortBy = function ferSortBy(col) {
+  if (_ferV2.sort.col === col) {
+    _ferV2.sort.dir = _ferV2.sort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    _ferV2.sort.col = col;
+    _ferV2.sort.dir = 'asc';
+  }
+  _ferV2.page = 1;
+  ferRender();
+};
+
+function ferAtualizarIconesSort() {
+  $$('#view-ferias .fer-sortable').forEach((th) => {
+    const icon = th.querySelector('.sort-icon');
+    if (!icon) return;
+    if (th.dataset.ferSort === _ferV2.sort.col) {
+      icon.className = `ti ${_ferV2.sort.dir === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} sort-icon active`;
+    } else {
+      icon.className = 'ti ti-arrows-sort sort-icon';
+    }
   });
 }
 
@@ -7592,23 +7700,18 @@ function ferRenderTabela(data) {
   } else {
     tb.innerHTML = slice.map((r) => {
       const gozo = ferGozoTexto(r);
-      const stCls = ferStatusClass(r.status);
-      const link = r.email ? `<a class="fer-email-link" href="${htmlEscape(r.email)}" target="_blank" rel="noopener">Abrir link</a>` : '<span class="fer-vazio">Sem link</span>';
       const pend = r.pendente && r.pendente !== '—'
-        ? `<span style="color:var(--gov-orange);font-weight:700">${htmlEscape(r.pendente)}</span>`
+        ? `<span style="color:var(--gov-orange);font-weight:600">${htmlEscape(r.pendente)}</span>`
         : '<span class="fer-vazio">Nenhuma</span>';
       return `<tr>
-        <td><div class="fer-serv-nome">${htmlEscape(r.servidor)}</div><div class="fer-serv-mat">Mat.: ${htmlEscape(r.matricula || '—')} · Cód: ${r.funcionario_id}</div></td>
+        <td>${ferServidorCell(r)}</td>
         <td><span class="fer-lot-badge">${htmlEscape(r.lotacao)}</span></td>
         <td>${htmlEscape(r.aquisitivo)}</td>
         <td>${gozo ? `<span class="fer-periodo">${htmlEscape(gozo)}</span>` : '<span class="fer-vazio">Não agendado</span>'}</td>
         <td>${pend}</td>
-        <td>${link}</td>
-        <td><span class="fer-status ${stCls}">${htmlEscape(r.status)}</span></td>
-        <td style="text-align:center;white-space:nowrap">
-          <button class="btn-icon" onclick="ferEditarRegistro(${r.id})">Editar</button>
-          <button class="btn-icon" style="color:var(--gov-red)" onclick="cancelarFerias(${r.id})">Cancelar</button>
-        </td>
+        <td>${ferLinkHtml(r.email)}</td>
+        <td>${ferStatusHtml(r.status)}</td>
+        <td style="text-align:center">${ferAcoesHtml(r)}</td>
       </tr>`;
     }).join('');
   }
@@ -7632,7 +7735,28 @@ function ferRenderTabela(data) {
   }
 }
 
+function ferDiasNoMes(ano, mesNum) {
+  return new Date(ano, parseInt(mesNum, 10), 0).getDate();
+}
+
+function ferBarraMesHtml(r, ano, mesNum) {
+  if (!r.data_inicio || !r.data_fim) return '';
+  const mes = String(mesNum).padStart(2, '0');
+  const diasMes = ferDiasNoMes(ano, mesNum);
+  const mesIni = new Date(`${ano}-${mes}-01T00:00:00`);
+  const mesFim = new Date(`${ano}-${mes}-${String(diasMes).padStart(2, '0')}T00:00:00`);
+  const ini = new Date(String(r.data_inicio).slice(0, 10) + 'T00:00:00');
+  const fim = new Date(String(r.data_fim).slice(0, 10) + 'T00:00:00');
+  if (fim < mesIni || ini > mesFim) return '';
+  const startDay = ini < mesIni ? 1 : ini.getDate();
+  const endDay = fim > mesFim ? diasMes : fim.getDate();
+  const left = ((startDay - 1) / diasMes) * 100;
+  const width = ((endDay - startDay + 1) / diasMes) * 100;
+  return `<div class="fer-month-bar ${ferStatusClass(r.status)}" style="left:${left}%;width:${width}%" title="${htmlEscape(r.servidor)}: ${fmtDtFer(r.data_inicio)} – ${fmtDtFer(r.data_fim)}"></div>`;
+}
+
 function ferRenderMensal(data) {
+  const ano = _ferV2.ano;
   const meses = [
     ['01', 'Janeiro'], ['02', 'Fevereiro'], ['03', 'Março'], ['04', 'Abril'],
     ['05', 'Maio'], ['06', 'Junho'], ['07', 'Julho'], ['08', 'Agosto'],
@@ -7641,13 +7765,32 @@ function ferRenderMensal(data) {
   const grid = $('fer-month-grid');
   if (!grid) return;
   grid.innerHTML = meses.map(([num, nome]) => {
-    const noMes = data.filter((r) => r.data_inicio && String(r.data_inicio).slice(5, 7) === num);
+    const noMes = data.filter((r) => {
+      if (!r.data_inicio || !r.data_fim) return false;
+      const ini = String(r.data_inicio).slice(0, 10);
+      const fim = String(r.data_fim).slice(0, 10);
+      const mesIni = `${ano}-${num}-01`;
+      const dias = ferDiasNoMes(ano, num);
+      const mesFim = `${ano}-${num}-${String(dias).padStart(2, '0')}`;
+      return ini <= mesFim && fim >= mesIni;
+    });
+    const diasMes = ferDiasNoMes(ano, num);
+    const dayMarks = [1, Math.ceil(diasMes / 2), diasMes];
+    const bars = noMes.map((s) => ferBarraMesHtml(s, ano, num)).join('');
     return `<div class="fer-month-card">
-      <div class="fer-month-head"><span>${nome}</span><span>${noMes.length}</span></div>
+      <div class="fer-month-head"><span>${nome} ${ano}</span><span>${noMes.length}</span></div>
+      <div class="fer-month-timeline">
+        <div class="fer-month-days">${dayMarks.map((d) => `<span>${d}</span>`).join('')}</div>
+        <div class="fer-month-track">${bars || '<span class="fer-vazio" style="font-size:10px;padding-left:4px">Sem gozo no mês</span>'}</div>
+      </div>
       <div class="fer-month-body">${noMes.length ? noMes.map((s) => `
         <div class="fer-month-item">
-          <div class="fer-serv-nome">${htmlEscape(s.servidor)}</div>
-          <div class="fer-serv-mat">${htmlEscape(s.lotacao)} · Início: ${fmtDtFer(s.data_inicio)}</div>
+          ${ferFotoHtml(s.foto_url)}
+          <div style="min-width:0;flex:1">
+            <div class="fer-serv-nome">${htmlEscape(s.servidor)}</div>
+            <div class="fer-serv-mat">${htmlEscape(s.lotacao)} · ${fmtDtFer(s.data_inicio)} a ${fmtDtFer(s.data_fim)}</div>
+          </div>
+          ${ferStatusHtml(s.status)}
         </div>`).join('') : '<span class="fer-vazio">Nenhum servidor no mês</span>'}
       </div>
     </div>`;
@@ -7664,9 +7807,9 @@ function ferRenderUnidades(data) {
       <div class="fer-unit-head"><span>${htmlEscape(u)}</span><span class="fer-v2-tab-badge">${map[u].length}</span></div>
       <div class="fer-unit-body">${map[u].map((m) => `
         <div class="fer-unit-row">
-          <div><strong>${htmlEscape(m.servidor)}</strong>
-            <div class="fer-serv-mat">${m.data_inicio ? `${fmtDtFer(m.data_inicio)} a ${fmtDtFer(m.data_fim)}` : 'Sem data'}</div></div>
-          <span class="fer-status ${ferStatusClass(m.status)}">${htmlEscape(m.status)}</span>
+          <div class="fer-serv-cell">${ferFotoHtml(m.foto_url)}<div><strong>${htmlEscape(m.servidor)}</strong>
+            <div class="fer-serv-mat">${m.data_inicio ? `${fmtDtFer(m.data_inicio)} a ${fmtDtFer(m.data_fim)}` : 'Sem data de gozo'}</div></div></div>
+          ${ferStatusHtml(m.status)}
         </div>`).join('')}
       </div>
     </div>`).join('');
@@ -7682,11 +7825,11 @@ function ferRenderPendencias(data) {
   }
   tb.innerHTML = pend.map((r) => `
     <tr>
-      <td><div class="fer-serv-nome">${htmlEscape(r.servidor)}</div><div class="fer-serv-mat">Mat.: ${htmlEscape(r.matricula || '—')}</div></td>
+      <td>${ferServidorCell(r)}</td>
       <td><span class="fer-lot-badge">${htmlEscape(r.lotacao)}</span></td>
       <td><strong style="color:var(--gov-orange)">${htmlEscape(r.pendente !== '—' ? r.pendente : r.aquisitivo)}</strong></td>
-      <td>${r.email ? `<a class="fer-email-link" href="${htmlEscape(r.email)}" target="_blank" rel="noopener">Abrir link</a>` : '<span class="fer-vazio">Sem link</span>'}</td>
-      <td><button class="btn-primary" style="font-size:11px;padding:4px 10px" onclick="ferEditarRegistro(${r.id})">Programar Agora</button></td>
+      <td>${ferLinkHtml(r.email)}</td>
+      <td><button class="btn-primary" style="font-size:11px;padding:4px 10px" onclick="ferEditarRegistro(${r.id})"><i class="ti ti-calendar-plus"></i> Programar</button></td>
     </tr>`).join('');
 }
 
@@ -7700,6 +7843,8 @@ function ferRender() {
   }
   const cnt = $('fer-count');
   if (cnt) cnt.innerHTML = `<strong>${filtradas.length}</strong> de ${_ferV2.rows.length} registro(s)`;
+  ferAtualizarResumoFiltros();
+  ferAtualizarIconesSort();
   const empty = $('fer-empty-state');
   if (empty) empty.hidden = filtradas.length > 0;
   if (_ferV2.view === 'tabela') ferRenderTabela(filtradas);
@@ -7727,16 +7872,69 @@ async function renderFerias() {
   }
 }
 
+function ferAtualizarResumoFiltros() {
+  const parts = [];
+  const busca = ($('fer-filtro-busca')?.value || '').trim();
+  const lot = $('fer-filtro-lotacao')?.value || '';
+  const status = $('fer-filtro-status')?.value || '';
+  const mes = $('fer-filtro-mes')?.value || '';
+  if (busca) parts.push(`"${busca}"`);
+  if (lot) parts.push(lot);
+  if (status) parts.push(status);
+  if (mes) {
+    const nomes = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    parts.push(nomes[parseInt(mes, 10)] || mes);
+  }
+  const el = $('fer-filtro-resumo');
+  if (el) el.textContent = parts.length ? `· ${parts.join(' · ')}` : '';
+}
+
+function ferPopularAnoSelect() {
+  const sel = $('fer-filtro-ano');
+  if (!sel || sel.options.length) return;
+  const cur = new Date().getFullYear();
+  for (let y = cur + 1; y >= cur - 3; y--) {
+    sel.innerHTML += `<option value="${y}">${y}</option>`;
+  }
+  sel.value = String(_ferV2.ano);
+}
+
+function ferInitFiltrosCollapsible() {
+  const wrap = document.querySelector('#view-ferias .fer-v2-filters-wrap');
+  const toggle = $('fer-filtro-toggle');
+  if (!wrap || !toggle || toggle._ferBound) return;
+  toggle._ferBound = true;
+  const sync = () => {
+    if (window.matchMedia('(max-width: 900px)').matches) wrap.classList.add('collapsed');
+    else wrap.classList.remove('collapsed');
+    toggle.setAttribute('aria-expanded', wrap.classList.contains('collapsed') ? 'false' : 'true');
+  };
+  sync();
+  window.addEventListener('resize', sync);
+  toggle.onclick = () => {
+    wrap.classList.toggle('collapsed');
+    toggle.setAttribute('aria-expanded', wrap.classList.contains('collapsed') ? 'false' : 'true');
+  };
+}
+
 function ferBindUiOnce() {
   if (_ferV2.bound) return;
   _ferV2.bound = true;
-  $('fer-filtro-busca')?.addEventListener('input', debounce(() => { _ferV2.page = 1; ferRender(); }, 200));
-  $('fer-filtro-lotacao')?.addEventListener('change', () => { _ferV2.page = 1; ferRender(); });
-  $('fer-filtro-status')?.addEventListener('change', () => { _ferV2.page = 1; ferRender(); });
-  $('fer-filtro-mes')?.addEventListener('change', () => { _ferV2.page = 1; ferRender(); });
+  ferPopularAnoSelect();
+  ferInitFiltrosCollapsible();
+  const rerender = () => { _ferV2.page = 1; ferAtualizarResumoFiltros(); ferRender(); };
+  $('fer-filtro-busca')?.addEventListener('input', debounce(rerender, 200));
+  $('fer-filtro-lotacao')?.addEventListener('change', rerender);
+  $('fer-filtro-status')?.addEventListener('change', rerender);
+  $('fer-filtro-mes')?.addEventListener('change', rerender);
+  $('fer-filtro-ano')?.addEventListener('change', () => {
+    _ferV2.ano = Number($('fer-filtro-ano')?.value) || new Date().getFullYear();
+    ferRender();
+  });
   $('fer-filtro-limpar')?.addEventListener('click', () => {
     ['fer-filtro-busca', 'fer-filtro-lotacao', 'fer-filtro-status', 'fer-filtro-mes'].forEach((id) => { if ($(id)) $(id).value = ''; });
     _ferV2.page = 1;
+    ferAtualizarResumoFiltros();
     ferRender();
   });
 }
@@ -7763,7 +7961,7 @@ function ferLimparModal() {
     if ($(id)) $(id).value = '';
   });
   if ($('fer-tipo')) $('fer-tipo').value = 'regular';
-  if ($('fer-status')) $('fer-status').value = 'Programado';
+  if ($('fer-status')) $('fer-status').value = 'Pendente';
   if ($('fer-suggest')) $('fer-suggest').innerHTML = '';
   if ($('fer-modal-title')) $('fer-modal-title').innerHTML = '<i class="ti ti-beach"></i> Lançamento de Férias do Servidor';
 }
@@ -7810,6 +8008,53 @@ window.ferEditarRegistro = function ferEditarRegistro(id) {
   openModal('modal-ferias');
 };
 
+window.ferVerHistorico = async function ferVerHistorico(funcionarioId, nome) {
+  const row = _ferV2.rows.find((x) => x.funcionario_id === funcionarioId);
+  const displayNome = nome || row?.servidor || 'Servidor';
+  const title = $('fer-hist-title');
+  const body = $('fer-hist-content');
+  if (title) title.innerHTML = `<i class="ti ti-history"></i> Histórico de Férias — ${htmlEscape(displayNome)}`;
+  if (body) body.innerHTML = '<span class="spinner"></span> Carregando…';
+  openModal('modal-ferias-historico');
+  let res = await sb.from('funcionario_ferias')
+    .select('id, data_inicio, data_fim, tipo, observacao, ativo, periodo_aquisitivo, periodo_pendente, link_solicitacao, status_ferias')
+    .eq('funcionario_id', funcionarioId)
+    .order('data_inicio', { ascending: false, nullsFirst: true });
+  if (res.error && /column|periodo_aquisitivo|link_solicitacao|status_ferias/i.test(res.error.message || '')) {
+    res = await sb.from('funcionario_ferias')
+      .select('id, data_inicio, data_fim, tipo, observacao, ativo')
+      .eq('funcionario_id', funcionarioId)
+      .order('data_inicio', { ascending: false, nullsFirst: true });
+  }
+  if (res.error || !body) {
+    if (body) body.innerHTML = '<div class="empty-state">Erro ao carregar histórico</div>';
+    return;
+  }
+  const rows = res.data || [];
+  if (!rows.length) {
+    body.innerHTML = '<div class="empty-state">Nenhum registro de férias para este servidor</div>';
+    return;
+  }
+  body.innerHTML = `<div class="table-container"><table class="gov-table fer-v2-table">
+    <thead><tr>
+      <th>Período Aquisitivo</th><th>Gozo</th><th>Pendente</th><th>Tipo</th><th>Situação</th><th>Documento</th><th>Observação</th>
+    </tr></thead>
+    <tbody>${rows.map((r) => {
+      const st = r.ativo === false ? 'Cancelado' : (r.status_ferias || ferCalcStatus(r));
+      const gozo = r.data_inicio && r.data_fim ? `${fmtDtFer(r.data_inicio)} a ${fmtDtFer(r.data_fim)}` : '—';
+      return `<tr style="${r.ativo === false ? 'opacity:.65' : ''}">
+        <td>${htmlEscape(r.periodo_aquisitivo || '—')}</td>
+        <td>${htmlEscape(gozo)}</td>
+        <td>${htmlEscape(r.periodo_pendente || '—')}</td>
+        <td>${htmlEscape(r.tipo || '—')}</td>
+        <td>${ferStatusHtml(st)}</td>
+        <td>${ferLinkHtml(r.link_solicitacao || '')}</td>
+        <td style="font-size:12px;color:var(--color-text-muted)">${htmlEscape(r.observacao || '—')}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+};
+
 document.addEventListener('input', debounce(async (e) => {
   if (e.target.id !== 'fer-search') return;
   const q = e.target.value.trim();
@@ -7829,12 +8074,18 @@ document.addEventListener('input', debounce(async (e) => {
     </div>`).join('')}
   </div>`;
   $$('#fer-suggest .lotacao-tree-item').forEach((el) => {
-    el.onclick = () => {
-      $('fer-func-id').value = el.dataset.id;
+    el.onclick = async () => {
+      const fid = Number(el.dataset.id);
+      $('fer-func-id').value = fid;
       $('fer-search').value = el.dataset.nome;
       $('fer-lotacao-display').value = el.dataset.lot || '';
-      $('fer-matricula').value = el.dataset.mat || '';
       $('fer-suggest').innerHTML = '';
+      let mat = el.dataset.mat || '';
+      if (!mat && fid) {
+        const { data: row } = await sb.from('funcionarios').select('matricula').eq('id', fid).maybeSingle();
+        mat = row?.matricula || '';
+      }
+      $('fer-matricula').value = mat;
     };
   });
 }, 250));
@@ -7853,25 +8104,28 @@ document.addEventListener('change', (e) => {
 async function salvarFerias() {
   const funcId = Number($('fer-func-id')?.value);
   if (!funcId) return showToast('Selecione um servidor', 'warning');
-  const inicio = $('fer-inicio')?.value;
-  const fim = $('fer-fim')?.value;
+  const inicio = ($('fer-inicio')?.value || '').trim();
+  const fim = ($('fer-fim')?.value || '').trim();
   const aquisitivo = ($('fer-aquisitivo')?.value || '').trim();
-  if (!aquisitivo) return showToast('Informe o período aquisitivo', 'warning');
-  if (!inicio || !fim) return showToast('Datas de gozo obrigatórias', 'warning');
-  if (fim < inicio) return showToast('A data de término deve ser depois do início', 'warning');
+  const pendente = ($('fer-pendente')?.value || '').trim();
+  if (!!inicio !== !!fim) return showToast('Informe início e término do gozo, ou deixe ambos em branco', 'warning');
+  if (inicio && fim && fim < inicio) return showToast('A data de término deve ser depois do início', 'warning');
+
+  let status = $('fer-status')?.value || 'Programado';
+  if (!inicio) status = 'Pendente';
 
   const btn = $('btn-salvar-ferias');
   if (btn) btn.disabled = true;
   const payload = {
     funcionario_id: funcId,
-    data_inicio: inicio,
-    data_fim: fim,
+    data_inicio: inicio || null,
+    data_fim: fim || null,
     tipo: FERIAS_TIPOS[$('fer-tipo')?.value] || 'Regulamentar',
     observacao: ($('fer-obs')?.value || '').trim() || null,
-    periodo_aquisitivo: aquisitivo,
-    periodo_pendente: ($('fer-pendente')?.value || '').trim() || null,
+    periodo_aquisitivo: aquisitivo || null,
+    periodo_pendente: pendente || null,
     link_solicitacao: ($('fer-email')?.value || '').trim() || null,
-    status_ferias: $('fer-status')?.value || 'Programado',
+    status_ferias: status,
     ativo: true,
   };
   const editId = Number($('fer-edit-id')?.value);
@@ -7884,10 +8138,10 @@ async function salvarFerias() {
   if (error && /column|periodo_aquisitivo|link_solicitacao|status_ferias/i.test(error.message || '')) {
     const basico = {
       funcionario_id: funcId,
-      data_inicio: inicio,
-      data_fim: fim,
+      data_inicio: inicio || null,
+      data_fim: fim || null,
       tipo: payload.tipo,
-      observacao: [payload.observacao, aquisitivo ? `Aquisitivo: ${aquisitivo}` : '', payload.periodo_pendente ? `Pendente: ${payload.periodo_pendente}` : '', payload.link_solicitacao ? `Link: ${payload.link_solicitacao}` : ''].filter(Boolean).join(' · ') || null,
+      observacao: [payload.observacao, aquisitivo ? `Aquisitivo: ${aquisitivo}` : '', pendente ? `Pendente: ${pendente}` : '', payload.link_solicitacao ? `Link: ${payload.link_solicitacao}` : ''].filter(Boolean).join(' · ') || null,
       ativo: true,
     };
     if (editId) ({ error } = await sb.from('funcionario_ferias').update(basico).eq('id', editId));
@@ -7895,8 +8149,8 @@ async function salvarFerias() {
   }
   if (btn) btn.disabled = false;
   if (error) return showToast('Erro: ' + error.message, 'error');
-  await registrarLog(editId ? 'FÉRIAS EDITADA' : 'FÉRIAS AGENDADA', funcId, $('fer-search')?.value || 'Servidor(a)', { inicio, fim, aquisitivo });
-  showToast(editId ? 'Registro atualizado' : 'Férias registradas', 'success');
+  await registrarLog(editId ? 'FÉRIAS EDITADA' : 'FÉRIAS AGENDADA', funcId, $('fer-search')?.value || 'Servidor(a)', { inicio, fim, aquisitivo, pendente });
+  showToast(editId ? 'Registro atualizado' : (inicio ? 'Férias registradas' : 'Pendência registrada'), 'success');
   closeModal('modal-ferias');
   renderFerias();
 }
