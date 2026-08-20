@@ -2508,6 +2508,7 @@ window.abrirModalAddFuncionario = () => {
   $('add-telefone').value = '';
   $('add-funcao').value = '';
   $('add-ano').value = '';
+  if ($('add-empresa')) $('add-empresa').value = '';
   if ($('add-outra-secretaria')) $('add-outra-secretaria').checked = false;
   if ($('add-orgao-origem')) $('add-orgao-origem').value = '';
   if ($('add-orgao-origem-wrap')) $('add-orgao-origem-wrap').style.display = 'none';
@@ -2515,7 +2516,8 @@ window.abrirModalAddFuncionario = () => {
   
   $('add-vinculo').innerHTML = '<option value="">Selecione...</option>' + state.vinculos.map(v => `<option value="${v.id}">${htmlEscape(v.categoria)}</option>`).join('');
   $('add-turno').innerHTML = '<option value="">Selecione...</option>' + state.turnos.map(t => `<option value="${t.id}">${htmlEscape(t.nome)}</option>`).join('');
-  
+  aplicarVisibilidadeTerceirizado('add');
+
   const lotacoesOrdenadas = [...state.lotacoes].sort((a,b) => a.nome.localeCompare(b.nome));
   $('add-lotacao').innerHTML = '<option value="">Selecione a lotação inicial...</option>' + lotacoesOrdenadas.map(l => `<option value="${l.id}">${htmlEscape(l.nome)}</option>`).join('');
   
@@ -2561,6 +2563,40 @@ async function buscarFuncionarioDuplicado({ nome, cpf, matricula }) {
     || (nomeBusca && giapNormNome(f.nome) === giapNormNome(nomeBusca))
   ) || null;
 }
+
+// Vínculo "Terceirizado" não usa Matrícula/Simbologia/Ano do Concurso/GIAP — usa Nome da Empresa
+function funcVinculoEhTerceirizado(prefix) {
+  const vinculoId = $(`${prefix}-vinculo`)?.value;
+  if (!vinculoId) return false;
+  const v = state.vinculos.find(x => String(x.id) === String(vinculoId));
+  return !!v && (v.categoria || '').trim().toLowerCase() === 'terceirizado';
+}
+
+function aplicarVisibilidadeTerceirizado(prefix) {
+  const isTerceirizado = funcVinculoEhTerceirizado(prefix);
+  const show = (id, on) => { const el = $(id); if (el) el.style.display = on ? '' : 'none'; };
+  show(`${prefix}-matricula-group`, !isTerceirizado);
+  show(`${prefix}-simbologia-group`, !isTerceirizado);
+  show(`${prefix}-ano-group`, !isTerceirizado);
+  show(`${prefix}-empresa-group`, isTerceirizado);
+  if (prefix === 'edit') show('edit-remun-wrap', !isTerceirizado);
+  return isTerceirizado;
+}
+
+window.onVinculoChangeTerceirizado = function onVinculoChangeTerceirizado(prefix) {
+  const isTerceirizado = aplicarVisibilidadeTerceirizado(prefix);
+  // Limpa os campos que ficaram escondidos, pra não salvar lixo
+  if (isTerceirizado) {
+    if ($(`${prefix}-matricula`))  $(`${prefix}-matricula`).value = '';
+    if ($(`${prefix}-simbologia`)) $(`${prefix}-simbologia`).value = '';
+    if ($(`${prefix}-ano`))        $(`${prefix}-ano`).value = '';
+  } else {
+    if ($(`${prefix}-empresa`))    $(`${prefix}-empresa`).value = '';
+  }
+};
+
+$('add-vinculo').addEventListener('change', () => window.onVinculoChangeTerceirizado('add'));
+$('edit-vinculo').addEventListener('change', () => window.onVinculoChangeTerceirizado('edit'));
 
 window.addToggleOutraSecretaria = function addToggleOutraSecretaria() {
   const on = !!$('add-outra-secretaria')?.checked;
@@ -2619,6 +2655,7 @@ $('btn-salvar-add').onclick = async () => {
     email: $('add-email').value.trim() || null,
     telefone: $('add-telefone').value.trim() || null,
     simbologia: $('add-simbologia').value || null,
+    empresa: $('add-empresa').value.trim() || null,
     ativo: true
   };
 
@@ -2705,7 +2742,7 @@ window.abrirEdicao = async (id) => {
   const data = await handleErr(await sb.from('v_funcionarios_atual').select('*').eq('funcionario_id', id).limit(1).single(), 'editar');
   if (!data) return;
   // Busca matrícula + admissão + observação + simbologia (não vêm na view)
-  const ext = await handleErr(await sb.from('funcionarios').select('matricula, data_admissao, observacao, simbologia, foto_url').eq('id', id).single(), 'edit extras');
+  const ext = await handleErr(await sb.from('funcionarios').select('matricula, data_admissao, observacao, simbologia, foto_url, empresa').eq('id', id).single(), 'edit extras');
   state.funcionarioAtual = data;
 
   carregarFotoExistenteEdicao(ext?.foto_url || null);
@@ -2721,6 +2758,7 @@ window.abrirEdicao = async (id) => {
   $('edit-funcao').value    = data.funcao || '';
   $('edit-ano').value       = data.ano_concurso || '';
   $('edit-obs').value       = ext?.observacao || '';
+  if ($('edit-empresa')) $('edit-empresa').value = ext?.empresa || '';
   carregarRemuneracoesNoEdit(id);
 
   // Reset da seção "Registrar Afastamento / Licença"
@@ -2735,6 +2773,7 @@ window.abrirEdicao = async (id) => {
   
   const v = state.vinculos.find(x => x.categoria === data.vinculo);
   $('edit-vinculo').value = v ? v.id : '';
+  aplicarVisibilidadeTerceirizado('edit');
   const t = state.turnos.find(x => x.nome === data.turno);
   $('edit-turno').value = t ? t.id : '';
 
@@ -2774,7 +2813,8 @@ $('btn-salvar-edit').onclick = async () => {
   const diretos = {
     data_admissao: $('edit-admissao').value || null,
     observacao: $('edit-obs').value.trim() || null,
-    simbologia: $('edit-simbologia').value || null
+    simbologia: $('edit-simbologia').value || null,
+    empresa: $('edit-empresa').value.trim() || null
   };
   if (!$('edit-cpf').value.trim())       diretos.cpf = null;
   if (!$('edit-matricula').value.trim()) diretos.matricula = null;
