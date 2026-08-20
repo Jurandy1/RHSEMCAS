@@ -92,6 +92,9 @@
       <a href="#organograma" class="nav-item" data-route="organograma">
         <i class="ti ti-sitemap"></i> Organograma
       </a>
+      <a href="#terceirizados" class="nav-item" data-route="terceirizados">
+        <i class="ti ti-briefcase"></i> Terceirizados
+      </a>
 
       <div class="nav-group">Afastamentos</div>
       <a href="#licencas" class="nav-item" data-route="licencas">
@@ -311,6 +314,59 @@
           <div class="pagination">
             <div class="page-info" id="page-info">—</div>
             <div class="page-controls" id="page-controls"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== TERCEIRIZADOS ===== -->
+      <section id="view-terceirizados" class="view-section">
+        <div class="dash-section-header" style="margin-top:0; margin-bottom: 16px;">
+          <div class="dash-icon"><i class="ti ti-briefcase"></i></div>
+          <h2 id="titulo-terceirizados">Terceirizados</h2>
+          <div class="dash-line"></div>
+        </div>
+        
+        <!-- VISÃO DE CARDS -->
+        <div id="terceirizados-cards-container">
+          <p class="view-help">Selecione uma categoria de terceirizados para visualizar o quadro de servidores.</p>
+          <div class="kpi-grid" style="margin-top:20px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+            <div class="kpi-card" style="border-top-color:var(--gov-blue-primary); cursor:pointer; padding: 24px; transition: transform 0.2s;" onclick="abrirQuadroTerceirizado('VIGILANTE')" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform='translateY(0)'">
+              <div style="font-size:32px; color:var(--gov-blue-dark); margin-bottom:12px;"><i class="ti ti-shield"></i></div>
+              <div style="font-size:20px; font-weight:700; color:var(--gov-blue-dark);">VIGILANTES</div>
+              <div style="color:var(--color-text-sec); font-size:14px; margin-top:8px;">Empresa: SERVFAZ</div>
+            </div>
+            <div class="kpi-card" style="border-top-color:var(--gov-orange); cursor:pointer; padding: 24px; transition: transform 0.2s;" onclick="abrirQuadroTerceirizado('PORTEIRO')" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform='translateY(0)'">
+              <div style="font-size:32px; color:var(--gov-blue-dark); margin-bottom:12px;"><i class="ti ti-door-enter"></i></div>
+              <div style="font-size:20px; font-weight:700; color:var(--gov-blue-dark);">PORTEIROS</div>
+              <div style="color:var(--color-text-sec); font-size:14px; margin-top:8px;">Empresa: GLOBALTECH</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- VISÃO DE TABELA -->
+        <div id="terceirizados-table-container" style="display:none;">
+          <div style="margin-bottom: 16px;">
+            <button class="btn btn-outline" onclick="voltarCardsTerceirizados()"><i class="ti ti-arrow-left"></i> Voltar para opções</button>
+          </div>
+          <p class="view-help" id="help-terceirizados">Lista de servidores terceirizados.</p>
+          
+          <div class="table-container">
+            <table class="gov-table">
+              <thead>
+                <tr>
+                  <th style="width:90px">Matrícula</th>
+                  <th style="width:48px" title="Foto do servidor">Foto</th>
+                  <th style="min-width:180px">Nome do Servidor</th>
+                  <th>Empresa</th>
+                  <th>Cargo</th>
+                  <th>Lotação Atual</th>
+                  <th style="width:100px">Admissão</th>
+                  <th>Turno</th>
+                  <th style="width:140px;text-align:center">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="table-body-terceirizados"><tr><td colspan="9" class="empty-state"><span class="spinner"></span> Carregando…</td></tr></tbody>
+            </table>
           </div>
         </div>
       </section>

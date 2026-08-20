@@ -1277,6 +1277,7 @@ const rotas = {
   'funcionarios': { titulo: 'Funcionários',          bread: 'Funcionários',   render: renderFuncionarios },
   'locais':       { titulo: 'Locais Operacionais',   bread: 'Locais',         render: renderLocais },
   'organograma':  { titulo: 'Organograma',           bread: 'Organograma',    render: renderOrganograma },
+  'terceirizados':{ titulo: 'Terceirizados',         bread: 'Terceirizados',  render: renderTerceirizados },
   'folha-ponto':  { titulo: 'Folha de Ponto',        bread: 'Folha de Ponto', render: renderFolhaPonto },
   'logs':         { titulo: 'Histórico',     bread: 'Histórico',           render: renderLogs },
   'usuarios':     { titulo: 'Usuários do Sistema',    bread: 'Usuários',       render: renderUsuarios }
@@ -10020,3 +10021,103 @@ window.salvarCedencia = async () => {
     if (state.rotaAtual === 'cedidos' || document.getElementById('view-cedidos')?.classList.contains('active')) renderCedidos();
   }
 };
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                     TERCEIRIZADOS (PORT/VIGI)                ║
+// ╚══════════════════════════════════════════════════════════════╝
+async function renderTerceirizados() {
+  voltarCardsTerceirizados();
+}
+
+function voltarCardsTerceirizados() {
+  $('terceirizados-cards-container').style.display = 'block';
+  $('terceirizados-table-container').style.display = 'none';
+  $('titulo-terceirizados').textContent = 'Terceirizados';
+}
+
+async function abrirQuadroTerceirizado(cargoBusca) {
+  $('terceirizados-cards-container').style.display = 'none';
+  $('terceirizados-table-container').style.display = 'block';
+  
+  if (cargoBusca === 'VIGILANTE') {
+    $('titulo-terceirizados').textContent = 'Quadro de Vigilantes (SERVFAZ)';
+    $('help-terceirizados').textContent = 'Lista de vigilantes terceirizados pela empresa SERVFAZ.';
+  } else {
+    $('titulo-terceirizados').textContent = 'Quadro de Porteiros (GLOBALTECH)';
+    $('help-terceirizados').textContent = 'Lista de porteiros terceirizados pela empresa GLOBALTECH.';
+  }
+
+  await carregarTerceirizados(cargoBusca);
+}
+
+async function carregarTerceirizados(cargoBusca) {
+  const tBody = $('table-body-terceirizados');
+  if (!tBody) return;
+  tBody.innerHTML = '<tr><td colspan="9" class="empty-state"><span class="spinner"></span> Buscando terceirizados...</td></tr>';
+  
+  const empresaAlvo = cargoBusca === 'VIGILANTE' ? 'SERVFAZ' : 'GLOBALTECH';
+
+  // 1. Busca os funcionários dessas empresas
+  const { data: funcs, error: errFuncs } = await sb
+    .from('funcionarios')
+    .select('id, nome, matricula, data_admissao, foto_url, empresa')
+    .eq('empresa', empresaAlvo)
+    .eq('ativo', true)
+    .order('nome');
+
+  if (errFuncs) {
+    tBody.innerHTML = '<tr><td colspan="9" class="empty-state error-text">Erro ao buscar terceirizados.</td></tr>';
+    console.error('Erro terceirizados:', errFuncs);
+    return;
+  }
+
+  if (!funcs || funcs.length === 0) {
+    tBody.innerHTML = `<tr><td colspan="9" class="empty-state">Nenhum servidor encontrado para ${empresaAlvo}.</td></tr>`;
+    return;
+  }
+
+  const ids = funcs.map(f => f.id);
+  
+  // 2. Busca lotação/turno atual
+  const { data: atuais } = await sb
+    .from('v_funcionarios_atual')
+    .select('funcionario_id, lotacao_nome, turno')
+    .in('funcionario_id', ids);
+
+  const mapAtuais = Object.fromEntries((atuais || []).map(x => [x.funcionario_id, x]));
+  const fmtDt = (s) => s ? new Date(s + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+
+  let html = '';
+  funcs.forEach(f => {
+    let cargo = 'Terceirizado';
+    if (f.empresa === 'GLOBALTECH') cargo = 'PORTEIRO';
+    else if (f.empresa === 'SERVFAZ') cargo = 'VIGILANTE';
+
+    const atual = mapAtuais[f.id] || {};
+
+    html += `
+      <tr>
+        <td style="font-family:monospace;font-size:12px;color:var(--color-text-sec)">${htmlEscape(f.matricula || '—')}</td>
+        <td>${htmlFotoLista(f.foto_url)}</td>
+        <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(f.nome)}</td>
+        <td><span class="badge badge-vinculo" style="background:var(--gov-gray-dark)">${htmlEscape(f.empresa)}</span></td>
+        <td>${cargo}</td>
+        <td>${htmlEscape(atual.lotacao_nome || '—')}</td>
+        <td style="font-size:12px;color:var(--color-text-sec)">${fmtDt(f.data_admissao)}</td>
+        <td>${htmlEscape(atual.turno || '—')}</td>
+        <td style="text-align:center">
+          <div class="table-actions" style="justify-content:center">
+            <button class="btn-icon" title="Editar" onclick="abrirEdicao(${f.id})">Editar</button>
+            <button class="btn-icon" title="Histórico" onclick="verHistorico(${f.id})">Histórico</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  });
+
+  tBody.innerHTML = html;
+}
+
+// Exportar funções para o escopo global (acessíveis no HTML onClick)
+window.abrirQuadroTerceirizado = abrirQuadroTerceirizado;
+window.voltarCardsTerceirizados = voltarCardsTerceirizados;
