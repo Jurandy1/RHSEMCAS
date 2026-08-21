@@ -2508,6 +2508,7 @@ window.abrirModalAddFuncionario = () => {
   $('add-email').value = '';
   $('add-telefone').value = '';
   $('add-funcao').value = '';
+  if ($('add-cargo')) $('add-cargo').value = '';
   $('add-ano').value = '';
   if ($('add-empresa')) $('add-empresa').value = '';
   if ($('add-outra-secretaria')) $('add-outra-secretaria').checked = false;
@@ -2657,6 +2658,7 @@ $('btn-salvar-add').onclick = async () => {
     telefone: $('add-telefone').value.trim() || null,
     simbologia: $('add-simbologia').value || null,
     empresa: $('add-empresa').value.trim() || null,
+    cargo: ($('add-cargo')?.value || '').trim() || null,
     ativo: true
   };
 
@@ -2743,7 +2745,7 @@ window.abrirEdicao = async (id) => {
   const data = await handleErr(await sb.from('v_funcionarios_atual').select('*').eq('funcionario_id', id).limit(1).single(), 'editar');
   if (!data) return;
   // Busca matrícula + admissão + observação + simbologia (não vêm na view)
-  const ext = await handleErr(await sb.from('funcionarios').select('matricula, data_admissao, observacao, simbologia, foto_url, empresa').eq('id', id).single(), 'edit extras');
+  const ext = await handleErr(await sb.from('funcionarios').select('matricula, data_admissao, observacao, simbologia, foto_url, empresa, cargo').eq('id', id).single(), 'edit extras');
   state.funcionarioAtual = data;
 
   carregarFotoExistenteEdicao(ext?.foto_url || null);
@@ -2756,6 +2758,7 @@ window.abrirEdicao = async (id) => {
   $('edit-email').value     = data.email || '';
   $('edit-telefone').value  = data.telefone ? mascaraTelefone(data.telefone) : '';
   popularSelectSimbologia('edit-simbologia', ext?.simbologia || '');
+  if ($('edit-cargo')) $('edit-cargo').value = ext?.cargo || '';
   $('edit-funcao').value    = data.funcao || '';
   $('edit-ano').value       = data.ano_concurso || '';
   $('edit-obs').value       = ext?.observacao || '';
@@ -2815,7 +2818,8 @@ $('btn-salvar-edit').onclick = async () => {
     data_admissao: $('edit-admissao').value || null,
     observacao: $('edit-obs').value.trim() || null,
     simbologia: $('edit-simbologia').value || null,
-    empresa: $('edit-empresa').value.trim() || null
+    empresa: $('edit-empresa').value.trim() || null,
+    cargo: ($('edit-cargo')?.value || '').trim() || null
   };
   if (!$('edit-cpf').value.trim())       diretos.cpf = null;
   if (!$('edit-matricula').value.trim()) diretos.matricula = null;
@@ -3759,6 +3763,57 @@ function fmtRemunComp(c) {
   return `${s.slice(4, 6)}/${s.slice(0, 4)}`;
 }
 
+/** Copia cargo_origem (última competência GIAP) → funcionarios.cargo.
+ *  Por padrão só preenche quem está sem cargo (não apaga edição manual).
+ *  Passe { sobrescrever: true } para atualizar todos a partir da folha. */
+window.sincronizarCargosDoGiap = async function sincronizarCargosDoGiap(opts = {}) {
+  const sobrescrever = !!opts.sobrescrever;
+  let atualizados = 0;
+  try {
+    // Último cargo por funcionario_id
+    const porFunc = new Map();
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await sb.from('funcionario_remuneracoes')
+        .select('funcionario_id, cargo_origem, competencia')
+        .not('cargo_origem', 'is', null)
+        .order('competencia', { ascending: false })
+        .range(from, from + 999);
+      if (error) throw error;
+      for (const r of data || []) {
+        const cargo = String(r.cargo_origem || '').trim();
+        if (!cargo || !r.funcionario_id) continue;
+        if (!porFunc.has(r.funcionario_id)) porFunc.set(r.funcionario_id, cargo);
+      }
+      if (!data || data.length < 1000) break;
+    }
+    if (!porFunc.size) return { ok: true, atualizados: 0 };
+
+    const ids = [...porFunc.keys()];
+    for (let i = 0; i < ids.length; i += 200) {
+      const chunk = ids.slice(i, i + 200);
+      let q = sb.from('funcionarios').select('id, cargo').in('id', chunk);
+      if (!sobrescrever) {
+        // só quem ainda não tem cargo
+      }
+      const { data: funcs, error } = await q;
+      if (error) throw error;
+      for (const f of funcs || []) {
+        const atual = String(f.cargo || '').trim();
+        const novo = porFunc.get(f.id);
+        if (!novo) continue;
+        if (!sobrescrever && atual) continue;
+        if (atual === novo) continue;
+        const { error: upErr } = await sb.from('funcionarios').update({ cargo: novo }).eq('id', f.id);
+        if (!upErr) atualizados++;
+      }
+    }
+    return { ok: true, atualizados };
+  } catch (e) {
+    console.warn('[Cargos GIAP]', e.message || e);
+    return { ok: false, atualizados: 0, erro: e.message || String(e) };
+  }
+};
+
 /** Alimenta funcionario_remuneracoes a partir de folha_pmsl e poda para 2 competências. */
 window.sincronizarRemuneracoesGiap = async function sincronizarRemuneracoesGiap(opts = {}) {
   const silencioso = !!opts.silencioso;
@@ -3773,13 +3828,24 @@ window.sincronizarRemuneracoesGiap = async function sincronizarRemuneracoesGiap(
     const r = data || {};
     window._remunCache = [];
     window._remunCacheAt = 0;
+
+    // Após alimentar remunerações, preenche funcionarios.cargo com o cargo da folha
+    let cargos = null;
+    if (r.ok !== false) {
+      cargos = await sincronizarCargosDoGiap({ sobrescrever: false });
+    }
+
     if (!silencioso) {
       if (r.ok === false) {
         showToast(r.erro || 'Não foi possível alimentar remunerações.', 'warning');
       } else {
+        const extra = cargos?.atualizados
+          ? ` · ${cargos.atualizados} cargo(s) atualizado(s)`
+          : '';
         showToast(
           `Remunerações: ${r.gravados || 0} gravado(s) · competência ${r.competencia}` +
-            (r.podados ? ` · ${r.podados} antigo(s) removido(s)` : ''),
+            (r.podados ? ` · ${r.podados} antigo(s) removido(s)` : '') +
+            extra,
           'success'
         );
       }
@@ -7488,7 +7554,7 @@ window.giapIgnorarRevisao = async function giapIgnorarRevisao(revisaoId) {
 const FERIAS_TIPOS = { regular: 'Regulamentar', premio: 'Licença-Prêmio', licenca: 'Licença', abono: 'Abono' };
 const FERIAS_TIPOS_REV = Object.fromEntries(Object.entries(FERIAS_TIPOS).map(([k, v]) => [v, k]));
 
-const _ferV2 = { view: 'tabela', page: 1, pageSize: 8, rows: [], bound: false, ano: new Date().getFullYear(), sort: { col: 'servidor', dir: 'asc' } };
+const _ferV2 = { view: 'tabela', page: 1, pageSize: 8, rows: [], bound: false, ano: new Date().getFullYear(), sort: { col: 'servidor', dir: 'asc' }, suppressFilter: false };
 
 const fmtDtFer = (s) => s ? new Date(String(s).slice(0, 10) + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
 
@@ -7571,16 +7637,19 @@ function ferNorm(s) {
   return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
-function ferMapRow(raw, funcMap, matMap, fotoMap) {
+function ferMapRow(raw, funcMap, extraMap, cargoMap) {
   const f = funcMap[raw.funcionario_id] || {};
-  const mat = matMap[raw.funcionario_id] || f.matricula || '';
+  const ex = extraMap[raw.funcionario_id] || {};
+  const mat = ex.matricula || f.matricula || '';
   const status = ferCalcStatus(raw);
   return {
     id: raw.id,
     funcionario_id: raw.funcionario_id,
     servidor: f.nome || raw.servidor || '—',
     matricula: mat,
-    foto_url: fotoMap[raw.funcionario_id] || null,
+    foto_url: ex.foto_url || null,
+    cargo: cargoMap[raw.funcionario_id] || '—',
+    funcao: f.funcao || '—',
     lotacao: f.lotacao_nome || raw.lotacao || '—',
     aquisitivo: raw.periodo_aquisitivo || raw.aquisitivo || '—',
     data_inicio: raw.data_inicio || '',
@@ -7612,19 +7681,36 @@ async function ferCarregarDados() {
 
   const ids = [...new Set((res.data || []).map((r) => r.funcionario_id).filter(Boolean))];
   let funcMap = {};
-  let matMap = {};
-  let fotoMap = {};
+  let extraMap = {};
+  let cargoMap = {};
   if (ids.length) {
     const { data: funcs } = await sb.from('v_funcionarios_atual')
       .select('funcionario_id, nome, matricula, lotacao_nome, funcao, vinculo')
       .in('funcionario_id', ids);
     funcMap = Object.fromEntries((funcs || []).map((x) => [x.funcionario_id, x]));
-    const { data: mats } = await sb.from('funcionarios').select('id, matricula, foto_url').in('id', ids);
-    matMap = Object.fromEntries((mats || []).map((x) => [x.id, x.matricula]));
-    fotoMap = Object.fromEntries((mats || []).map((x) => [x.id, x.foto_url]));
+    const { data: extras } = await sb.from('funcionarios').select('id, matricula, foto_url, cargo').in('id', ids);
+    extraMap = Object.fromEntries((extras || []).map((x) => [x.id, x]));
+
+    // Cargo: preferência do cadastro RH; senão cargo_origem da folha (última competência)
+    for (const [fid, ex] of Object.entries(extraMap)) {
+      if (ex.cargo) cargoMap[fid] = ex.cargo;
+    }
+    try {
+      for (let i = 0; i < ids.length; i += 200) {
+        const chunk = ids.slice(i, i + 200);
+        const { data: rem } = await sb.from('funcionario_remuneracoes')
+          .select('funcionario_id, cargo_origem, competencia')
+          .in('funcionario_id', chunk)
+          .order('competencia', { ascending: false });
+        for (const r of rem || []) {
+          if (cargoMap[r.funcionario_id]) continue;
+          if (r.cargo_origem) cargoMap[r.funcionario_id] = r.cargo_origem;
+        }
+      }
+    } catch (_) { /* tabela pode não existir */ }
   }
 
-  _ferV2.rows = (res.data || []).map((r) => ferMapRow(r, funcMap, matMap, fotoMap));
+  _ferV2.rows = (res.data || []).map((r) => ferMapRow(r, funcMap, extraMap, cargoMap));
   return _ferV2.rows;
 }
 
@@ -7635,7 +7721,7 @@ function ferFiltradas() {
   const mes = $('fer-filtro-mes')?.value || '';
   const filtradas = _ferV2.rows.filter((r) => {
     if (!r.ativo) return false;
-    const text = ferNorm([r.servidor, r.matricula, r.lotacao].join(' '));
+    const text = ferNorm([r.servidor, r.matricula, r.lotacao, r.cargo, r.funcao].join(' '));
     if (busca && !busca.split(/\s+/).every((p) => text.includes(p))) return false;
     if (lot && r.lotacao !== lot) return false;
     if (status && r.status !== status) return false;
@@ -7651,6 +7737,8 @@ function ferFiltradas() {
 function ferSortValor(r, col) {
   if (col === 'servidor') return ferNorm(r.servidor);
   if (col === 'lotacao') return ferNorm(r.lotacao);
+  if (col === 'cargo') return ferNorm(r.cargo === '—' ? '' : r.cargo);
+  if (col === 'funcao') return ferNorm(r.funcao === '—' ? '' : r.funcao);
   if (col === 'aquisitivo') return ferNorm(r.aquisitivo === '—' ? '' : r.aquisitivo);
   if (col === 'gozo') return r.data_inicio || '';
   if (col === 'pendente') return ferNorm(r.pendente === '—' ? '' : r.pendente);
@@ -7715,29 +7803,48 @@ function ferPopularLotacaoSelect(rows) {
   if (!sel) return;
   const lots = [...new Set(rows.map((r) => r.lotacao).filter((l) => l && l !== '—'))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const cur = sel.value;
-  sel.innerHTML = '<option value="">Todas as Unidades</option>' +
+  const nextHtml = '<option value="">Todas as Unidades</option>' +
     lots.map((l) => `<option value="${htmlEscape(l)}">${htmlEscape(l)}</option>`).join('');
+  // Evita rebuild a cada página — recriar <select> dispara "change" e volta pra página 1
+  if (sel.dataset.ferLotsKey === lots.join('\0') && sel.options.length) {
+    if (cur && lots.includes(cur)) sel.value = cur;
+    return;
+  }
+  sel.dataset.ferLotsKey = lots.join('\0');
+  _ferV2.suppressFilter = true;
+  sel.innerHTML = nextHtml;
   if (cur && lots.includes(cur)) sel.value = cur;
+  _ferV2.suppressFilter = false;
 }
 
 window.ferSwitchView = function ferSwitchView(view) {
   _ferV2.view = view;
+  _ferV2.page = 1;
   $$('#view-ferias .fer-v2-view-tab').forEach((t) => t.classList.toggle('active', t.dataset.view === view));
   $$('#view-ferias .fer-v2-pane').forEach((p) => p.classList.remove('active'));
   $(`fer-pane-${view}`)?.classList.add('active');
   ferRender();
 };
 
+window.ferIrParaPagina = function ferIrParaPagina(p) {
+  const page = Number(p);
+  if (!Number.isFinite(page) || page < 1) return;
+  _ferV2.page = page;
+  ferRender();
+  $('fer-page-controls')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+};
+
 function ferRenderTabela(data) {
   const total = data.length;
   const pages = Math.max(1, Math.ceil(total / _ferV2.pageSize) || 1);
   if (_ferV2.page > pages) _ferV2.page = pages;
+  if (_ferV2.page < 1) _ferV2.page = 1;
   const start = (_ferV2.page - 1) * _ferV2.pageSize;
   const slice = data.slice(start, start + _ferV2.pageSize);
   const tb = $('fer-table-body');
   if (!tb) return;
   if (!slice.length) {
-    tb.innerHTML = '<tr><td colspan="8" class="empty-state">Nenhum registro encontrado</td></tr>';
+    tb.innerHTML = '<tr><td colspan="10" class="empty-state">Nenhum registro encontrado</td></tr>';
   } else {
     tb.innerHTML = slice.map((r) => {
       const gozo = ferGozoTexto(r);
@@ -7747,6 +7854,8 @@ function ferRenderTabela(data) {
       return `<tr>
         <td>${ferServidorCell(r)}</td>
         <td><span class="fer-lot-badge">${htmlEscape(r.lotacao)}</span></td>
+        <td>${htmlEscape(r.cargo || '—')}</td>
+        <td>${htmlEscape(r.funcao || '—')}</td>
         <td>${htmlEscape(r.aquisitivo)}</td>
         <td>${gozo ? `<span class="fer-periodo">${htmlEscape(gozo)}</span>` : '<span class="fer-vazio">Não agendado</span>'}</td>
         <td>${pend}</td>
@@ -7763,16 +7872,13 @@ function ferRenderTabela(data) {
   }
   if (ctrl) {
     const btn = (label, p, dis, active = false) =>
-      `<button class="page-btn ${active ? 'active' : ''}" ${dis ? 'disabled' : ''} data-page="${p}">${label}</button>`;
-    let html = btn('«', _ferV2.page - 1, _ferV2.page === 1);
+      `<button type="button" class="page-btn ${active ? 'active' : ''}" ${dis ? 'disabled' : ''} data-page="${p}" onclick="ferIrParaPagina(${p})">${label}</button>`;
+    let html = btn('«', _ferV2.page - 1, _ferV2.page <= 1);
     const s = Math.max(1, _ferV2.page - 2);
     const e = Math.min(pages, s + 4);
-    for (let i = s; i <= e; i++) html += btn(i, i, false, i === _ferV2.page);
-    html += btn('»', _ferV2.page + 1, _ferV2.page === pages);
+    for (let i = s; i <= e; i++) html += btn(String(i), i, false, i === _ferV2.page);
+    html += btn('»', _ferV2.page + 1, _ferV2.page >= pages);
     ctrl.innerHTML = html;
-    $$('#fer-page-controls .page-btn').forEach((b) => {
-      b.onclick = () => { if (!b.disabled) { _ferV2.page = Number(b.dataset.page); ferRender(); } };
-    });
   }
 }
 
@@ -7861,13 +7967,15 @@ function ferRenderPendencias(data) {
   const tb = $('fer-pend-body');
   if (!tb) return;
   if (!pend.length) {
-    tb.innerHTML = '<tr><td colspan="5" class="empty-state">Nenhuma pendência encontrada</td></tr>';
+    tb.innerHTML = '<tr><td colspan="7" class="empty-state">Nenhuma pendência encontrada</td></tr>';
     return;
   }
   tb.innerHTML = pend.map((r) => `
     <tr>
       <td>${ferServidorCell(r)}</td>
       <td><span class="fer-lot-badge">${htmlEscape(r.lotacao)}</span></td>
+      <td>${htmlEscape(r.cargo || '—')}</td>
+      <td>${htmlEscape(r.funcao || '—')}</td>
       <td><strong style="color:var(--gov-orange)">${htmlEscape(r.pendente !== '—' ? r.pendente : r.aquisitivo)}</strong></td>
       <td>${ferLinkHtml(r.email)}</td>
       <td><button class="btn-primary" style="font-size:11px;padding:4px 10px" onclick="ferEditarRegistro(${r.id})"><i class="ti ti-calendar-plus"></i> Programar</button></td>
@@ -7896,7 +8004,7 @@ function ferRender() {
 
 async function renderFerias() {
   const tb = $('fer-table-body');
-  if (tb) tb.innerHTML = '<tr><td colspan="8" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
+  if (tb) tb.innerHTML = '<tr><td colspan="10" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
   try {
     await ferCarregarDados();
     const kpis = await handleErr(await sb.from('v_ferias_kpis').select('*').single(), 'KPIs férias');
@@ -7909,7 +8017,7 @@ async function renderFerias() {
     ferRender();
   } catch (e) {
     showToast('Erro ao carregar férias: ' + (e.message || e), 'error');
-    if (tb) tb.innerHTML = '<tr><td colspan="8" class="empty-state">Erro ao carregar dados</td></tr>';
+    if (tb) tb.innerHTML = '<tr><td colspan="10" class="empty-state">Erro ao carregar dados</td></tr>';
   }
 }
 
@@ -7963,7 +8071,12 @@ function ferBindUiOnce() {
   _ferV2.bound = true;
   ferPopularAnoSelect();
   ferInitFiltrosCollapsible();
-  const rerender = () => { _ferV2.page = 1; ferAtualizarResumoFiltros(); ferRender(); };
+  const rerender = () => {
+    if (_ferV2.suppressFilter) return;
+    _ferV2.page = 1;
+    ferAtualizarResumoFiltros();
+    ferRender();
+  };
   $('fer-filtro-busca')?.addEventListener('input', debounce(rerender, 200));
   $('fer-filtro-lotacao')?.addEventListener('change', rerender);
   $('fer-filtro-status')?.addEventListener('change', rerender);
@@ -10035,17 +10148,46 @@ function voltarCardsTerceirizados() {
   $('titulo-terceirizados').textContent = 'Terceirizados';
 }
 
+const TERCEIRIZADOS_QUADROS = {
+  VIGILANTE: {
+    empresa: 'SERVFAZ',
+    cargo: 'VIGILANTE',
+    titulo: 'Quadro de Vigilantes (SERVFAZ)',
+    help: 'Lista de vigilantes terceirizados pela empresa SERVFAZ.',
+  },
+  PORTEIRO: {
+    empresa: 'GLOBALTECH',
+    cargo: 'PORTEIRO',
+    titulo: 'Quadro de Porteiros (GLOBALTECH)',
+    help: 'Lista de porteiros terceirizados pela empresa GLOBALTECH.',
+  },
+  SERVICOS_GERAIS: {
+    empresa: 'GRUPO CLASI',
+    cargo: 'SERVIÇOS GERAIS',
+    titulo: 'Quadro de Serviços Gerais (GRUPO CLASI)',
+    help: 'Lista de serviços gerais terceirizados pela empresa GRUPO CLASI.',
+  },
+  MOTORISTA_MEGA_ON: {
+    empresa: 'MEGA ON',
+    cargo: 'MOTORISTA',
+    titulo: 'Quadro de Motoristas (MEGA ON)',
+    help: 'Lista de motoristas terceirizados pela empresa MEGA ON — Diretoria Técnica de Transporte.',
+  },
+  MOTORISTA_PROCAD: {
+    empresa: 'PROCAD',
+    cargo: 'MOTORISTA',
+    titulo: 'Quadro de Motoristas (PROCAD)',
+    help: 'Lista de motoristas terceirizados pela empresa PROCAD — Diretoria Técnica de Transporte.',
+  },
+};
+
 async function abrirQuadroTerceirizado(cargoBusca) {
   $('terceirizados-cards-container').style.display = 'none';
   $('terceirizados-table-container').style.display = 'block';
-  
-  if (cargoBusca === 'VIGILANTE') {
-    $('titulo-terceirizados').textContent = 'Quadro de Vigilantes (SERVFAZ)';
-    $('help-terceirizados').textContent = 'Lista de vigilantes terceirizados pela empresa SERVFAZ.';
-  } else {
-    $('titulo-terceirizados').textContent = 'Quadro de Porteiros (GLOBALTECH)';
-    $('help-terceirizados').textContent = 'Lista de porteiros terceirizados pela empresa GLOBALTECH.';
-  }
+
+  const quadro = TERCEIRIZADOS_QUADROS[cargoBusca] || TERCEIRIZADOS_QUADROS.PORTEIRO;
+  $('titulo-terceirizados').textContent = quadro.titulo;
+  $('help-terceirizados').textContent = quadro.help;
 
   await carregarTerceirizados(cargoBusca);
 }
@@ -10054,8 +10196,13 @@ async function carregarTerceirizados(cargoBusca) {
   const tBody = $('table-body-terceirizados');
   if (!tBody) return;
   tBody.innerHTML = '<tr><td colspan="9" class="empty-state"><span class="spinner"></span> Buscando terceirizados...</td></tr>';
-  
-  const empresaAlvo = cargoBusca === 'VIGILANTE' ? 'SERVFAZ' : 'GLOBALTECH';
+
+  const quadro = TERCEIRIZADOS_QUADROS[cargoBusca];
+  const empresaAlvo = quadro?.empresa;
+  if (!empresaAlvo) {
+    tBody.innerHTML = '<tr><td colspan="9" class="empty-state">Categoria de terceirizado inválida.</td></tr>';
+    return;
+  }
 
   // 1. Busca os funcionários dessas empresas
   const { data: funcs, error: errFuncs } = await sb
@@ -10077,7 +10224,7 @@ async function carregarTerceirizados(cargoBusca) {
   }
 
   const ids = funcs.map(f => f.id);
-  
+
   // 2. Busca lotação/turno atual
   const { data: atuais } = await sb
     .from('v_funcionarios_atual')
@@ -10089,10 +10236,7 @@ async function carregarTerceirizados(cargoBusca) {
 
   let html = '';
   funcs.forEach(f => {
-    let cargo = 'Terceirizado';
-    if (f.empresa === 'GLOBALTECH') cargo = 'PORTEIRO';
-    else if (f.empresa === 'SERVFAZ') cargo = 'VIGILANTE';
-
+    const cargo = quadro.cargo || 'Terceirizado';
     const atual = mapAtuais[f.id] || {};
 
     html += `

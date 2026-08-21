@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
   
-  <link rel="stylesheet" href="css/styles.css?v=20260819e">
+  <link rel="stylesheet" href="css/styles.css?v=20260821a">
 </head>
 <body>
 
@@ -329,16 +329,36 @@
         <!-- VISÃO DE CARDS -->
         <div id="terceirizados-cards-container">
           <p class="view-help">Selecione uma categoria de terceirizados para visualizar o quadro de servidores.</p>
-          <div class="kpi-grid" style="margin-top:20px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
-            <div class="kpi-card" style="border-top-color:var(--gov-blue-primary); cursor:pointer; padding: 24px; transition: transform 0.2s;" onclick="abrirQuadroTerceirizado('VIGILANTE')" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform='translateY(0)'">
-              <div style="font-size:32px; color:var(--gov-blue-dark); margin-bottom:12px;"><i class="ti ti-shield"></i></div>
-              <div style="font-size:20px; font-weight:700; color:var(--gov-blue-dark);">VIGILANTES</div>
-              <div style="color:var(--color-text-sec); font-size:14px; margin-top:8px;">Empresa: SERVFAZ</div>
+          <div class="kpi-grid" style="margin-top:20px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+            <div class="kpi-card" style="border-top-color:var(--gov-blue-primary)" onclick="abrirQuadroTerceirizado('VIGILANTE')">
+              <div class="kpi-card-label">Categoria</div>
+              <div class="kpi-card-value" style="font-size:22px">Vigilantes</div>
+              <div class="kpi-card-sub">Empresa: SERVFAZ</div>
+              <i class="ti ti-shield kpi-card-bg-icon"></i>
             </div>
-            <div class="kpi-card" style="border-top-color:var(--gov-orange); cursor:pointer; padding: 24px; transition: transform 0.2s;" onclick="abrirQuadroTerceirizado('PORTEIRO')" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform='translateY(0)'">
-              <div style="font-size:32px; color:var(--gov-blue-dark); margin-bottom:12px;"><i class="ti ti-door-enter"></i></div>
-              <div style="font-size:20px; font-weight:700; color:var(--gov-blue-dark);">PORTEIROS</div>
-              <div style="color:var(--color-text-sec); font-size:14px; margin-top:8px;">Empresa: GLOBALTECH</div>
+            <div class="kpi-card" style="border-top-color:var(--gov-orange)" onclick="abrirQuadroTerceirizado('PORTEIRO')">
+              <div class="kpi-card-label">Categoria</div>
+              <div class="kpi-card-value" style="font-size:22px">Porteiros</div>
+              <div class="kpi-card-sub">Empresa: GLOBALTECH</div>
+              <i class="ti ti-door-enter kpi-card-bg-icon"></i>
+            </div>
+            <div class="kpi-card" style="border-top-color:var(--gov-green, #107c41)" onclick="abrirQuadroTerceirizado('SERVICOS_GERAIS')">
+              <div class="kpi-card-label">Categoria</div>
+              <div class="kpi-card-value" style="font-size:22px">Serviços Gerais</div>
+              <div class="kpi-card-sub">Empresa: GRUPO CLASI</div>
+              <i class="ti ti-tool kpi-card-bg-icon"></i>
+            </div>
+            <div class="kpi-card" style="border-top-color:#1351b4" onclick="abrirQuadroTerceirizado('MOTORISTA_MEGA_ON')">
+              <div class="kpi-card-label">Categoria</div>
+              <div class="kpi-card-value" style="font-size:22px">Motoristas</div>
+              <div class="kpi-card-sub">Empresa: MEGA ON</div>
+              <i class="ti ti-steering-wheel kpi-card-bg-icon"></i>
+            </div>
+            <div class="kpi-card" style="border-top-color:#0F6E56" onclick="abrirQuadroTerceirizado('MOTORISTA_PROCAD')">
+              <div class="kpi-card-label">Categoria</div>
+              <div class="kpi-card-value" style="font-size:22px">Motoristas</div>
+              <div class="kpi-card-sub">Empresa: PROCAD</div>
+              <i class="ti ti-car kpi-card-bg-icon"></i>
             </div>
           </div>
         </div>
@@ -735,6 +755,8 @@
                   <tr>
                     <th class="sortable fer-sortable" data-fer-sort="servidor" onclick="ferSortBy('servidor')">Servidor / Matrícula <i class="ti ti-arrows-sort sort-icon"></i></th>
                     <th class="sortable fer-sortable" data-fer-sort="lotacao" onclick="ferSortBy('lotacao')">Lotação / Unidade <i class="ti ti-arrows-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="cargo" onclick="ferSortBy('cargo')">Cargo <i class="ti ti-arrows-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="funcao" onclick="ferSortBy('funcao')">Função <i class="ti ti-arrows-sort sort-icon"></i></th>
                     <th class="sortable fer-sortable" data-fer-sort="aquisitivo" onclick="ferSortBy('aquisitivo')">Período Aquisitivo <i class="ti ti-arrows-sort sort-icon"></i></th>
                     <th class="sortable fer-sortable" data-fer-sort="gozo" onclick="ferSortBy('gozo')">Período de Gozo <i class="ti ti-arrows-sort sort-icon"></i></th>
                     <th class="sortable fer-sortable" data-fer-sort="pendente" onclick="ferSortBy('pendente')">Pendências <i class="ti ti-arrows-sort sort-icon"></i></th>
@@ -743,7 +765,7 @@
                     <th style="width:140px">Ações</th>
                   </tr>
                 </thead>
-                <tbody id="fer-table-body"><tr><td colspan="8" class="empty-state"><span class="spinner"></span> Carregando…</td></tr></tbody>
+                <tbody id="fer-table-body"><tr><td colspan="10" class="empty-state"><span class="spinner"></span> Carregando…</td></tr></tbody>
               </table>
             </div>
             <div class="fer-v2-pagination pagination">
@@ -771,6 +793,8 @@
                   <tr>
                     <th class="sortable fer-sortable" data-fer-sort="servidor" onclick="ferSortBy('servidor')">Servidor / Matrícula <i class="ti ti-arrows-sort sort-icon"></i></th>
                     <th class="sortable fer-sortable" data-fer-sort="lotacao" onclick="ferSortBy('lotacao')">Lotação / Unidade <i class="ti ti-arrows-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="cargo" onclick="ferSortBy('cargo')">Cargo <i class="ti ti-arrows-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="funcao" onclick="ferSortBy('funcao')">Função <i class="ti ti-arrows-sort sort-icon"></i></th>
                     <th class="sortable fer-sortable" data-fer-sort="pendente" onclick="ferSortBy('pendente')">Situação / Período Pendente <i class="ti ti-arrows-sort sort-icon"></i></th>
                     <th class="sortable fer-sortable" data-fer-sort="documento" onclick="ferSortBy('documento')">Documento / Link <i class="ti ti-arrows-sort sort-icon"></i></th>
                     <th style="width:140px">Ação</th>
@@ -1249,7 +1273,7 @@
               O que fazer aqui: confira os <strong>2 últimos salários</strong> do servidor (folha GIAP). Quando entra um mês novo, o mais antigo sai sozinho.
             </small>
           </div>
-          <button type="button" class="btn-secondary" onclick="sincronizarRemuneracoesGiap()" title="Atualiza a partir da folha GIAP já gravada">
+          <button type="button" class="btn-secondary" onclick="sincronizarRemuneracoesGiap()" title="Atualiza remunerações e cargos a partir da folha GIAP">
             <i class="ti ti-refresh"></i> Atualizar da folha
           </button>
         </div>
@@ -1573,7 +1597,11 @@
           <select class="form-control" id="add-turno"></select>
         </div>
         <div class="form-group">
-          <label class="form-label">Função / Cargo</label>
+          <label class="form-label">Cargo</label>
+          <input type="text" class="form-control" id="add-cargo" placeholder="Ex.: cargo da folha / denominação">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Função</label>
           <input type="text" class="form-control" id="add-funcao" list="funcoes-cadastradas" placeholder="Selecione uma existente ou digite">
           <datalist id="funcoes-cadastradas"></datalist>
         </div>
@@ -1772,8 +1800,12 @@
           <select class="form-control" id="edit-turno"></select>
         </div>
         <div class="form-group">
-          <label class="form-label">Função / Cargo</label>
-          <input type="text" class="form-control" id="edit-funcao" list="funcoes-cadastradas">
+          <label class="form-label">Cargo</label>
+          <input type="text" class="form-control" id="edit-cargo" placeholder="Ex.: cargo da folha / denominação">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Função</label>
+          <input type="text" class="form-control" id="edit-funcao" list="funcoes-cadastradas" placeholder="Função atual na lotação">
         </div>
         <div class="form-group" id="edit-ano-group">
           <label class="form-label">Ano do Concurso</label>
@@ -1924,7 +1956,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20260819e"></script>
+  <script type="module" src="js/app.js?v=20260821g"></script>
 
 
 
