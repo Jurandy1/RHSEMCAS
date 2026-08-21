@@ -354,11 +354,33 @@
               <div class="kpi-card-sub">Empresa: MEGA ON</div>
               <i class="ti ti-steering-wheel kpi-card-bg-icon"></i>
             </div>
+            <div class="kpi-card" style="border-top-color:#0F6E56" onclick="abrirMenuProcad()">
+              <div class="kpi-card-label">Empresa</div>
+              <div class="kpi-card-value" style="font-size:22px">PROCAD</div>
+              <div class="kpi-card-sub">Motoristas e Administrativo</div>
+              <i class="ti ti-building kpi-card-bg-icon"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUBMENU PROCAD -->
+        <div id="terceirizados-procad-submenu" style="display:none;">
+          <div style="margin-bottom: 16px;">
+            <button class="btn btn-outline" onclick="voltarCardsTerceirizados()"><i class="ti ti-arrow-left"></i> Voltar</button>
+          </div>
+          <p class="view-help">Selecione o quadro da empresa PROCAD.</p>
+          <div class="kpi-grid" style="margin-top:20px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
             <div class="kpi-card" style="border-top-color:#0F6E56" onclick="abrirQuadroTerceirizado('MOTORISTA_PROCAD')">
-              <div class="kpi-card-label">Categoria</div>
+              <div class="kpi-card-label">Quadro</div>
               <div class="kpi-card-value" style="font-size:22px">Motoristas</div>
-              <div class="kpi-card-sub">Empresa: PROCAD</div>
-              <i class="ti ti-car kpi-card-bg-icon"></i>
+              <div class="kpi-card-sub">Lotação fixa · Dirigindo para</div>
+              <i class="ti ti-steering-wheel kpi-card-bg-icon"></i>
+            </div>
+            <div class="kpi-card" style="border-top-color:#1351b4" onclick="abrirQuadroTerceirizado('ADMINISTRATIVO_PROCAD')">
+              <div class="kpi-card-label">Quadro</div>
+              <div class="kpi-card-value" style="font-size:22px">Administrativo</div>
+              <div class="kpi-card-sub">Várias funções</div>
+              <i class="ti ti-briefcase kpi-card-bg-icon"></i>
             </div>
           </div>
         </div>
@@ -366,7 +388,7 @@
         <!-- VISÃO DE TABELA -->
         <div id="terceirizados-table-container" style="display:none;">
           <div style="margin-bottom: 16px;">
-            <button class="btn btn-outline" onclick="voltarCardsTerceirizados()"><i class="ti ti-arrow-left"></i> Voltar para opções</button>
+            <button class="btn btn-outline" id="btn-voltar-terceirizados" onclick="voltarDeTabelaTerceirizados()"><i class="ti ti-arrow-left"></i> Voltar</button>
           </div>
           <p class="view-help" id="help-terceirizados">Lista de servidores terceirizados.</p>
           
@@ -380,6 +402,7 @@
                   <th>Empresa</th>
                   <th>Cargo</th>
                   <th>Lotação Atual</th>
+                  <th id="th-terceirizados-dirigindo" style="display:none">Dirigindo para</th>
                   <th style="width:100px">Admissão</th>
                   <th>Turno</th>
                   <th style="width:140px;text-align:center">Ações</th>
@@ -1569,6 +1592,13 @@
           <label class="form-label">Nome da Empresa</label>
           <input type="text" class="form-control" id="add-empresa" placeholder="Empresa terceirizada">
         </div>
+        <div class="form-group full-width" id="add-dirigindo-group" style="display:none">
+          <label class="form-label">Dirigindo para</label>
+          <select class="form-control" id="add-dirigindo-para">
+            <option value="">Selecione a unidade…</option>
+          </select>
+          <small style="display:block;color:var(--color-text-muted);font-size:11px;margin-top:4px">Unidade atendida pelo motorista. A lotação oficial fica fixa na Diretoria Técnica de Transporte.</small>
+        </div>
         <div style="grid-column:1/-1;padding-top:12px;margin-top:4px;border-top:1px solid var(--gov-border)">
           <strong style="font-size:13px;color:var(--gov-blue-dark)">Lotação Inicial</strong>
         </div>
@@ -1781,10 +1811,22 @@
           <label class="form-label">Nome da Empresa</label>
           <input type="text" class="form-control" id="edit-empresa" placeholder="Empresa terceirizada">
         </div>
+        <div class="form-group full-width" id="edit-dirigindo-group" style="display:none">
+          <label class="form-label">Dirigindo para</label>
+          <select class="form-control" id="edit-dirigindo-para">
+            <option value="">Selecione a unidade…</option>
+          </select>
+          <small style="display:block;color:var(--color-text-muted);font-size:11px;margin-top:4px">Unidade atendida pelo motorista. A lotação oficial fica fixa na Diretoria Técnica de Transporte.</small>
+        </div>
 
         <div style="grid-column:1/-1;padding-top:12px;margin-top:4px;border-top:1px solid var(--gov-border)">
           <strong style="font-size:13px;color:var(--gov-blue-dark)">Vínculo Atual</strong>
           <small style="display:block;color:var(--color-text-muted);font-size:11px;margin-top:2px">Correções aqui não geram histórico. Pra mover de lotação, use o botão <em>Transferir</em>.</small>
+        </div>
+        <div class="form-group full-width" id="edit-lotacao-fixa-group" style="display:none">
+          <label class="form-label">Lotação</label>
+          <input type="text" class="form-control" id="edit-lotacao-fixa" disabled value="Diretoria Técnica de Transporte">
+          <small style="display:block;color:var(--color-text-muted);font-size:11px;margin-top:4px">Lotação fixa para motoristas terceirizados.</small>
         </div>
         <div class="form-group full-width" id="edit-lotacao-group" style="display:none">
           <label class="form-label">Lotação *</label>
@@ -1956,7 +1998,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20260821j"></script>
+  <script type="module" src="js/app.js?v=20260821l"></script>
 
 
 

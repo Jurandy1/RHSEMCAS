@@ -628,6 +628,7 @@ const LOG_LABELS_SERVIDOR = {
   ano_concurso: 'Ano do concurso',
   lotacao: 'Lotação',
   foto: 'Foto',
+  dirigindo_para: 'Dirigindo para',
 };
 
 const LOG_LABELS_FERIAS = {
@@ -692,7 +693,10 @@ function capturarSnapshotEdicaoForm() {
     turno: turn?.nome || '',
     funcao: ($('edit-funcao')?.value || '').trim(),
     ano_concurso: ($('edit-ano')?.value || '').trim(),
-    lotacao: lot?.nome || (state.funcionarioAtual?.lotacao_nome || ''),
+    lotacao: ehMotoristaTerceirizado('edit')
+      ? LOTACAO_MOTORISTA_NOME
+      : (lot?.nome || (state.funcionarioAtual?.lotacao_nome || '')),
+    dirigindo_para: ($('edit-dirigindo-para')?.value || '').trim(),
   };
 }
 
@@ -2688,6 +2692,8 @@ window.abrirModalAddFuncionario = () => {
   if ($('add-cargo')) $('add-cargo').value = '';
   $('add-ano').value = '';
   if ($('add-empresa')) $('add-empresa').value = '';
+  if ($('add-dirigindo-para')) $('add-dirigindo-para').value = '';
+  if ($('add-lotacao')) { $('add-lotacao').disabled = false; $('add-lotacao').title = ''; }
   if ($('add-outra-secretaria')) $('add-outra-secretaria').checked = false;
   if ($('add-orgao-origem')) $('add-orgao-origem').value = '';
   if ($('add-orgao-origem-wrap')) $('add-orgao-origem-wrap').style.display = 'none';
@@ -2695,10 +2701,11 @@ window.abrirModalAddFuncionario = () => {
   
   $('add-vinculo').innerHTML = '<option value="">Selecione...</option>' + state.vinculos.map(v => `<option value="${v.id}">${htmlEscape(v.categoria)}</option>`).join('');
   $('add-turno').innerHTML = '<option value="">Selecione...</option>' + state.turnos.map(t => `<option value="${t.id}">${htmlEscape(t.nome)}</option>`).join('');
-  aplicarVisibilidadeTerceirizado('add');
 
   const lotacoesOrdenadas = [...state.lotacoes].sort((a,b) => a.nome.localeCompare(b.nome));
   $('add-lotacao').innerHTML = '<option value="">Selecione a lotação inicial...</option>' + lotacoesOrdenadas.map(l => `<option value="${l.id}">${htmlEscape(l.nome)}</option>`).join('');
+  popularSelectDirigindoPara('add-dirigindo-para', '');
+  aplicarVisibilidadeTerceirizado('add');
   
   openModal('modal-add-funcionario');
   setTimeout(() => $('add-nome').focus(), 100);
@@ -2744,6 +2751,32 @@ async function buscarFuncionarioDuplicado({ nome, cpf, matricula }) {
 }
 
 // Vínculo "Terceirizado" não usa Matrícula/Simbologia/Ano do Concurso/GIAP — usa Nome da Empresa
+const LOTACAO_MOTORISTA_NOME = 'Diretoria Técnica de Transporte';
+
+function lotacaoMotoristaId() {
+  const lista = state.lotacoes || [];
+  const exata = lista.find(l => (l.nome || '').trim() === LOTACAO_MOTORISTA_NOME);
+  if (exata) return exata.id;
+  const approx = lista.find(l => (l.nome || '').toLowerCase().includes('diretoria técnica de transporte'));
+  return approx?.id ?? 106;
+}
+
+function popularSelectDirigindoPara(selectId, valorAtual = '') {
+  const sel = $(selectId);
+  if (!sel) return;
+  const ords = [...(state.lotacoes || [])].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  sel.innerHTML = '<option value="">Selecione a unidade…</option>' +
+    ords.map(l => `<option value="${htmlEscape(l.nome)}">${htmlEscape(l.nome)}</option>`).join('');
+  if (valorAtual) {
+    const match = ords.find(l => l.nome === valorAtual);
+    if (match) sel.value = match.nome;
+    else {
+      sel.insertAdjacentHTML('beforeend', `<option value="${htmlEscape(valorAtual)}">${htmlEscape(valorAtual)}</option>`);
+      sel.value = valorAtual;
+    }
+  }
+}
+
 function funcVinculoEhTerceirizado(prefix) {
   const vinculoId = $(`${prefix}-vinculo`)?.value;
   if (!vinculoId) return false;
@@ -2751,15 +2784,66 @@ function funcVinculoEhTerceirizado(prefix) {
   return !!v && (v.categoria || '').trim().toLowerCase() === 'terceirizado';
 }
 
+function cargoEhMotorista(prefix) {
+  const cargo = ($(`${prefix}-cargo`)?.value || '').trim().toUpperCase();
+  const funcao = ($(`${prefix}-funcao`)?.value || '').trim().toUpperCase();
+  const empresa = ($(`${prefix}-empresa`)?.value || '').trim().toUpperCase();
+  // MEGA ON é só motoristas; PROCAD tem Motoristas + Administrativo
+  return cargo.includes('MOTORISTA')
+    || funcao.includes('MOTORISTA')
+    || empresa === 'MEGA ON';
+}
+
+function ehMotoristaTerceirizado(prefix) {
+  return funcVinculoEhTerceirizado(prefix) && cargoEhMotorista(prefix);
+}
+
 function aplicarVisibilidadeTerceirizado(prefix) {
   const isTerceirizado = funcVinculoEhTerceirizado(prefix);
+  const isMotorista = isTerceirizado && cargoEhMotorista(prefix);
   const show = (id, on) => { const el = $(id); if (el) el.style.display = on ? '' : 'none'; };
   show(`${prefix}-matricula-group`, !isTerceirizado);
   show(`${prefix}-simbologia-group`, !isTerceirizado);
   show(`${prefix}-ano-group`, !isTerceirizado);
   show(`${prefix}-empresa-group`, isTerceirizado);
-  if (prefix === 'edit') show('edit-remun-wrap', !isTerceirizado);
+  show(`${prefix}-dirigindo-group`, isMotorista);
+  if (prefix === 'edit') {
+    show('edit-remun-wrap', !isTerceirizado);
+    show('edit-lotacao-fixa-group', isMotorista);
+  }
+  if (isMotorista) {
+    popularSelectDirigindoPara(`${prefix}-dirigindo-para`, $(`${prefix}-dirigindo-para`)?.value || '');
+    aplicarLotacaoFixaMotorista(prefix);
+  } else if (prefix === 'add') {
+    const lot = $('add-lotacao');
+    if (lot) {
+      lot.disabled = false;
+      lot.title = '';
+    }
+  }
   return isTerceirizado;
+}
+
+function aplicarLotacaoFixaMotorista(prefix) {
+  const fixaId = lotacaoMotoristaId();
+  if (prefix === 'add') {
+    const lot = $('add-lotacao');
+    if (!lot) return;
+    if (fixaId && ![...lot.options].some(o => String(o.value) === String(fixaId))) {
+      lot.insertAdjacentHTML('beforeend', `<option value="${fixaId}">${htmlEscape(LOTACAO_MOTORISTA_NOME)}</option>`);
+    }
+    if (fixaId) lot.value = String(fixaId);
+    lot.disabled = true;
+    lot.title = 'Lotação fixa para motoristas terceirizados';
+  } else if (prefix === 'edit') {
+    const fixa = $('edit-lotacao-fixa');
+    if (fixa) fixa.value = LOTACAO_MOTORISTA_NOME;
+    // Sem lotação: pré-seleciona a fixa no seletor de regularização
+    const lot = $('edit-lotacao');
+    if (lot && state.funcionarioAtual?.lotacao_atual_id == null && fixaId) {
+      lot.value = String(fixaId);
+    }
+  }
 }
 
 window.onVinculoChangeTerceirizado = function onVinculoChangeTerceirizado(prefix) {
@@ -2771,8 +2855,24 @@ window.onVinculoChangeTerceirizado = function onVinculoChangeTerceirizado(prefix
     if ($(`${prefix}-ano`))        $(`${prefix}-ano`).value = '';
   } else {
     if ($(`${prefix}-empresa`))    $(`${prefix}-empresa`).value = '';
+    if ($(`${prefix}-dirigindo-para`)) $(`${prefix}-dirigindo-para`).value = '';
+  }
+  if (!ehMotoristaTerceirizado(prefix) && $(`${prefix}-dirigindo-para`)) {
+    $(`${prefix}-dirigindo-para`).value = '';
   }
 };
+
+function bindMotoristaTerceirizadoCampos(prefix) {
+  ['cargo', 'funcao', 'empresa'].forEach((campo) => {
+    const el = $(`${prefix}-${campo}`);
+    if (!el || el._motoristaBound) return;
+    el._motoristaBound = true;
+    el.addEventListener('input', () => aplicarVisibilidadeTerceirizado(prefix));
+    el.addEventListener('change', () => aplicarVisibilidadeTerceirizado(prefix));
+  });
+}
+bindMotoristaTerceirizadoCampos('add');
+bindMotoristaTerceirizadoCampos('edit');
 
 $('add-vinculo').addEventListener('change', () => window.onVinculoChangeTerceirizado('add'));
 $('edit-vinculo').addEventListener('change', () => window.onVinculoChangeTerceirizado('edit'));
@@ -2786,9 +2886,17 @@ window.addToggleOutraSecretaria = function addToggleOutraSecretaria() {
 
 $('btn-salvar-add').onclick = async () => {
   const nome = $('add-nome').value.trim();
-  const lotacaoId = $('add-lotacao').value;
+  let lotacaoId = $('add-lotacao').value;
   const vinculoId = $('add-vinculo').value;
-  
+
+  if (ehMotoristaTerceirizado('add')) {
+    lotacaoId = String(lotacaoMotoristaId());
+    if ($('add-lotacao')) {
+      $('add-lotacao').disabled = false;
+      $('add-lotacao').value = lotacaoId;
+    }
+  }
+
   if (!nome || !lotacaoId || !vinculoId) {
     return showToast('Nome, Lotação e Vínculo são obrigatórios.', 'warning');
   }
@@ -2836,6 +2944,9 @@ $('btn-salvar-add').onclick = async () => {
     simbologia: $('add-simbologia').value || null,
     empresa: $('add-empresa').value.trim() || null,
     cargo: ($('add-cargo')?.value || '').trim() || null,
+    dirigindo_para: ehMotoristaTerceirizado('add')
+      ? (($('add-dirigindo-para')?.value || '').trim() || null)
+      : null,
     ativo: true
   };
 
@@ -2922,7 +3033,7 @@ window.abrirEdicao = async (id) => {
   const data = await handleErr(await sb.from('v_funcionarios_atual').select('*').eq('funcionario_id', id).limit(1).single(), 'editar');
   if (!data) return;
   // Busca matrícula + admissão + observação + simbologia (não vêm na view)
-  const ext = await handleErr(await sb.from('funcionarios').select('matricula, data_admissao, observacao, simbologia, foto_url, empresa, cargo').eq('id', id).single(), 'edit extras');
+  const ext = await handleErr(await sb.from('funcionarios').select('matricula, data_admissao, observacao, simbologia, foto_url, empresa, cargo, dirigindo_para').eq('id', id).single(), 'edit extras');
   state.funcionarioAtual = data;
 
   carregarFotoExistenteEdicao(ext?.foto_url || null);
@@ -2940,6 +3051,7 @@ window.abrirEdicao = async (id) => {
   $('edit-ano').value       = data.ano_concurso || '';
   $('edit-obs').value       = ext?.observacao || '';
   if ($('edit-empresa')) $('edit-empresa').value = ext?.empresa || '';
+  popularSelectDirigindoPara('edit-dirigindo-para', ext?.dirigindo_para || '');
   carregarRemuneracoesNoEdit(id);
 
   // Reset da seção "Registrar Afastamento / Licença"
@@ -2954,18 +3066,31 @@ window.abrirEdicao = async (id) => {
   
   const v = state.vinculos.find(x => x.categoria === data.vinculo);
   $('edit-vinculo').value = v ? v.id : '';
-  aplicarVisibilidadeTerceirizado('edit');
   const t = state.turnos.find(x => x.nome === data.turno);
   $('edit-turno').value = t ? t.id : '';
 
   // Servidor sem lotação ativa: mostra seletor pra regularizar o cadastro
   const semLotacao = data.lotacao_atual_id == null;
-  $('edit-lotacao-group').style.display = semLotacao ? '' : 'none';
+  const isMotorista = (() => {
+    const cargo = (ext?.cargo || '').toUpperCase();
+    const funcao = (data.funcao || '').toUpperCase();
+    const empresa = (ext?.empresa || '').toUpperCase();
+    const isTerc = !!v && (v.categoria || '').trim().toLowerCase() === 'terceirizado';
+    return isTerc && (cargo.includes('MOTORISTA') || funcao.includes('MOTORISTA') || empresa === 'MEGA ON');
+  })();
+
+  $('edit-lotacao-group').style.display = (semLotacao && !isMotorista) ? '' : 'none';
   if (semLotacao) {
     const ords = [...state.lotacoes].sort((a,b) => a.nome.localeCompare(b.nome));
     $('edit-lotacao').innerHTML = '<option value="">Selecione a lotação...</option>' +
       ords.map(l => `<option value="${l.id}">${htmlEscape(l.nome)}</option>`).join('');
+    if (isMotorista) {
+      const fixaId = lotacaoMotoristaId();
+      if (fixaId) $('edit-lotacao').value = String(fixaId);
+    }
   }
+
+  aplicarVisibilidadeTerceirizado('edit');
 
   state._editAntes = capturarSnapshotEdicaoForm();
   state._editFotoAntes = ext?.foto_url || null;
@@ -2979,6 +3104,11 @@ $('btn-salvar-edit').onclick = async () => {
   const btn = $('btn-salvar-edit');
   const id = Number($('edit-id').value);
   const semLotacao = state.funcionarioAtual?.lotacao_atual_id == null;
+  const isMotorista = ehMotoristaTerceirizado('edit');
+  if (isMotorista && semLotacao) {
+    const fixaId = lotacaoMotoristaId();
+    if ($('edit-lotacao') && fixaId) $('edit-lotacao').value = String(fixaId);
+  }
   if (semLotacao && !$('edit-lotacao').value) {
     showToast('Selecione a lotação para regularizar o cadastro.', 'warning');
     return;
@@ -3000,7 +3130,10 @@ $('btn-salvar-edit').onclick = async () => {
     observacao: $('edit-obs').value.trim() || null,
     simbologia: $('edit-simbologia').value || null,
     empresa: $('edit-empresa').value.trim() || null,
-    cargo: ($('edit-cargo')?.value || '').trim() || null
+    cargo: ($('edit-cargo')?.value || '').trim() || null,
+    dirigindo_para: isMotorista
+      ? (($('edit-dirigindo-para')?.value || '').trim() || null)
+      : null,
   };
   if (!$('edit-cpf').value.trim())       diretos.cpf = null;
   if (!$('edit-matricula').value.trim()) diretos.matricula = null;
@@ -3021,16 +3154,19 @@ $('btn-salvar-edit').onclick = async () => {
   let r2;
   if (semLotacao) {
     // Sem registro ativo em funcionario_lotacao: cria um pra regularizar
+    const lotIdReg = isMotorista ? Number(lotacaoMotoristaId()) : Number($('edit-lotacao').value);
     r2 = await sb.from('funcionario_lotacao').insert([{
       funcionario_id: id,
-      lotacao_id:   Number($('edit-lotacao').value),
+      lotacao_id:   lotIdReg,
       vinculo_id:   $('edit-vinculo').value ? Number($('edit-vinculo').value) : null,
       turno_id:     $('edit-turno').value   ? Number($('edit-turno').value)   : null,
       funcao:       $('edit-funcao').value.trim() || null,
       ano_concurso: $('edit-ano').value     ? Number($('edit-ano').value)     : null,
       data_inicio:  new Date().toISOString().slice(0, 10),
       ativo: true,
-      observacao: 'Regularização de lotação via edição de cadastro'
+      observacao: isMotorista
+        ? 'Lotação fixa — motorista terceirizado (Diretoria Técnica de Transporte)'
+        : 'Regularização de lotação via edição de cadastro'
     }]);
   } else {
     r2 = await sb.rpc('fn_editar_lotacao_atual', {
@@ -10500,10 +10636,39 @@ async function renderTerceirizados() {
   voltarCardsTerceirizados();
 }
 
+function ocultarNiveisTerceirizados() {
+  if ($('terceirizados-cards-container')) $('terceirizados-cards-container').style.display = 'none';
+  if ($('terceirizados-procad-submenu')) $('terceirizados-procad-submenu').style.display = 'none';
+  if ($('terceirizados-table-container')) $('terceirizados-table-container').style.display = 'none';
+}
+
 function voltarCardsTerceirizados() {
-  $('terceirizados-cards-container').style.display = 'block';
-  $('terceirizados-table-container').style.display = 'none';
+  ocultarNiveisTerceirizados();
+  if ($('terceirizados-cards-container')) $('terceirizados-cards-container').style.display = 'block';
   $('titulo-terceirizados').textContent = 'Terceirizados';
+  state._tercQuadroAtual = null;
+}
+
+function abrirMenuProcad() {
+  ocultarNiveisTerceirizados();
+  if ($('terceirizados-procad-submenu')) $('terceirizados-procad-submenu').style.display = 'block';
+  $('titulo-terceirizados').textContent = 'Terceirizados · PROCAD';
+  state._tercQuadroAtual = null;
+}
+
+function voltarDeTabelaTerceirizados() {
+  const q = state._tercQuadroAtual || '';
+  if (q === 'MOTORISTA_PROCAD' || q === 'ADMINISTRATIVO_PROCAD') {
+    abrirMenuProcad();
+    return;
+  }
+  voltarCardsTerceirizados();
+}
+
+function textoEhMotorista(cargo, funcao) {
+  const c = String(cargo || '').toUpperCase();
+  const f = String(funcao || '').toUpperCase();
+  return c.includes('MOTORISTA') || f.includes('MOTORISTA');
 }
 
 const TERCEIRIZADOS_QUADROS = {
@@ -10530,20 +10695,30 @@ const TERCEIRIZADOS_QUADROS = {
     cargo: 'MOTORISTA',
     titulo: 'Quadro de Motoristas (MEGA ON)',
     help: 'Lista de motoristas terceirizados pela empresa MEGA ON — Diretoria Técnica de Transporte.',
+    filtro: 'motorista',
   },
   MOTORISTA_PROCAD: {
     empresa: 'PROCAD',
     cargo: 'MOTORISTA',
     titulo: 'Quadro de Motoristas (PROCAD)',
     help: 'Lista de motoristas terceirizados pela empresa PROCAD — Diretoria Técnica de Transporte.',
+    filtro: 'motorista',
+  },
+  ADMINISTRATIVO_PROCAD: {
+    empresa: 'PROCAD',
+    cargo: null,
+    titulo: 'Quadro Administrativo (PROCAD)',
+    help: 'Servidores administrativos da PROCAD (várias funções), excluindo motoristas.',
+    filtro: 'administrativo',
   },
 };
 
 async function abrirQuadroTerceirizado(cargoBusca) {
-  $('terceirizados-cards-container').style.display = 'none';
-  $('terceirizados-table-container').style.display = 'block';
+  ocultarNiveisTerceirizados();
+  if ($('terceirizados-table-container')) $('terceirizados-table-container').style.display = 'block';
 
   const quadro = TERCEIRIZADOS_QUADROS[cargoBusca] || TERCEIRIZADOS_QUADROS.PORTEIRO;
+  state._tercQuadroAtual = cargoBusca;
   $('titulo-terceirizados').textContent = quadro.titulo;
   $('help-terceirizados').textContent = quadro.help;
 
@@ -10553,60 +10728,83 @@ async function abrirQuadroTerceirizado(cargoBusca) {
 async function carregarTerceirizados(cargoBusca) {
   const tBody = $('table-body-terceirizados');
   if (!tBody) return;
-  tBody.innerHTML = '<tr><td colspan="9" class="empty-state"><span class="spinner"></span> Buscando terceirizados...</td></tr>';
-
   const quadro = TERCEIRIZADOS_QUADROS[cargoBusca];
+  const isMotoristaQuadro = quadro?.filtro === 'motorista' || String(cargoBusca || '').startsWith('MOTORISTA');
+  const colCount = isMotoristaQuadro ? 10 : 9;
+  const thDir = $('th-terceirizados-dirigindo');
+  if (thDir) thDir.style.display = isMotoristaQuadro ? '' : 'none';
+
+  tBody.innerHTML = `<tr><td colspan="${colCount}" class="empty-state"><span class="spinner"></span> Buscando terceirizados...</td></tr>`;
+
   const empresaAlvo = quadro?.empresa;
   if (!empresaAlvo) {
-    tBody.innerHTML = '<tr><td colspan="9" class="empty-state">Categoria de terceirizado inválida.</td></tr>';
+    tBody.innerHTML = `<tr><td colspan="${colCount}" class="empty-state">Categoria de terceirizado inválida.</td></tr>`;
     return;
   }
 
-  // 1. Busca os funcionários dessas empresas
   const { data: funcs, error: errFuncs } = await sb
     .from('funcionarios')
-    .select('id, nome, matricula, data_admissao, foto_url, empresa')
+    .select('id, nome, matricula, data_admissao, foto_url, empresa, dirigindo_para, cargo')
     .eq('empresa', empresaAlvo)
     .eq('ativo', true)
     .order('nome');
 
   if (errFuncs) {
-    tBody.innerHTML = '<tr><td colspan="9" class="empty-state error-text">Erro ao buscar terceirizados.</td></tr>';
+    tBody.innerHTML = `<tr><td colspan="${colCount}" class="empty-state error-text">Erro ao buscar terceirizados.</td></tr>`;
     console.error('Erro terceirizados:', errFuncs);
     return;
   }
 
   if (!funcs || funcs.length === 0) {
-    tBody.innerHTML = `<tr><td colspan="9" class="empty-state">Nenhum servidor encontrado para ${empresaAlvo}.</td></tr>`;
+    tBody.innerHTML = `<tr><td colspan="${colCount}" class="empty-state">Nenhum servidor encontrado para ${empresaAlvo}.</td></tr>`;
     return;
   }
 
   const ids = funcs.map(f => f.id);
-
-  // 2. Busca lotação/turno atual
   const { data: atuais } = await sb
     .from('v_funcionarios_atual')
-    .select('funcionario_id, lotacao_nome, turno')
+    .select('funcionario_id, lotacao_nome, turno, funcao')
     .in('funcionario_id', ids);
 
   const mapAtuais = Object.fromEntries((atuais || []).map(x => [x.funcionario_id, x]));
+
+  let lista = funcs.map(f => {
+    const atual = mapAtuais[f.id] || {};
+    return { ...f, funcao: atual.funcao || '', lotacao_nome: atual.lotacao_nome || '', turno: atual.turno || '' };
+  });
+
+  if (quadro.filtro === 'motorista') {
+    lista = lista.filter(f => textoEhMotorista(f.cargo, f.funcao));
+  } else if (quadro.filtro === 'administrativo') {
+    lista = lista.filter(f => !textoEhMotorista(f.cargo, f.funcao));
+  }
+
+  if (!lista.length) {
+    tBody.innerHTML = `<tr><td colspan="${colCount}" class="empty-state">Nenhum servidor neste quadro.</td></tr>`;
+    return;
+  }
+
   const fmtDt = (s) => s ? new Date(s + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
 
-  let html = '';
-  funcs.forEach(f => {
-    const cargo = quadro.cargo || 'Terceirizado';
-    const atual = mapAtuais[f.id] || {};
+  tBody.innerHTML = lista.map(f => {
+    const cargoExibir = isMotoristaQuadro
+      ? (quadro.cargo || f.cargo || 'MOTORISTA')
+      : (f.cargo || f.funcao || '—');
+    const lotacaoExibir = isMotoristaQuadro
+      ? LOTACAO_MOTORISTA_NOME
+      : (f.lotacao_nome || '—');
 
-    html += `
+    return `
       <tr>
         <td style="font-family:monospace;font-size:12px;color:var(--color-text-sec)">${htmlEscape(f.matricula || '—')}</td>
         <td>${htmlFotoLista(f.foto_url)}</td>
         <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(f.nome)}</td>
         <td><span class="badge badge-vinculo" style="background:var(--gov-gray-dark)">${htmlEscape(f.empresa)}</span></td>
-        <td>${cargo}</td>
-        <td>${htmlEscape(atual.lotacao_nome || '—')}</td>
+        <td>${htmlEscape(cargoExibir)}</td>
+        <td>${htmlEscape(lotacaoExibir)}</td>
+        ${isMotoristaQuadro ? `<td>${htmlEscape(f.dirigindo_para || '—')}</td>` : ''}
         <td style="font-size:12px;color:var(--color-text-sec)">${fmtDt(f.data_admissao)}</td>
-        <td>${htmlEscape(atual.turno || '—')}</td>
+        <td>${htmlEscape(f.turno || '—')}</td>
         <td style="text-align:center">
           <div class="table-actions" style="justify-content:center">
             <button class="btn-icon" title="Editar" onclick="abrirEdicao(${f.id})">Editar</button>
@@ -10615,11 +10813,11 @@ async function carregarTerceirizados(cargoBusca) {
         </td>
       </tr>
     `;
-  });
-
-  tBody.innerHTML = html;
+  }).join('');
 }
 
 // Exportar funções para o escopo global (acessíveis no HTML onClick)
 window.abrirQuadroTerceirizado = abrirQuadroTerceirizado;
 window.voltarCardsTerceirizados = voltarCardsTerceirizados;
+window.abrirMenuProcad = abrirMenuProcad;
+window.voltarDeTabelaTerceirizados = voltarDeTabelaTerceirizados;
