@@ -60,6 +60,14 @@ function formatarTamanhoFoto(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** Formata data YYYY-MM-DD (ou ISO) para pt-BR — uso global (Cedidos, Pendentes, etc.) */
+function fmtDt(s) {
+  if (!s) return '—';
+  const raw = String(s).slice(0, 10);
+  const d = new Date(raw + 'T00:00:00');
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
+}
+
 function canvasParaJpeg(canvas, qualidade) {
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', qualidade));
 }
