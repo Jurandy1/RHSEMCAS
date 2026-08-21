@@ -2392,3 +2392,28 @@
   #view-ferias.ferias-v2 .fer-v2-month-grid { grid-template-columns: 1fr; }
   #view-ferias.ferias-v2 .fer-v2-filters-wrap:not(.collapsed) #fer-filtro-panel { display: flex; }
 }
+
+/* Histórico de Ações — diff de→para */
+.log-detalhes-cell {
+  font-size: 12px;
+  color: var(--color-text-sec);
+  max-width: 420px;
+  line-height: 1.45;
+}
+.log-diff-list {
+  margin: 0;
+  padding-left: 1.1em;
+  list-style: disc;
+}
+.log-diff-list li { margin: 2px 0; }
+.log-diff-campo { font-weight: 600; color: var(--gov-blue-dark); }
+.log-diff-de { color: var(--color-text-muted); }
+.log-diff-arrow { color: var(--gov-blue-primary); font-weight: 700; margin: 0 2px; }
+.log-diff-para { color: var(--color-text); font-weight: 500; }
+.log-diff-resumo { margin-bottom: 2px; }
+.log-diff-extras {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  word-break: break-word;
+}

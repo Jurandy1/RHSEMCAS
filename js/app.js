@@ -560,6 +560,178 @@ window.registrarLog = async (tipo_acao, funcionario_id, funcionario_nome, detalh
   if (error) console.error('Falha ao registrar log de auditoria:', error, { tipo_acao, funcionario_id });
 };
 
+/** Normaliza valor para comparação / exibição em logs */
+function normLogVal(v) {
+  if (v == null) return '';
+  return String(v).trim();
+}
+
+function fmtLogExibir(v) {
+  const s = normLogVal(v);
+  return s === '' ? '—' : s;
+}
+
+function valoresLogIguais(a, b, chave) {
+  let va = normLogVal(a);
+  let vb = normLogVal(b);
+  if (chave === 'cpf' || chave === 'telefone' || chave === 'matricula') {
+    va = va.replace(/\D/g, '');
+    vb = vb.replace(/\D/g, '');
+  }
+  return va.localeCompare(vb, 'pt-BR', { sensitivity: 'base' }) === 0;
+}
+
+/**
+ * Compara objetos antes/depois e retorna só campos alterados.
+ * labels: { chave: 'Rótulo PT' }
+ */
+function montarDiffCampos(antes = {}, depois = {}, labels = {}) {
+  const keys = [...new Set([...Object.keys(antes || {}), ...Object.keys(depois || {})])];
+  const alteracoes = [];
+  for (const k of keys) {
+    if (!valoresLogIguais(antes[k], depois[k], k)) {
+      alteracoes.push({
+        campo: labels[k] || k,
+        de: fmtLogExibir(antes[k]),
+        para: fmtLogExibir(depois[k]),
+      });
+    }
+  }
+  return alteracoes;
+}
+
+function detalhesComAlteracoes(alteracoes, extra = {}) {
+  const lista = Array.isArray(alteracoes) ? alteracoes : [];
+  return {
+    ...extra,
+    alteracoes: lista,
+    resumo: lista.length
+      ? `${lista.length} campo(s) alterado(s)`
+      : (extra.resumo || 'Sem alteração de dados'),
+  };
+}
+
+const LOG_LABELS_SERVIDOR = {
+  nome: 'Nome',
+  cpf: 'CPF',
+  matricula: 'Matrícula',
+  email: 'E-mail',
+  telefone: 'Telefone',
+  data_admissao: 'Admissão',
+  simbologia: 'Simbologia',
+  empresa: 'Empresa',
+  cargo: 'Cargo',
+  observacao: 'Observação',
+  vinculo: 'Vínculo',
+  turno: 'Turno',
+  funcao: 'Função',
+  ano_concurso: 'Ano do concurso',
+  lotacao: 'Lotação',
+  foto: 'Foto',
+};
+
+const LOG_LABELS_FERIAS = {
+  data_inicio: 'Início do gozo',
+  data_fim: 'Término do gozo',
+  tipo: 'Tipo',
+  status_ferias: 'Status',
+  periodo_aquisitivo: 'Período aquisitivo',
+  periodo_pendente: 'Período pendente',
+  link_solicitacao: 'Link / documento',
+  observacao: 'Observação',
+  ativo: 'Ativo',
+};
+
+const LOG_LABELS_TRF = {
+  lotacao: 'Lotação',
+  vinculo: 'Vínculo',
+  funcao: 'Função',
+  turno: 'Turno',
+  motivo: 'Motivo',
+  data: 'Data da transferência',
+};
+
+const LOG_LABELS_LICENCA = {
+  tipo_afastamento: 'Tipo',
+  data_inicial: 'Data inicial',
+  data_final: 'Data final',
+  portaria: 'Portaria',
+  num_sei: 'Nº SEI',
+  observacao: 'Observação',
+  ativo: 'Ativo',
+};
+
+const LOG_LABELS_CEDENCIA = {
+  tipo: 'Tipo',
+  orgao_destino_origem: 'Órgão',
+  observacao: 'Observação',
+  lotacao: 'Lotação',
+};
+
+function capturarSnapshotEdicaoForm() {
+  const vinculoId = $('edit-vinculo')?.value;
+  const turnoId = $('edit-turno')?.value;
+  const lotId = $('edit-lotacao')?.value;
+  const vinc = state.vinculos.find(x => String(x.id) === String(vinculoId));
+  const turn = state.turnos.find(x => String(x.id) === String(turnoId));
+  const lot = lotId
+    ? state.lotacoes.find(x => String(x.id) === String(lotId))
+    : null;
+  return {
+    nome: ($('edit-nome')?.value || '').trim(),
+    cpf: ($('edit-cpf')?.value || '').trim(),
+    matricula: ($('edit-matricula')?.value || '').trim(),
+    email: ($('edit-email')?.value || '').trim(),
+    telefone: ($('edit-telefone')?.value || '').trim(),
+    data_admissao: $('edit-admissao')?.value || '',
+    simbologia: $('edit-simbologia')?.value || '',
+    empresa: ($('edit-empresa')?.value || '').trim(),
+    cargo: ($('edit-cargo')?.value || '').trim(),
+    observacao: ($('edit-obs')?.value || '').trim(),
+    vinculo: vinc?.categoria || '',
+    turno: turn?.nome || '',
+    funcao: ($('edit-funcao')?.value || '').trim(),
+    ano_concurso: ($('edit-ano')?.value || '').trim(),
+    lotacao: lot?.nome || (state.funcionarioAtual?.lotacao_nome || ''),
+  };
+}
+
+function formatarDetalhesLogHtml(detalhesRaw) {
+  if (detalhesRaw == null || detalhesRaw === '') return '';
+  let d = detalhesRaw;
+  try {
+    if (typeof d === 'string') d = JSON.parse(d);
+  } catch (_) {
+    return htmlEscape(String(detalhesRaw));
+  }
+  if (!d || typeof d !== 'object') return htmlEscape(String(d));
+
+  const parts = [];
+  if (Array.isArray(d.alteracoes) && d.alteracoes.length) {
+    parts.push(
+      `<ul class="log-diff-list">${d.alteracoes.map((a) =>
+        `<li><span class="log-diff-campo">${htmlEscape(a.campo || 'Campo')}</span>: ` +
+        `<span class="log-diff-de">${htmlEscape(a.de ?? '—')}</span>` +
+        ` <span class="log-diff-arrow">→</span> ` +
+        `<span class="log-diff-para">${htmlEscape(a.para ?? '—')}</span></li>`
+      ).join('')}</ul>`
+    );
+  } else if (d.resumo) {
+    parts.push(`<div class="log-diff-resumo">${htmlEscape(String(d.resumo))}</div>`);
+  }
+
+  const extras = Object.entries(d).filter(([k]) => k !== 'alteracoes' && k !== 'resumo');
+  if (extras.length) {
+    parts.push(
+      `<div class="log-diff-extras">${extras.map(([k, v]) => {
+        const val = v != null && typeof v === 'object' ? JSON.stringify(v) : String(v);
+        return `<span><b>${htmlEscape(k)}</b>: ${htmlEscape(val)}</span>`;
+      }).join(' · ')}</div>`
+    );
+  }
+  return parts.join('') || '';
+}
+
 // ╔══════════════════════════════════════════════════════════════╗
 // ║                       ESTADO GLOBAL                           ║
 // ╚══════════════════════════════════════════════════════════════╝
@@ -1422,8 +1594,11 @@ async function renderPainel() {
   ]);
 
   const kpi    = kpiRes.data    || null;
-  // Vínculo "Contrato" não deve aparecer nos cards nem no gráfico do dashboard
-  const vincs  = (vincsRes.data || []).filter(v => (v.vinculo || '').trim() !== 'Contrato');
+  // Vínculos "Contrato" e "Contrato/SEMUS" não devem aparecer nos cards nem no gráfico do dashboard
+  const vincs  = (vincsRes.data || []).filter(v => {
+    const nome = (v.vinculo || '').trim().toLowerCase();
+    return nome !== 'contrato' && nome !== 'contrato/semus';
+  });
   const locais = locaisRes.data || [];
   const cedKpi = cedKpiRes.data || null;
   const totalAtivos = totalRes.count ?? null;
@@ -1598,23 +1773,17 @@ async function renderPainel() {
 // ║            LOGS SISTEMA                                       ║
 // ╚══════════════════════════════════════════════════════════════╝
 async function renderLogs() {
-  const { data, error } = await sb.from('sistema_logs').select('*').order('created_at', { ascending: false }).limit(50);
+  const { data, error } = await sb.from('sistema_logs').select('*').order('created_at', { ascending: false }).limit(100);
   if (error) { console.error('logs', error); return; }
   $('tbody-logs').innerHTML = (data || []).map(l => {
-    let det = '';
-    if (l.detalhes) {
-      try {
-        const d = typeof l.detalhes === 'string' ? JSON.parse(l.detalhes) : l.detalhes;
-        det = Object.entries(d).map(([k,v]) => `<b>${htmlEscape(k)}</b>: ${htmlEscape(String(v))}`).join(' | ');
-      } catch(e) { det = htmlEscape(String(l.detalhes)); }
-    }
+    const det = formatarDetalhesLogHtml(l.detalhes);
     return `
     <tr>
-      <td style="font-size:12px;color:var(--color-text-sec)">${new Date(l.created_at).toLocaleString('pt-BR')}</td>
+      <td style="font-size:12px;color:var(--color-text-sec);white-space:nowrap">${new Date(l.created_at).toLocaleString('pt-BR')}</td>
       <td style="font-size:12px"><i class="ti ti-user"></i> ${htmlEscape(l.usuario || 'Não identificado')}</td>
       <td><span style="background:var(--gov-blue-light);color:var(--gov-blue-dark);padding:2px 6px;border-radius:4px;font-size:11px;font-weight:bold">${htmlEscape(l.tipo_acao)}</span></td>
       <td><strong>${htmlEscape(l.funcionario_nome || '')}</strong></td>
-      <td style="font-size:12px;color:var(--color-text-sec)">${det}</td>
+      <td class="log-detalhes-cell">${det}</td>
     </tr>
   `;}).join('');
 }
@@ -2798,6 +2967,10 @@ window.abrirEdicao = async (id) => {
       ords.map(l => `<option value="${l.id}">${htmlEscape(l.nome)}</option>`).join('');
   }
 
+  state._editAntes = capturarSnapshotEdicaoForm();
+  state._editFotoAntes = ext?.foto_url || null;
+  state._editFotoMudou = false;
+
   openModal('modal-edit');
   setTimeout(() => $('edit-nome').focus(), 100);
 };
@@ -2874,11 +3047,13 @@ $('btn-salvar-edit').onclick = async () => {
     return;
   }
 
+  let fotoAlterada = false;
   try {
     const novoPath = await processarFotoSalvar(id, 'edit');
     if (novoPath !== undefined) {
       const { error: fotoErr } = await sb.from('funcionarios').update({ foto_url: novoPath }).eq('id', id);
       if (fotoErr) throw fotoErr;
+      fotoAlterada = true;
     }
   } catch (e) {
     btn.disabled = false;
@@ -2887,11 +3062,28 @@ $('btn-salvar-edit').onclick = async () => {
   }
 
   btn.disabled = false;
-  
-  await registrarLog('EDIÇÃO DE SERVIDOR', id, $('edit-nome').value.trim() || 'Servidor(a)', {
-    matricula: $('edit-matricula').value.trim() || null,
-    regularizou_lotacao: semLotacao
-  });
+
+  const depois = capturarSnapshotEdicaoForm();
+  const alteracoes = montarDiffCampos(state._editAntes || {}, depois, LOG_LABELS_SERVIDOR);
+  if (fotoAlterada) {
+    const tinhaFoto = !!state._editFotoAntes;
+    alteracoes.push({
+      campo: LOG_LABELS_SERVIDOR.foto,
+      de: tinhaFoto ? 'Foto anterior' : '—',
+      para: _fotoUi.edit?.remove ? 'Removida' : 'Nova foto',
+    });
+  }
+  await registrarLog(
+    'EDIÇÃO DE SERVIDOR',
+    id,
+    $('edit-nome').value.trim() || 'Servidor(a)',
+    detalhesComAlteracoes(alteracoes, {
+      matricula: $('edit-matricula').value.trim() || null,
+      regularizou_lotacao: semLotacao,
+    })
+  );
+  state._editAntes = null;
+  state._editFotoAntes = null;
   showToast('Alterações salvas com sucesso', 'success');
   closeModal('modal-edit');
   carregarFuncionarios();
@@ -3053,6 +3245,15 @@ window.abrirTransferencia = async (id, { fromLicencas = false, fromSemLotacao = 
   const lotAtualId = data.lotacao_atual_id ?? data.lotacao_id ?? null;
   renderArvoreTransfer(lotAtualId);
 
+  state._trfAntes = {
+    lotacao: data.caminho_lotacao || data.lotacao_nome || (fromSemLotacao ? 'Sem lotação' : ''),
+    vinculo: data.vinculo || '',
+    funcao: data.funcao || '',
+    turno: data.turno || '',
+    motivo: '',
+    data: '',
+  };
+
   openModal('modal-transfer');
 };
 
@@ -3159,14 +3360,37 @@ $('btn-confirmar-trf').onclick = async () => {
   btn.disabled = false;
   if (error) { showToast('Erro: ' + error.message, 'error'); return; }
 
+  const lotNova = state.lotacoes.find(x => String(x.id) === String(novaLot));
+  const antes = state._trfAntes || {};
+  const depois = {
+    lotacao: lotNova?.caminho || lotNova?.nome || String(novaLot),
+    vinculo: antes.vinculo || '',
+    funcao: antes.funcao || '',
+    turno: antes.turno || '',
+    motivo: motivo || '',
+    data: $('trf-data').value || '',
+  };
+  if ($('trf-alterar')?.checked) {
+    const vincId = $('trf-vinculo')?.value;
+    const turnId = $('trf-turno')?.value;
+    depois.funcao = ($('trf-funcao')?.value || '').trim() || depois.funcao;
+    depois.vinculo = vincId
+      ? (state.vinculos.find(x => String(x.id) === String(vincId))?.categoria || depois.vinculo)
+      : depois.vinculo;
+    depois.turno = turnId
+      ? (state.turnos.find(x => String(x.id) === String(turnId))?.nome || depois.turno)
+      : depois.turno;
+  }
+  const alteracoes = montarDiffCampos(antes, depois, LOG_LABELS_TRF);
   await registrarLog(
     veioDeSemLotacao
       ? 'ALOCAÇÃO (SEM LOTAÇÃO)'
       : (veioDeLicencas ? 'DEFINIÇÃO DE LOTAÇÃO (LICENÇA)' : 'TRANSFERÊNCIA'),
     id,
     state.funcionarioAtual?.nome || 'Servidor(a)',
-    { nova_lot_id: novaLot, motivo }
+    detalhesComAlteracoes(alteracoes, { nova_lot_id: novaLot })
   );
+  state._trfAntes = null;
   state._trfFromLicencas = false;
   state._trfFromSemLotacao = false;
   showToast(
@@ -8104,7 +8328,10 @@ function ferBindUiOnce() {
 window.cancelarFerias = async (id) => {
   const motivo = prompt('Motivo do cancelamento (opcional):');
   if (motivo === null) return;
-  const { data: atual } = await sb.from('funcionario_ferias').select('observacao').eq('id', id).single();
+  const { data: atual } = await sb.from('funcionario_ferias')
+    .select('observacao, status_ferias, data_inicio, data_fim, funcionario_id')
+    .eq('id', id)
+    .single();
   const obs = ((atual?.observacao ? atual.observacao + '\n' : '') + '[CANCELADA]' + (motivo ? ' ' + motivo : '')).trim();
   const upd = { ativo: false, observacao: obs, status_ferias: 'Cancelado' };
   let { error } = await sb.from('funcionario_ferias').update(upd).eq('id', id);
@@ -8112,7 +8339,27 @@ window.cancelarFerias = async (id) => {
     ({ error } = await sb.from('funcionario_ferias').update({ ativo: false, observacao: obs }).eq('id', id));
   }
   if (error) return showToast('Erro: ' + error.message, 'error');
-  await registrarLog('FÉRIAS CANCELADA', null, 'Servidor', { ferias_id: id, motivo });
+  const alteracoes = montarDiffCampos(
+    {
+      status_ferias: atual?.status_ferias || 'Ativo',
+      ativo: 'sim',
+      observacao: atual?.observacao || '',
+    },
+    {
+      status_ferias: 'Cancelado',
+      ativo: 'não',
+      observacao: obs,
+    },
+    LOG_LABELS_FERIAS
+  );
+  if (motivo) alteracoes.push({ campo: 'Motivo', de: '—', para: motivo });
+  const row = _ferV2.rows?.find((x) => x.id === id);
+  await registrarLog(
+    'FÉRIAS CANCELADA',
+    atual?.funcionario_id || row?.funcionario_id || null,
+    row?.servidor || 'Servidor',
+    detalhesComAlteracoes(alteracoes, { ferias_id: id })
+  );
   showToast('Férias canceladas', 'success');
   renderFerias();
 };
@@ -8130,6 +8377,7 @@ function ferLimparModal() {
 
 window.abrirAgendarFerias = () => {
   ferLimparModal();
+  state._ferEditAntes = null;
   openModal('modal-ferias');
   setTimeout(() => $('fer-search')?.focus(), 100);
 };
@@ -8167,6 +8415,16 @@ window.ferEditarRegistro = function ferEditarRegistro(id) {
     const d = Math.floor((new Date(r.data_fim) - new Date(r.data_inicio)) / 86400000) + 1;
     $('fer-dias').value = d > 0 ? `${d} dia(s)` : '';
   }
+  state._ferEditAntes = {
+    data_inicio: r.data_inicio || '',
+    data_fim: r.data_fim || '',
+    tipo: r.tipo || '',
+    status_ferias: r.status || '',
+    periodo_aquisitivo: r.aquisitivo !== '—' ? (r.aquisitivo || '') : '',
+    periodo_pendente: r.pendente !== '—' ? (r.pendente || '') : '',
+    link_solicitacao: r.email || '',
+    observacao: r.observacao || '',
+  };
   openModal('modal-ferias');
 };
 
@@ -8311,7 +8569,30 @@ async function salvarFerias() {
   }
   if (btn) btn.disabled = false;
   if (error) return showToast('Erro: ' + error.message, 'error');
-  await registrarLog(editId ? 'FÉRIAS EDITADA' : 'FÉRIAS AGENDADA', funcId, $('fer-search')?.value || 'Servidor(a)', { inicio, fim, aquisitivo, pendente });
+  if (editId) {
+    const depois = {
+      data_inicio: inicio || '',
+      data_fim: fim || '',
+      tipo: payload.tipo || '',
+      status_ferias: status || '',
+      periodo_aquisitivo: aquisitivo || '',
+      periodo_pendente: pendente || '',
+      link_solicitacao: payload.link_solicitacao || '',
+      observacao: payload.observacao || '',
+    };
+    const alteracoes = montarDiffCampos(state._ferEditAntes || {}, depois, LOG_LABELS_FERIAS);
+    await registrarLog(
+      'FÉRIAS EDITADA',
+      funcId,
+      $('fer-search')?.value || 'Servidor(a)',
+      detalhesComAlteracoes(alteracoes, { ferias_id: editId })
+    );
+  } else {
+    await registrarLog('FÉRIAS AGENDADA', funcId, $('fer-search')?.value || 'Servidor(a)', {
+      inicio, fim, aquisitivo, pendente, status,
+    });
+  }
+  state._ferEditAntes = null;
   showToast(editId ? 'Registro atualizado' : (inicio ? 'Férias registradas' : 'Pendência registrada'), 'success');
   closeModal('modal-ferias');
   renderFerias();
@@ -9612,10 +9893,23 @@ window.retornarAtiva = async (licenca_id, funcionario_id) => {
   }
   
   const licenca = (window._licencasCache || []).find(l => Number(l.licenca_id) === Number(licenca_id));
-  await registrarLog('ENCERRAMENTO DE LICENÇA', funcionario_id, licenca?.nome || 'Servidor(a)', {
-    licenca_id: licenca_id || null,
-    data_final: hoje
-  });
+  const alteracoes = montarDiffCampos(
+    {
+      ativo: 'sim',
+      data_final: licenca?.data_final || '',
+    },
+    {
+      ativo: 'não',
+      data_final: hoje,
+    },
+    LOG_LABELS_LICENCA
+  );
+  await registrarLog(
+    'ENCERRAMENTO DE LICENÇA',
+    funcionario_id,
+    licenca?.nome || 'Servidor(a)',
+    detalhesComAlteracoes(alteracoes, { licenca_id: licenca_id || null })
+  );
   showToast('Afastamento encerrado! O servidor permanece na lotação original.', 'success');
   carregarTabelaLicencas();
   carregarFuncionarios();
@@ -9688,11 +9982,33 @@ $('btn-salvar-tipo-licenca')?.addEventListener('click', async () => {
   btn.disabled = false;
   if (error || !data) return showToast('Erro ao editar licença: ' + (error?.message || 'registro não atualizado'), 'error');
 
-  await registrarLog('EDIÇÃO DE LICENÇA', Number(licenca.funcionario_id), licenca.nome || 'Servidor(a)', {
-    licenca_id: licencaId,
-    tipo_anterior: (licenca.tipo_afastamento || '').trim(),
-    ...payload
-  });
+  await registrarLog(
+    'EDIÇÃO DE LICENÇA',
+    Number(licenca.funcionario_id),
+    licenca.nome || 'Servidor(a)',
+    detalhesComAlteracoes(
+      montarDiffCampos(
+        {
+          tipo_afastamento: (licenca.tipo_afastamento || '').trim(),
+          data_inicial: licenca.data_inicial || '',
+          data_final: licenca.data_final || '',
+          portaria: licenca.portaria || '',
+          num_sei: licenca.num_sei || '',
+          observacao: licenca.observacao || '',
+        },
+        {
+          tipo_afastamento: payload.tipo_afastamento || '',
+          data_inicial: payload.data_inicial || '',
+          data_final: payload.data_final || '',
+          portaria: payload.portaria || '',
+          num_sei: payload.num_sei || '',
+          observacao: payload.observacao || '',
+        },
+        LOG_LABELS_LICENCA
+      ),
+      { licenca_id: licencaId }
+    )
+  );
   closeModal('modal-editar-tipo-licenca');
   showToast('Licença atualizada com sucesso.', 'success');
   renderLicencas();
@@ -9972,6 +10288,16 @@ window.editarCedencia = async (id) => {
   } catch (_) { /* ok */ }
   cedidoPopularLotacoes(lotAtualId);
 
+  const lotNome = lotAtualId
+    ? (state.lotacoes.find(x => String(x.id) === String(lotAtualId))?.nome || '')
+    : '';
+  state._cedEditAntes = {
+    tipo: data.tipo || '',
+    orgao_destino_origem: data.orgao_destino_origem || '',
+    observacao: data.observacao || '',
+    lotacao: lotNome,
+  };
+
   let hid = $('cedencia-id-editar');
   if (!hid) {
     hid = document.createElement('input');
@@ -10005,6 +10331,8 @@ window.abrirModalCedido = async () => {
   if (!state.lotacoes?.length) await carregarLotacoesParaArvore();
   cedidoPopularLotacoes('');
   cedidoAtualizarCamposTipo();
+  state._cedEditAntes = null;
+  if ($('cedencia-id-editar')) $('cedencia-id-editar').remove();
 
   const divFunc = $('cedido-func-nome-container');
   divFunc.innerHTML = `
@@ -10129,12 +10457,34 @@ window.salvarCedencia = async () => {
     showToast('Erro: ' + error.message, 'error');
   } else {
     const nomeServidor = $('cedido-func-search')?.value || $('cedido-func-nome-container')?.querySelector('input')?.value || 'Servidor(a)';
-    await registrarLog(editId ? 'EDIÇÃO DE CEDÊNCIA' : 'CADASTRO DE CEDÊNCIA', Number(fId), nomeServidor, {
-      cedencia_id: editId ? Number(editId) : null,
-      tipo,
-      orgao,
-      lotacao_id: lotacaoId || null
-    });
+    if (editId) {
+      const lotNome = lotacaoId
+        ? (state.lotacoes.find(x => String(x.id) === String(lotacaoId))?.nome || '')
+        : '';
+      const depois = {
+        tipo,
+        orgao_destino_origem: orgao || '',
+        observacao: payload.observacao || '',
+        lotacao: lotNome || (state._cedEditAntes?.lotacao || ''),
+      };
+      await registrarLog(
+        'EDIÇÃO DE CEDÊNCIA',
+        Number(fId),
+        nomeServidor,
+        detalhesComAlteracoes(
+          montarDiffCampos(state._cedEditAntes || {}, depois, LOG_LABELS_CEDENCIA),
+          { cedencia_id: Number(editId) }
+        )
+      );
+    } else {
+      await registrarLog('CADASTRO DE CEDÊNCIA', Number(fId), nomeServidor, {
+        cedencia_id: null,
+        tipo,
+        orgao,
+        lotacao_id: lotacaoId || null
+      });
+    }
+    state._cedEditAntes = null;
     showToast('Registro salvo com sucesso!', 'success');
     if ($('cedencia-id-editar')) $('cedencia-id-editar').remove();
     closeModal('modal-cedido');
