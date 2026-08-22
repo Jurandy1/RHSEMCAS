@@ -1605,10 +1605,16 @@ async function renderPainel() {
 
   const kpi    = kpiRes.data    || null;
   // Vínculos "Contrato", "Contrato/SEMUS" e "PROCAD" não devem aparecer nos cards nem no gráfico do dashboard
-  const vincs  = (vincsRes.data || []).filter(v => {
+  const vincsRaw = (vincsRes.data || []).filter(v => {
     const nome = (v.vinculo || '').trim().toLowerCase();
     return nome !== 'contrato' && nome !== 'contrato/semus' && nome !== 'procad';
   });
+  // Garante o card "Jovem Aprendiz" mesmo com zero servidores
+  const vincs = [...vincsRaw];
+  if (!vincs.some(v => (v.vinculo || '').trim().toLowerCase() === 'jovem aprendiz')) {
+    const vId = state.vinculos.find(x => (x.categoria || '').trim().toLowerCase() === 'jovem aprendiz')?.id ?? null;
+    vincs.push({ vinculo: 'Jovem Aprendiz', vinculo_id: vId, total: 0 });
+  }
   const locais = locaisRes.data || [];
   const cedKpi = cedKpiRes.data || null;
   const totalAtivos = totalRes.count ?? null;
@@ -1620,6 +1626,7 @@ async function renderPainel() {
     'Efetivo':'#1351b4','Comissionado':'#b28900',
     'Terceirizado':'#3B6D11','Serviço Prestado':'#534AB7',
     'Contrato Temporário':'#993C1D','PROCAD':'#0F6E56',
+    'Jovem Aprendiz':'#0c7c59',
     'Contrato/SEMUS':'#e52207','Contrato':'#888','Outro':'#999'
   };
 
