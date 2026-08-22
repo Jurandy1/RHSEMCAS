@@ -328,7 +328,7 @@
         
         <!-- VISÃO DE CARDS -->
         <div id="terceirizados-cards-container">
-          <p class="view-help">Selecione uma categoria de terceirizados para visualizar o quadro de servidores.</p>
+          <p class="view-help">Selecione uma categoria. Servidores SEMCAS (ex.: Comissionado) marcados com “Também atua como terceirizado” também aparecem aqui.</p>
           <div class="kpi-grid" style="margin-top:20px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
             <div class="kpi-card" style="border-top-color:var(--gov-blue-primary)" onclick="abrirQuadroTerceirizado('VIGILANTE')">
               <div class="kpi-card-label">Categoria</div>
@@ -400,7 +400,9 @@
                   <th style="width:48px" title="Foto do servidor">Foto</th>
                   <th style="min-width:180px">Nome do Servidor</th>
                   <th>Empresa</th>
+                  <th>Vínculo</th>
                   <th>Cargo</th>
+                  <th>Função</th>
                   <th>Lotação Atual</th>
                   <th id="th-terceirizados-dirigindo" style="display:none">Dirigindo para</th>
                   <th style="width:100px">Admissão</th>
@@ -1589,8 +1591,32 @@
           <select class="form-control" id="add-simbologia"></select>
         </div>
         <div class="form-group" id="add-empresa-group" style="display:none">
-          <label class="form-label">Nome da Empresa</label>
-          <input type="text" class="form-control" id="add-empresa" placeholder="Empresa terceirizada">
+          <label class="form-label">Nome da Empresa *</label>
+          <input type="text" class="form-control" id="add-empresa" placeholder="Ex.: PROCAD, MEGA ON, SERVFAZ">
+        </div>
+        <div class="form-group full-width" id="add-atuacao-terc-wrap" style="display:none;border:1px solid var(--gov-border);border-radius:8px;padding:12px;background:#f7fafc">
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--gov-blue-dark)">
+            <input type="checkbox" id="add-atuacao-terceirizada" style="margin-top:3px" onchange="toggleAtuacaoTerceirizada('add')">
+            <span>Também atua como terceirizado<br>
+              <small style="font-weight:400;color:var(--color-text-muted)">Mantém o vínculo atual (ex.: Comissionado) e aparece também no menu Terceirizados.</small>
+            </span>
+          </label>
+          <div id="add-atuacao-terc-campos" class="form-grid" style="display:none;margin-top:12px">
+            <div class="form-group">
+              <label class="form-label">Nome da empresa *</label>
+              <input type="text" class="form-control" id="add-empresa-atuacao" placeholder="Ex.: PROCAD">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Função na terceirizada *</label>
+              <input type="text" class="form-control" id="add-funcao-terceirizada" placeholder="Função na empresa">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Turno na terceirizada</label>
+              <select class="form-control" id="add-turno-terceirizada">
+                <option value="">—</option>
+              </select>
+            </div>
+          </div>
         </div>
         <div class="form-group full-width" id="add-dirigindo-group" style="display:none">
           <label class="form-label">Dirigindo para</label>
@@ -1808,8 +1834,32 @@
           <select class="form-control" id="edit-simbologia"></select>
         </div>
         <div class="form-group" id="edit-empresa-group" style="display:none">
-          <label class="form-label">Nome da Empresa</label>
-          <input type="text" class="form-control" id="edit-empresa" placeholder="Empresa terceirizada">
+          <label class="form-label">Nome da Empresa *</label>
+          <input type="text" class="form-control" id="edit-empresa" placeholder="Ex.: PROCAD, MEGA ON, SERVFAZ">
+        </div>
+        <div class="form-group full-width" id="edit-atuacao-terc-wrap" style="display:none;border:1px solid var(--gov-border);border-radius:8px;padding:12px;background:#f7fafc">
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--gov-blue-dark)">
+            <input type="checkbox" id="edit-atuacao-terceirizada" style="margin-top:3px" onchange="toggleAtuacaoTerceirizada('edit')">
+            <span>Também atua como terceirizado<br>
+              <small style="font-weight:400;color:var(--color-text-muted)">Mantém o vínculo atual (ex.: Comissionado) e aparece também no menu Terceirizados.</small>
+            </span>
+          </label>
+          <div id="edit-atuacao-terc-campos" class="form-grid" style="display:none;margin-top:12px">
+            <div class="form-group">
+              <label class="form-label">Nome da empresa *</label>
+              <input type="text" class="form-control" id="edit-empresa-atuacao" placeholder="Ex.: PROCAD">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Função na terceirizada *</label>
+              <input type="text" class="form-control" id="edit-funcao-terceirizada" placeholder="Função na empresa">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Turno na terceirizada</label>
+              <select class="form-control" id="edit-turno-terceirizada">
+                <option value="">—</option>
+              </select>
+            </div>
+          </div>
         </div>
         <div class="form-group full-width" id="edit-dirigindo-group" style="display:none">
           <label class="form-label">Dirigindo para</label>
@@ -1998,7 +2048,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20260821l"></script>
+  <script type="module" src="js/app.js?v=20260822c"></script>
 
 
 

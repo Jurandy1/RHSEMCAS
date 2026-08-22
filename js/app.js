@@ -629,6 +629,9 @@ const LOG_LABELS_SERVIDOR = {
   lotacao: 'Lotação',
   foto: 'Foto',
   dirigindo_para: 'Dirigindo para',
+  atuacao_terceirizada: 'Também terceirizado',
+  funcao_terceirizada: 'Função na terceirizada',
+  turno_terceirizada: 'Turno na terceirizada',
 };
 
 const LOG_LABELS_FERIAS = {
@@ -686,7 +689,7 @@ function capturarSnapshotEdicaoForm() {
     telefone: ($('edit-telefone')?.value || '').trim(),
     data_admissao: $('edit-admissao')?.value || '',
     simbologia: $('edit-simbologia')?.value || '',
-    empresa: ($('edit-empresa')?.value || '').trim(),
+    empresa: ($('edit-empresa')?.value || $('edit-empresa-atuacao')?.value || '').trim(),
     cargo: ($('edit-cargo')?.value || '').trim(),
     observacao: ($('edit-obs')?.value || '').trim(),
     vinculo: vinc?.categoria || '',
@@ -697,6 +700,9 @@ function capturarSnapshotEdicaoForm() {
       ? LOTACAO_MOTORISTA_NOME
       : (lot?.nome || (state.funcionarioAtual?.lotacao_nome || '')),
     dirigindo_para: ($('edit-dirigindo-para')?.value || '').trim(),
+    atuacao_terceirizada: $('edit-atuacao-terceirizada')?.checked ? 'sim' : 'não',
+    funcao_terceirizada: ($('edit-funcao-terceirizada')?.value || '').trim(),
+    turno_terceirizada: ($('edit-turno-terceirizada')?.value || '').trim(),
   };
 }
 
@@ -2692,6 +2698,11 @@ window.abrirModalAddFuncionario = () => {
   if ($('add-cargo')) $('add-cargo').value = '';
   $('add-ano').value = '';
   if ($('add-empresa')) $('add-empresa').value = '';
+  if ($('add-empresa-atuacao')) $('add-empresa-atuacao').value = '';
+  if ($('add-funcao-terceirizada')) $('add-funcao-terceirizada').value = '';
+  if ($('add-turno-terceirizada')) $('add-turno-terceirizada').value = '';
+  if ($('add-atuacao-terceirizada')) $('add-atuacao-terceirizada').checked = false;
+  if ($('add-atuacao-terc-campos')) $('add-atuacao-terc-campos').style.display = 'none';
   if ($('add-dirigindo-para')) $('add-dirigindo-para').value = '';
   if ($('add-lotacao')) { $('add-lotacao').disabled = false; $('add-lotacao').title = ''; }
   if ($('add-outra-secretaria')) $('add-outra-secretaria').checked = false;
@@ -2798,6 +2809,80 @@ function ehMotoristaTerceirizado(prefix) {
   return funcVinculoEhTerceirizado(prefix) && cargoEhMotorista(prefix);
 }
 
+function popularSelectTurnoTerceirizada(prefix, valorAtual = '') {
+  const sel = $(`${prefix}-turno-terceirizada`);
+  if (!sel) return;
+  sel.innerHTML = '<option value="">—</option>' +
+    (state.turnos || []).map(t => `<option value="${htmlEscape(t.nome)}">${htmlEscape(t.nome)}</option>`).join('');
+  if (valorAtual) {
+    if (![...sel.options].some(o => o.value === valorAtual)) {
+      sel.insertAdjacentHTML('beforeend', `<option value="${htmlEscape(valorAtual)}">${htmlEscape(valorAtual)}</option>`);
+    }
+    sel.value = valorAtual;
+  }
+}
+
+window.toggleAtuacaoTerceirizada = function toggleAtuacaoTerceirizada(prefix) {
+  const on = !!$(`${prefix}-atuacao-terceirizada`)?.checked;
+  const campos = $(`${prefix}-atuacao-terc-campos`);
+  if (campos) campos.style.display = on ? 'grid' : 'none';
+  if (!on) {
+    if ($(`${prefix}-empresa-atuacao`)) $(`${prefix}-empresa-atuacao`).value = '';
+    if ($(`${prefix}-funcao-terceirizada`)) $(`${prefix}-funcao-terceirizada`).value = '';
+    if ($(`${prefix}-turno-terceirizada`)) $(`${prefix}-turno-terceirizada`).value = '';
+  } else {
+    popularSelectTurnoTerceirizada(prefix, $(`${prefix}-turno-terceirizada`)?.value || '');
+  }
+};
+
+/** Lê empresa / atuação extra conforme o modo do formulário */
+function lerDadosEmpresaTerceirizada(prefix) {
+  const isTerc = funcVinculoEhTerceirizado(prefix);
+  if (isTerc) {
+    return {
+      empresa: ($(`${prefix}-empresa`)?.value || '').trim() || null,
+      atuacao_terceirizada: false,
+      funcao_terceirizada: null,
+      turno_terceirizada: null,
+    };
+  }
+  const on = !!$(`${prefix}-atuacao-terceirizada`)?.checked;
+  if (!on) {
+    return {
+      empresa: null,
+      atuacao_terceirizada: false,
+      funcao_terceirizada: null,
+      turno_terceirizada: null,
+    };
+  }
+  return {
+    empresa: ($(`${prefix}-empresa-atuacao`)?.value || '').trim() || null,
+    atuacao_terceirizada: true,
+    funcao_terceirizada: ($(`${prefix}-funcao-terceirizada`)?.value || '').trim() || null,
+    turno_terceirizada: ($(`${prefix}-turno-terceirizada`)?.value || '').trim() || null,
+  };
+}
+
+function validarAtuacaoTerceirizada(prefix) {
+  if (funcVinculoEhTerceirizado(prefix)) {
+    if (!($(`${prefix}-empresa`)?.value || '').trim()) {
+      showToast('Informe o nome da empresa terceirizada.', 'warning');
+      return false;
+    }
+    return true;
+  }
+  if (!$(`${prefix}-atuacao-terceirizada`)?.checked) return true;
+  if (!($(`${prefix}-empresa-atuacao`)?.value || '').trim()) {
+    showToast('Informe a empresa da atuação terceirizada.', 'warning');
+    return false;
+  }
+  if (!($(`${prefix}-funcao-terceirizada`)?.value || '').trim()) {
+    showToast('Informe a função na terceirizada.', 'warning');
+    return false;
+  }
+  return true;
+}
+
 function aplicarVisibilidadeTerceirizado(prefix) {
   const isTerceirizado = funcVinculoEhTerceirizado(prefix);
   const isMotorista = isTerceirizado && cargoEhMotorista(prefix);
@@ -2806,10 +2891,14 @@ function aplicarVisibilidadeTerceirizado(prefix) {
   show(`${prefix}-simbologia-group`, !isTerceirizado);
   show(`${prefix}-ano-group`, !isTerceirizado);
   show(`${prefix}-empresa-group`, isTerceirizado);
+  show(`${prefix}-atuacao-terc-wrap`, !isTerceirizado);
   show(`${prefix}-dirigindo-group`, isMotorista);
   if (prefix === 'edit') {
     show('edit-remun-wrap', !isTerceirizado);
     show('edit-lotacao-fixa-group', isMotorista);
+  }
+  if (!isTerceirizado) {
+    toggleAtuacaoTerceirizada(prefix);
   }
   if (isMotorista) {
     popularSelectDirigindoPara(`${prefix}-dirigindo-para`, $(`${prefix}-dirigindo-para`)?.value || '');
@@ -2848,14 +2937,17 @@ function aplicarLotacaoFixaMotorista(prefix) {
 
 window.onVinculoChangeTerceirizado = function onVinculoChangeTerceirizado(prefix) {
   const isTerceirizado = aplicarVisibilidadeTerceirizado(prefix);
-  // Limpa os campos que ficaram escondidos, pra não salvar lixo
   if (isTerceirizado) {
     if ($(`${prefix}-matricula`))  $(`${prefix}-matricula`).value = '';
     if ($(`${prefix}-simbologia`)) $(`${prefix}-simbologia`).value = '';
     if ($(`${prefix}-ano`))        $(`${prefix}-ano`).value = '';
-  } else {
-    if ($(`${prefix}-empresa`))    $(`${prefix}-empresa`).value = '';
-    if ($(`${prefix}-dirigindo-para`)) $(`${prefix}-dirigindo-para`).value = '';
+    // Ao virar Terceirizado puro, migra empresa da atuação extra se houver
+    const empAtu = ($(`${prefix}-empresa-atuacao`)?.value || '').trim();
+    if (empAtu && $(`${prefix}-empresa`) && !$(`${prefix}-empresa`).value) {
+      $(`${prefix}-empresa`).value = empAtu;
+    }
+    if ($(`${prefix}-atuacao-terceirizada`)) $(`${prefix}-atuacao-terceirizada`).checked = false;
+    toggleAtuacaoTerceirizada(prefix);
   }
   if (!ehMotoristaTerceirizado(prefix) && $(`${prefix}-dirigindo-para`)) {
     $(`${prefix}-dirigindo-para`).value = '';
@@ -2900,6 +2992,7 @@ $('btn-salvar-add').onclick = async () => {
   if (!nome || !lotacaoId || !vinculoId) {
     return showToast('Nome, Lotação e Vínculo são obrigatórios.', 'warning');
   }
+  if (!validarAtuacaoTerceirizada('add')) return;
 
   const outraSec = !!$('add-outra-secretaria')?.checked;
   const orgaoOrigem = ($('add-orgao-origem')?.value || '').trim();
@@ -2934,6 +3027,7 @@ $('btn-salvar-add').onclick = async () => {
   const btn = $('btn-salvar-add');
   btn.disabled = true;
 
+  const empTerc = lerDadosEmpresaTerceirizada('add');
   const funcPayload = {
     nome: nome,
     cpf: $('add-cpf').value.trim() || null,
@@ -2942,8 +3036,11 @@ $('btn-salvar-add').onclick = async () => {
     email: $('add-email').value.trim() || null,
     telefone: $('add-telefone').value.trim() || null,
     simbologia: $('add-simbologia').value || null,
-    empresa: $('add-empresa').value.trim() || null,
+    empresa: empTerc.empresa,
     cargo: ($('add-cargo')?.value || '').trim() || null,
+    atuacao_terceirizada: empTerc.atuacao_terceirizada,
+    funcao_terceirizada: empTerc.funcao_terceirizada,
+    turno_terceirizada: empTerc.turno_terceirizada,
     dirigindo_para: ehMotoristaTerceirizado('add')
       ? (($('add-dirigindo-para')?.value || '').trim() || null)
       : null,
@@ -3033,7 +3130,7 @@ window.abrirEdicao = async (id) => {
   const data = await handleErr(await sb.from('v_funcionarios_atual').select('*').eq('funcionario_id', id).limit(1).single(), 'editar');
   if (!data) return;
   // Busca matrícula + admissão + observação + simbologia (não vêm na view)
-  const ext = await handleErr(await sb.from('funcionarios').select('matricula, data_admissao, observacao, simbologia, foto_url, empresa, cargo, dirigindo_para').eq('id', id).single(), 'edit extras');
+  const ext = await handleErr(await sb.from('funcionarios').select('matricula, data_admissao, observacao, simbologia, foto_url, empresa, cargo, dirigindo_para, atuacao_terceirizada, funcao_terceirizada, turno_terceirizada').eq('id', id).single(), 'edit extras');
   state.funcionarioAtual = data;
 
   carregarFotoExistenteEdicao(ext?.foto_url || null);
@@ -3050,7 +3147,22 @@ window.abrirEdicao = async (id) => {
   $('edit-funcao').value    = data.funcao || '';
   $('edit-ano').value       = data.ano_concurso || '';
   $('edit-obs').value       = ext?.observacao || '';
-  if ($('edit-empresa')) $('edit-empresa').value = ext?.empresa || '';
+  if ($('edit-empresa')) $('edit-empresa').value = '';
+  if ($('edit-empresa-atuacao')) $('edit-empresa-atuacao').value = '';
+  if ($('edit-funcao-terceirizada')) $('edit-funcao-terceirizada').value = '';
+  if ($('edit-atuacao-terceirizada')) $('edit-atuacao-terceirizada').checked = false;
+  if ($('edit-atuacao-terc-campos')) $('edit-atuacao-terc-campos').style.display = 'none';
+  popularSelectTurnoTerceirizada('edit', '');
+  const vCheck = state.vinculos.find(x => x.categoria === data.vinculo);
+  const isTercVinculo = !!vCheck && (vCheck.categoria || '').trim().toLowerCase() === 'terceirizado';
+  if (isTercVinculo) {
+    if ($('edit-empresa')) $('edit-empresa').value = ext?.empresa || '';
+  } else if (ext?.atuacao_terceirizada || (ext?.empresa && !isTercVinculo)) {
+    if ($('edit-atuacao-terceirizada')) $('edit-atuacao-terceirizada').checked = true;
+    if ($('edit-empresa-atuacao')) $('edit-empresa-atuacao').value = ext?.empresa || '';
+    if ($('edit-funcao-terceirizada')) $('edit-funcao-terceirizada').value = ext?.funcao_terceirizada || '';
+    popularSelectTurnoTerceirizada('edit', ext?.turno_terceirizada || '');
+  }
   popularSelectDirigindoPara('edit-dirigindo-para', ext?.dirigindo_para || '');
   carregarRemuneracoesNoEdit(id);
 
@@ -3113,6 +3225,7 @@ $('btn-salvar-edit').onclick = async () => {
     showToast('Selecione a lotação para regularizar o cadastro.', 'warning');
     return;
   }
+  if (!validarAtuacaoTerceirizada('edit')) return;
   btn.disabled = true;
 
   const r1 = await sb.rpc('fn_editar_funcionario', {
@@ -3125,12 +3238,16 @@ $('btn-salvar-edit').onclick = async () => {
   });
   // data_admissao / observacao / simbologia não estão na RPC — atualiza direto.
   // Campos deixados em branco também: a RPC ignora nulos, então não apaga valores — limpa direto na tabela
+  const empTerc = lerDadosEmpresaTerceirizada('edit');
   const diretos = {
     data_admissao: $('edit-admissao').value || null,
     observacao: $('edit-obs').value.trim() || null,
     simbologia: $('edit-simbologia').value || null,
-    empresa: $('edit-empresa').value.trim() || null,
+    empresa: empTerc.empresa,
     cargo: ($('edit-cargo')?.value || '').trim() || null,
+    atuacao_terceirizada: empTerc.atuacao_terceirizada,
+    funcao_terceirizada: empTerc.funcao_terceirizada,
+    turno_terceirizada: empTerc.turno_terceirizada,
     dirigindo_para: isMotorista
       ? (($('edit-dirigindo-para')?.value || '').trim() || null)
       : null,
@@ -10708,7 +10825,7 @@ const TERCEIRIZADOS_QUADROS = {
     empresa: 'PROCAD',
     cargo: null,
     titulo: 'Quadro Administrativo (PROCAD)',
-    help: 'Servidores administrativos da PROCAD (várias funções), excluindo motoristas.',
+    help: 'Quem tem empresa PROCAD e não é motorista — inclui terceirizados e servidores SEMCAS com “Também atua como terceirizado”.',
     filtro: 'administrativo',
   },
 };
@@ -10730,7 +10847,7 @@ async function carregarTerceirizados(cargoBusca) {
   if (!tBody) return;
   const quadro = TERCEIRIZADOS_QUADROS[cargoBusca];
   const isMotoristaQuadro = quadro?.filtro === 'motorista' || String(cargoBusca || '').startsWith('MOTORISTA');
-  const colCount = isMotoristaQuadro ? 10 : 9;
+  const colCount = isMotoristaQuadro ? 12 : 11;
   const thDir = $('th-terceirizados-dirigindo');
   if (thDir) thDir.style.display = isMotoristaQuadro ? '' : 'none';
 
@@ -10744,7 +10861,7 @@ async function carregarTerceirizados(cargoBusca) {
 
   const { data: funcs, error: errFuncs } = await sb
     .from('funcionarios')
-    .select('id, nome, matricula, data_admissao, foto_url, empresa, dirigindo_para, cargo')
+    .select('id, nome, matricula, data_admissao, foto_url, empresa, dirigindo_para, cargo, atuacao_terceirizada, funcao_terceirizada, turno_terceirizada')
     .eq('empresa', empresaAlvo)
     .eq('ativo', true)
     .order('nome');
@@ -10763,14 +10880,26 @@ async function carregarTerceirizados(cargoBusca) {
   const ids = funcs.map(f => f.id);
   const { data: atuais } = await sb
     .from('v_funcionarios_atual')
-    .select('funcionario_id, lotacao_nome, turno, funcao')
+    .select('funcionario_id, lotacao_nome, turno, funcao, vinculo')
     .in('funcionario_id', ids);
 
   const mapAtuais = Object.fromEntries((atuais || []).map(x => [x.funcionario_id, x]));
 
   let lista = funcs.map(f => {
     const atual = mapAtuais[f.id] || {};
-    return { ...f, funcao: atual.funcao || '', lotacao_nome: atual.lotacao_nome || '', turno: atual.turno || '' };
+    const funcaoLista = f.atuacao_terceirizada
+      ? (f.funcao_terceirizada || atual.funcao || '')
+      : (atual.funcao || f.funcao_terceirizada || '');
+    const turnoLista = f.atuacao_terceirizada
+      ? (f.turno_terceirizada || atual.turno || '')
+      : (atual.turno || f.turno_terceirizada || '');
+    return {
+      ...f,
+      funcao: funcaoLista,
+      lotacao_nome: atual.lotacao_nome || '',
+      turno: turnoLista,
+      vinculo: atual.vinculo || '',
+    };
   });
 
   if (quadro.filtro === 'motorista') {
@@ -10789,7 +10918,7 @@ async function carregarTerceirizados(cargoBusca) {
   tBody.innerHTML = lista.map(f => {
     const cargoExibir = isMotoristaQuadro
       ? (quadro.cargo || f.cargo || 'MOTORISTA')
-      : (f.cargo || f.funcao || '—');
+      : (f.cargo || '—');
     const lotacaoExibir = isMotoristaQuadro
       ? LOTACAO_MOTORISTA_NOME
       : (f.lotacao_nome || '—');
@@ -10800,7 +10929,9 @@ async function carregarTerceirizados(cargoBusca) {
         <td>${htmlFotoLista(f.foto_url)}</td>
         <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(f.nome)}</td>
         <td><span class="badge badge-vinculo" style="background:var(--gov-gray-dark)">${htmlEscape(f.empresa)}</span></td>
+        <td style="font-size:12px">${htmlEscape(f.vinculo || '—')}</td>
         <td>${htmlEscape(cargoExibir)}</td>
+        <td style="font-size:12px">${htmlEscape(f.funcao || '—')}</td>
         <td>${htmlEscape(lotacaoExibir)}</td>
         ${isMotoristaQuadro ? `<td>${htmlEscape(f.dirigindo_para || '—')}</td>` : ''}
         <td style="font-size:12px;color:var(--color-text-sec)">${fmtDt(f.data_admissao)}</td>
