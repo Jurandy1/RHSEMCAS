@@ -1604,10 +1604,10 @@ async function renderPainel() {
   ]);
 
   const kpi    = kpiRes.data    || null;
-  // Vínculos "Contrato" e "Contrato/SEMUS" não devem aparecer nos cards nem no gráfico do dashboard
+  // Vínculos "Contrato", "Contrato/SEMUS" e "PROCAD" não devem aparecer nos cards nem no gráfico do dashboard
   const vincs  = (vincsRes.data || []).filter(v => {
     const nome = (v.vinculo || '').trim().toLowerCase();
-    return nome !== 'contrato' && nome !== 'contrato/semus';
+    return nome !== 'contrato' && nome !== 'contrato/semus' && nome !== 'procad';
   });
   const locais = locaisRes.data || [];
   const cedKpi = cedKpiRes.data || null;
