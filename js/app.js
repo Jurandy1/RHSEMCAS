@@ -8292,12 +8292,14 @@ function ferAcoesHtml(r) {
 }
 
 function ferCalcStatus(r) {
-  if (r.status_ferias) return r.status_ferias;
   const hoje = new Date().toISOString().slice(0, 10);
-  if (!r.data_inicio) return 'Pendente';
+  const st = String(r.status_ferias || '').trim();
+  if (st === 'Cancelado') return 'Cancelado';
+  if (!r.data_inicio) return st && st !== 'Ativo' ? st : 'Pendente';
   if (r.data_inicio <= hoje && r.data_fim && r.data_fim >= hoje) return 'Em Gozo';
   if (r.data_inicio > hoje) return 'Programado';
   if (r.data_fim && r.data_fim < hoje) return 'Concluído';
+  if (st && st !== 'Ativo') return st;
   return 'Programado';
 }
 
@@ -8398,7 +8400,7 @@ function ferFiltradas() {
     const text = ferNorm([r.servidor, r.matricula, r.lotacao, r.cargo, r.funcao].join(' '));
     if (busca && !busca.split(/\s+/).every((p) => text.includes(p))) return false;
     if (lot && r.lotacao !== lot) return false;
-    if (status && r.status !== status) return false;
+    if (status && !kpiFiltro && r.status !== status) return false;
     if (mes) {
       if (!r.data_inicio) return false;
       if (String(r.data_inicio).slice(5, 7) !== mes) return false;
@@ -8489,10 +8491,8 @@ window.ferFiltrarPorKpi = function ferFiltrarPorKpi(kpiKey) {
   _ferV2.page = 1;
   const statusSel = $('fer-filtro-status');
   if (statusSel) {
-    if (window._ferKpiFiltro === 'em_ferias') statusSel.value = 'Em Gozo';
-    else if (window._ferKpiFiltro === 'proximas_60') statusSel.value = 'Programado';
-    else if (window._ferKpiFiltro === 'pendentes') statusSel.value = 'Pendente';
-    else if (!window._ferKpiFiltro) statusSel.value = '';
+    // KPI já classifica por datas/campos — status do dropdown conflitava (ex.: status_ferias "Ativo").
+    statusSel.value = '';
   }
   if (_ferV2.view !== 'tabela') {
     _ferV2.view = 'tabela';
@@ -8558,7 +8558,7 @@ function ferRenderTabela(data) {
       const pend = r.pendente && r.pendente !== '—'
         ? `<span style="color:var(--gov-orange);font-weight:600">${htmlEscape(r.pendente)}</span>`
         : '<span class="fer-vazio">Nenhuma</span>';
-      return `<tr class="${r.status === 'Em Gozo' ? 'fer-row-em-ferias' : ''}">
+      return `<tr class="${ferClassificarRow(r).emFerias ? 'fer-row-em-ferias' : ''}">
         <td>${ferServidorCell(r)}</td>
         <td><span class="fer-lot-badge">${htmlEscape(r.lotacao)}</span></td>
         <td>${htmlEscape(r.cargo || '—')}</td>
@@ -8715,6 +8715,7 @@ async function renderFerias() {
   try {
     await ferCarregarDados();
     ferBindUiOnce();
+    if (window._ferKpiFiltro && $('fer-filtro-status')) $('fer-filtro-status').value = '';
     ferAtualizarDestaqueCardsFerias();
     ferRender();
   } catch (e) {
