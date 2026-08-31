@@ -5304,6 +5304,14 @@ function giapPintarProgresso(job) {
   const meta = $('giap-job-meta');
   const etapa = $('giap-job-etapa');
   const resumo = $('giap-resumo');
+  const prog = job.resumo?.progresso || {};
+  const sync = job.resumo?.sync || {};
+  const bulkN = Number(prog.bulk_registros ?? sync.bulk_registros ?? 0);
+  const pendentes = Number(prog.pendentes ?? sync.buscas_nome_pendentes ?? 0);
+  const processados = Number(prog.processados ?? 0);
+  const totalSrv = Number(prog.total_servidores ?? 0);
+  const lotesRest = Number(prog.lotes_restantes ?? 0);
+  const loteAtual = Number(prog.lote_atual ?? 1);
   if (bar) {
     bar.style.width = `${Math.max(0, Math.min(100, pct))}%`;
     if (job.status === 'running' || job.status === 'pending') {
@@ -5314,7 +5322,17 @@ function giapPintarProgresso(job) {
       bar.style.background = 'var(--gov-green, #2f855a)';
     }
   }
-  if (lbl) lbl.textContent = `${pct}% · ${job.status || '—'}`;
+  const linhasProg = [];
+  if (bulkN > 0) linhasProg.push(`Bulk: ${bulkN} registro(s)`);
+  if (totalSrv > 0) {
+    linhasProg.push(`Pendentes: ${pendentes}`);
+    linhasProg.push(`Processados: ${processados} / ${totalSrv}`);
+  } else if (pendentes > 0) {
+    linhasProg.push(`Pendentes: ${pendentes}`);
+  }
+  if (lotesRest > 0) linhasProg.push(`Lotes restantes: ${lotesRest} (lote ${loteAtual})`);
+  const progTxt = linhasProg.length ? ` · ${linhasProg.join(' · ')}` : '';
+  if (lbl) lbl.textContent = `${pct}% · ${job.status || '—'}${progTxt}`;
   if (meta) {
     meta.textContent = job.id
       ? `Job #${job.id} · competência ${job.competencia} · ${job.modo || 'manual'}${job.dry_run ? ' · SIMULAÇÃO' : ''}`
@@ -5322,9 +5340,12 @@ function giapPintarProgresso(job) {
   }
   if (etapa) etapa.textContent = job.resumo?.etapa || job.etapa || '';
   if (resumo) {
-    resumo.textContent = job.erro
-      ? `ERRO: ${job.erro}\n\n${JSON.stringify(job.resumo || {}, null, 2)}`
+    const resumoLegivel = linhasProg.length
+      ? `${linhasProg.join('\n')}\n\n${JSON.stringify(job.resumo || {}, null, 2)}`
       : JSON.stringify(job.resumo || {}, null, 2);
+    resumo.textContent = job.erro
+      ? `ERRO: ${job.erro}\n\n${resumoLegivel}`
+      : resumoLegivel;
   }
 }
 
@@ -7953,21 +7974,23 @@ function giapIniciarPoll(jobId) {
           if (job.competencia && pendentes === 0) {
             await giapMarcarCompetenciaBuscada(job.competencia);
           }
-          await sincronizarRemuneracoesGiap({ competencia: job.competencia, silencioso: true });
+          if (job.resumo?.sincronizar_remuneracoes) {
+            await sincronizarRemuneracoesGiap({ competencia: job.competencia, silencioso: true });
+          }
 
           if (servidorContinua && pendentes > 0 && _giapAutoContinuarFolha) {
             showToast(
               `Lote ok (${nesteLote}). Faltam ~${pendentes}. Servidor continua em 2º plano — pode fechar o navegador.`,
               'info'
             );
-            // Espera o Render agendar o próximo (~10s) e acompanha se a aba ainda estiver aberta
+            // Espera o Render agendar o próximo (~5s) e acompanha se a aba ainda estiver aberta
             setTimeout(async () => {
               const ok = await giapAcompanharProximoJobServidor(job.competencia);
               if (!ok) {
                 giapSetPararFolhaVisible(false);
                 renderRelatorioApi();
               }
-            }, 12000);
+            }, 7000);
             return;
           }
 
