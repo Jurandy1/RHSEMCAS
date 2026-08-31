@@ -194,6 +194,18 @@
 
         <div id="alerta-licencas-painel" class="alerta-licenca-wrap" hidden></div>
 
+        <div class="dash-section-header" style="margin-top:0">
+          <div class="dash-icon"><i class="ti ti-calendar-stats"></i></div>
+          <h2>Situação do dia</h2>
+          <div class="dash-line"></div>
+        </div>
+        <div class="kpi-grid situacao-dia-grid" id="situacao-dia-grid">
+          <div class="kpi-card situacao-dia-card" style="border-top-color:var(--gov-green,#107c41)">
+            <div class="kpi-card-label">Em férias hoje</div>
+            <div class="kpi-card-value"><span class="spinner"></span></div>
+          </div>
+        </div>
+
         <!-- Cabeçalho do Painel -->
         <div class="dash-section-header" style="margin-top:0">
           <div class="dash-icon"><i class="ti ti-users"></i></div>
@@ -694,23 +706,23 @@
           <button class="btn-primary" onclick="abrirAgendarFerias()"><i class="ti ti-plus"></i> Novo Registro de Férias</button>
         </div>
 
-        <div class="fer-v2-summary">
-          <div class="fer-v2-kpi green">
-            <div class="fer-v2-kpi-lbl">Em Gozo Hoje</div>
+        <div class="fer-v2-summary" id="ferias-kpis">
+          <div class="fer-v2-kpi green clickable" data-kpi="em_ferias" onclick="ferFiltrarPorKpi('em_ferias')" title="Clique para filtrar servidores em férias hoje">
+            <div class="fer-v2-kpi-lbl">Em férias</div>
             <div class="fer-v2-kpi-val" id="kpiEmGozo">0</div>
-            <div class="fer-v2-kpi-sub">Servidores em fruição ativa</div>
+            <div class="fer-v2-kpi-sub">Servidores em férias hoje</div>
           </div>
-          <div class="fer-v2-kpi">
+          <div class="fer-v2-kpi clickable" data-kpi="proximas_60" onclick="ferFiltrarPorKpi('proximas_60')" title="Clique para filtrar férias nos próximos 60 dias">
             <div class="fer-v2-kpi-lbl">Próximas em 60 Dias</div>
             <div class="fer-v2-kpi-val" id="kpiProgramados">0</div>
-            <div class="fer-v2-kpi-sub">Com escala definida no sistema</div>
+            <div class="fer-v2-kpi-sub">Início previsto em até 60 dias</div>
           </div>
-          <div class="fer-v2-kpi orange">
+          <div class="fer-v2-kpi orange clickable" data-kpi="pendentes" onclick="ferFiltrarPorKpi('pendentes')" title="Clique para filtrar pendências de férias">
             <div class="fer-v2-kpi-lbl">Pendentes (+12M sem Férias)</div>
             <div class="fer-v2-kpi-val" id="kpiPendentes">0</div>
             <div class="fer-v2-kpi-sub">Períodos a programar</div>
           </div>
-          <div class="fer-v2-kpi red">
+          <div class="fer-v2-kpi red clickable" data-kpi="risco" onclick="ferFiltrarPorKpi('risco')" title="Clique para filtrar risco de dobra/acúmulo">
             <div class="fer-v2-kpi-lbl">Risco de Dobra / Acúmulo</div>
             <div class="fer-v2-kpi-val" id="kpiRisco">0</div>
             <div class="fer-v2-kpi-sub">Prioridade para marcação imediata</div>
@@ -748,7 +760,7 @@
                 <select id="fer-filtro-status">
                   <option value="">Todos os Status</option>
                   <option value="Programado">Programado</option>
-                  <option value="Em Gozo">Em Gozo</option>
+                  <option value="Em Gozo">Em férias</option>
                   <option value="Pendente">Pendente</option>
                   <option value="Concluído">Concluído</option>
                 </select>
@@ -2048,7 +2060,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20260822e"></script>
+  <script type="module" src="js/app.js?v=20260831a"></script>
 
 
 
@@ -2368,6 +2380,36 @@
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal('modal-editar-tipo-licenca')">Cancelar</button>
       <button class="btn-primary" id="btn-salvar-tipo-licenca">Salvar Alterações</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · LICENÇAS VENCIDAS -->
+<div class="modal-overlay" id="modal-licencas-vencidas">
+  <div class="modal-content modal-lic-vencidas">
+    <div class="modal-header">
+      <div class="modal-title"><i class="ti ti-alert-triangle"></i> Licenças vencidas — retorno à ativa</div>
+      <button class="modal-close" onclick="fecharModalLicencasVencidas()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-lic-vencidas-intro">Estes servidores têm licença com data final já passada, mas o afastamento ainda está ativo no sistema. Confirme o retorno à ativa ou feche para revisar depois.</p>
+      <div class="table-container">
+        <table class="gov-table">
+          <thead>
+            <tr>
+              <th>Servidor</th>
+              <th>Tipo</th>
+              <th>Venceu em</th>
+              <th style="width:140px">Ação</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-licencas-vencidas"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+      <button type="button" class="btn-secondary" onclick="fecharModalLicencasVencidas()">Fechar</button>
+      <button type="button" class="btn-primary" onclick="fecharModalLicencasVencidas(); abrirLicencasComAlerta('vencidas')">Ver todas na tabela</button>
     </div>
   </div>
 </div>

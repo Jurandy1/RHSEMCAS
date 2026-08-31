@@ -1592,8 +1592,83 @@ async function carregarDominios() {
 let _chartVinculos = null;
 let _chartLocais = null;
 
+window.irParaFeriasComFiltro = function irParaFeriasComFiltro(kpi) {
+  window._ferKpiFiltro = kpi || '';
+  if (location.hash === '#ferias') {
+    renderFerias();
+  } else {
+    location.hash = '#ferias';
+  }
+};
+
+window.irParaLicencasComFiltro = function irParaLicencasComFiltro(filtro) {
+  if (filtro === 'vencidas') {
+    window._licVencFiltro = 'vencidas';
+    window._licKpiFiltro = '';
+  } else if (filtro === 'total') {
+    window._licVencFiltro = '';
+    window._licKpiFiltro = 'total';
+  } else {
+    window._licVencFiltro = filtro || '';
+    window._licKpiFiltro = '';
+  }
+  window._licPage = 1;
+  if (location.hash === '#licencas') {
+    renderLicencas();
+  } else {
+    location.hash = '#licencas';
+  }
+};
+
+async function carregarResumoDiaPainel() {
+  const grid = $('situacao-dia-grid');
+  if (!grid) return;
+  try {
+    const resumo = await obterResumoFeriasLicencas();
+    const cards = [
+      {
+        lbl: 'Em férias hoje',
+        val: resumo.feriasKpis.em_ferias,
+        sub: 'Servidores em gozo de férias',
+        cor: 'var(--gov-green,#107c41)',
+        click: () => irParaFeriasComFiltro('em_ferias'),
+      },
+      {
+        lbl: 'Em licença / afastamento',
+        val: resumo.licTotal,
+        sub: 'Afastamentos ativos',
+        cor: 'var(--gov-orange,#ed7b2f)',
+        click: () => irParaLicencasComFiltro('total'),
+      },
+      {
+        lbl: 'Licenças vencidas',
+        val: resumo.licVencidas,
+        sub: 'Aguardando retorno à ativa',
+        cor: 'var(--gov-red,#c53030)',
+        click: () => {
+          if (resumo.licVencidas > 0) {
+            irParaLicencasComFiltro('vencidas');
+          } else {
+            irParaLicencasComFiltro('total');
+          }
+        },
+      },
+    ];
+    grid.innerHTML = cards.map((c) => `
+      <div class="kpi-card situacao-dia-card" style="border-top-color:${c.cor}">
+        <div class="kpi-card-label">${htmlEscape(c.lbl)}</div>
+        <div class="kpi-card-value">${(c.val || 0).toLocaleString('pt-BR')}</div>
+        <div class="kpi-card-sub">${htmlEscape(c.sub)}</div>
+      </div>`).join('');
+    grid.querySelectorAll('.situacao-dia-card').forEach((el, i) => { el.onclick = cards[i].click; });
+  } catch (e) {
+    console.warn('[painel] resumo do dia:', e);
+  }
+}
+
 async function renderPainel() {
   atualizarAlertasLicenca(); // fire-and-forget no topo do painel
+  carregarResumoDiaPainel(); // fire-and-forget
   const [kpiRes, vincsRes, locaisRes, cedKpiRes, totalRes] = await Promise.all([
     sb.from('v_dashboard_kpis').select('*').single(),
     sb.from('v_dashboard_vinculos').select('*'),
@@ -2174,12 +2249,40 @@ async function buscarFuncionariosRpc({ paginar = true } = {}) {
   return { rows: filtrados.slice(ini, ini + state.pageSize), total };
 }
 
+async function carregarMapaLicencasAtivas() {
+  try {
+    const { data, error } = await sb.from('funcionario_licencas')
+      .select('id, funcionario_id, tipo_afastamento, data_final')
+      .eq('ativo', true);
+    if (error) throw error;
+    const map = {};
+    for (const l of data || []) {
+      const fid = Number(l.funcionario_id);
+      if (!fid) continue;
+      const prev = map[fid];
+      if (!prev || (l.data_final && (!prev.data_final || l.data_final > prev.data_final))) {
+        map[fid] = l;
+      }
+    }
+    window._licencasMapaCache = map;
+    return map;
+  } catch {
+    return window._licencasMapaCache || {};
+  }
+}
+
+function invalidarCacheLicencasMapa() {
+  window._licencasMapaCache = null;
+}
+
 async function carregarFuncionarios() {
   $('table-body').innerHTML = `<tr><td colspan="9" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>`;
   const resultado = await buscarFuncionariosRpc({ paginar: true });
   if (!resultado) return;
   const { rows: data, total } = resultado;
   state.total = total;
+
+  const licMap = await carregarMapaLicencasAtivas();
 
   if (data.length === 0) {
     $('table-body').innerHTML = `<tr><td colspan="9"><div class="empty-state">Nenhum funcionário encontrado</div></td></tr>`;
@@ -2191,11 +2294,16 @@ async function carregarFuncionarios() {
 
     $('table-body').innerHTML = data.map(f => {
       const ex = mapEx[f.funcionario_id] || {};
+      const lic = licMap[f.funcionario_id];
+      const rowCls = lic ? ' class="row-afastado"' : '';
+      const licBadge = lic
+        ? `<span class="badge-afastado" title="${htmlEscape((lic.tipo_afastamento || 'Licença') + (lic.data_final ? ' — até ' + fmtDt(lic.data_final) : ''))}"><i class="ti ti-activity"></i> Em licença</span>`
+        : '';
       return `
-      <tr>
+      <tr${rowCls}>
         <td style="font-family:monospace;font-size:12px;color:var(--color-text-sec)">${htmlEscape(ex.matricula || '—')}</td>
         <td>${htmlFotoLista(ex.foto_url)}</td>
-        <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(f.nome)}</td>
+        <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(f.nome)}${licBadge}</td>
         <td>${htmlEscape(f.vinculo || '-')}</td>
         <td>${htmlEscape(f.funcao || '—')}</td>
         <td title="${htmlEscape(f.caminho_lotacao || '')}">${htmlEscape(f.lotacao_nome || '—')}</td>
@@ -8046,9 +8154,82 @@ window.giapIgnorarRevisao = async function giapIgnorarRevisao(revisaoId) {
 const FERIAS_TIPOS = { regular: 'Regulamentar', premio: 'Licença-Prêmio', licenca: 'Licença', abono: 'Abono' };
 const FERIAS_TIPOS_REV = Object.fromEntries(Object.entries(FERIAS_TIPOS).map(([k, v]) => [v, k]));
 
-const _ferV2 = { view: 'tabela', page: 1, pageSize: 8, rows: [], bound: false, ano: new Date().getFullYear(), sort: { col: 'servidor', dir: 'asc' }, suppressFilter: false };
+const _ferV2 = { view: 'tabela', page: 1, pageSize: 25, rows: [], bound: false, ano: new Date().getFullYear(), sort: { col: 'servidor', dir: 'asc' }, suppressFilter: false };
+window._ferKpiFiltro = '';
 
 const fmtDtFer = (s) => s ? new Date(String(s).slice(0, 10) + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+
+function ferHojeISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function ferAddDays(iso, days) {
+  const d = new Date(iso + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function ferStatusLabel(st) {
+  if (st === 'Em Gozo') return 'Em férias';
+  return st;
+}
+
+function ferClassificarRow(r) {
+  const hoje = ferHojeISO();
+  const status = r.status || ferCalcStatus(r);
+  const emFerias = status === 'Em Gozo'
+    || !!(r.data_inicio && r.data_fim && r.data_inicio <= hoje && r.data_fim >= hoje);
+  const lim60 = ferAddDays(hoje, 60);
+  const proximas60 = !emFerias && !!(r.data_inicio && r.data_inicio > hoje && r.data_inicio <= lim60);
+  const pendente = status === 'Pendente' || !r.data_inicio || !!(r.pendente && r.pendente !== '—');
+  const risco = ferNorm(r.pendente).includes('acumulado') || ferNorm(r.observacao).includes('risco');
+  return { emFerias, proximas60, pendente, risco };
+}
+
+function ferContarKpis(rows) {
+  const seen = { em_ferias: new Set(), proximas_60: new Set(), pendentes: new Set(), risco: new Set() };
+  for (const r of rows || []) {
+    if (!r.ativo) continue;
+    const c = ferClassificarRow(r);
+    const fid = r.funcionario_id;
+    if (!fid) continue;
+    if (c.emFerias) seen.em_ferias.add(fid);
+    if (c.proximas60) seen.proximas_60.add(fid);
+    if (c.pendente) seen.pendentes.add(fid);
+    if (c.risco) seen.risco.add(fid);
+  }
+  return {
+    em_ferias: seen.em_ferias.size,
+    proximas_60: seen.proximas_60.size,
+    pendentes: seen.pendentes.size,
+    risco: seen.risco.size,
+  };
+}
+
+async function obterResumoFeriasLicencas() {
+  let feriasRows = _ferV2.rows?.length ? _ferV2.rows : null;
+  if (!feriasRows) {
+    try {
+      await ferCarregarDados();
+      feriasRows = _ferV2.rows;
+    } catch {
+      feriasRows = [];
+    }
+  }
+  const feriasKpis = ferContarKpis(feriasRows || []);
+  let licTotal = 0;
+  let licVencidas = 0;
+  try {
+    const raw = await carregarLicencasAtivasRaw();
+    const deduped = dedupeLicencasPorServidor(raw);
+    licTotal = deduped.length;
+    const info = classificarLicencasVencimento((raw || []).filter((l) => l.data_final));
+    licVencidas = info.vencidas.length;
+  } catch {
+    /* ignora */
+  }
+  return { feriasKpis, licTotal, licVencidas };
+}
 
 function ferStatusClass(st) {
   if (st === 'Em Gozo') return 'gozo';
@@ -8067,7 +8248,7 @@ function ferStatusIcon(st) {
 
 function ferStatusHtml(status) {
   const cls = ferStatusClass(status);
-  return `<span class="fer-status ${cls}"><i class="ti ${ferStatusIcon(status)}"></i> ${htmlEscape(status)}</span>`;
+  return `<span class="fer-status ${cls}"><i class="ti ${ferStatusIcon(status)}"></i> ${htmlEscape(ferStatusLabel(status))}</span>`;
 }
 
 function ferLinkTipo(url) {
@@ -8211,6 +8392,7 @@ function ferFiltradas() {
   const lot = $('fer-filtro-lotacao')?.value || '';
   const status = $('fer-filtro-status')?.value || '';
   const mes = $('fer-filtro-mes')?.value || '';
+  const kpiFiltro = window._ferKpiFiltro || '';
   const filtradas = _ferV2.rows.filter((r) => {
     if (!r.ativo) return false;
     const text = ferNorm([r.servidor, r.matricula, r.lotacao, r.cargo, r.funcao].join(' '));
@@ -8220,6 +8402,13 @@ function ferFiltradas() {
     if (mes) {
       if (!r.data_inicio) return false;
       if (String(r.data_inicio).slice(5, 7) !== mes) return false;
+    }
+    if (kpiFiltro) {
+      const c = ferClassificarRow(r);
+      if (kpiFiltro === 'em_ferias' && !c.emFerias) return false;
+      if (kpiFiltro === 'proximas_60' && !c.proximas60) return false;
+      if (kpiFiltro === 'pendentes' && !c.pendente) return false;
+      if (kpiFiltro === 'risco' && !c.risco) return false;
     }
     return true;
   });
@@ -8280,15 +8469,41 @@ function ferAtualizarIconesSort() {
 }
 
 function ferAtualizarKpis(rows) {
-  const emGozo = rows.filter((r) => r.status === 'Em Gozo').length;
-  const programados = rows.filter((r) => r.status === 'Programado').length;
-  const pendentes = rows.filter((r) => r.status === 'Pendente' || (r.pendente && r.pendente !== '—')).length;
-  const risco = rows.filter((r) => ferNorm(r.pendente).includes('acumulado') || ferNorm(r.observacao).includes('risco')).length;
-  if ($('kpiEmGozo')) $('kpiEmGozo').textContent = emGozo;
-  if ($('kpiProgramados')) $('kpiProgramados').textContent = programados;
-  if ($('kpiPendentes')) $('kpiPendentes').textContent = pendentes;
-  if ($('kpiRisco')) $('kpiRisco').textContent = risco;
+  const kpis = ferContarKpis(rows);
+  window._ferKpisCache = kpis;
+  if ($('kpiEmGozo')) $('kpiEmGozo').textContent = kpis.em_ferias;
+  if ($('kpiProgramados')) $('kpiProgramados').textContent = kpis.proximas_60;
+  if ($('kpiPendentes')) $('kpiPendentes').textContent = kpis.pendentes;
+  if ($('kpiRisco')) $('kpiRisco').textContent = kpis.risco;
+  ferAtualizarDestaqueCardsFerias();
 }
+
+function ferAtualizarDestaqueCardsFerias() {
+  $$('#ferias-kpis .fer-v2-kpi.clickable').forEach((el) => {
+    el.classList.toggle('active', (el.dataset.kpi || '') === (window._ferKpiFiltro || ''));
+  });
+}
+
+window.ferFiltrarPorKpi = function ferFiltrarPorKpi(kpiKey) {
+  window._ferKpiFiltro = (window._ferKpiFiltro === kpiKey) ? '' : (kpiKey || '');
+  _ferV2.page = 1;
+  const statusSel = $('fer-filtro-status');
+  if (statusSel) {
+    if (window._ferKpiFiltro === 'em_ferias') statusSel.value = 'Em Gozo';
+    else if (window._ferKpiFiltro === 'proximas_60') statusSel.value = 'Programado';
+    else if (window._ferKpiFiltro === 'pendentes') statusSel.value = 'Pendente';
+    else if (!window._ferKpiFiltro) statusSel.value = '';
+  }
+  if (_ferV2.view !== 'tabela') {
+    _ferV2.view = 'tabela';
+    $$('#view-ferias .fer-v2-view-tab').forEach((t) => t.classList.toggle('active', t.dataset.view === 'tabela'));
+    $$('#view-ferias .fer-v2-pane').forEach((p) => p.classList.remove('active'));
+    $('fer-pane-tabela')?.classList.add('active');
+  }
+  ferAtualizarDestaqueCardsFerias();
+  ferAtualizarResumoFiltros();
+  ferRender();
+};
 
 function ferPopularLotacaoSelect(rows) {
   const sel = $('fer-filtro-lotacao');
@@ -8343,7 +8558,7 @@ function ferRenderTabela(data) {
       const pend = r.pendente && r.pendente !== '—'
         ? `<span style="color:var(--gov-orange);font-weight:600">${htmlEscape(r.pendente)}</span>`
         : '<span class="fer-vazio">Nenhuma</span>';
-      return `<tr>
+      return `<tr class="${r.status === 'Em Gozo' ? 'fer-row-em-ferias' : ''}">
         <td>${ferServidorCell(r)}</td>
         <td><span class="fer-lot-badge">${htmlEscape(r.lotacao)}</span></td>
         <td>${htmlEscape(r.cargo || '—')}</td>
@@ -8499,13 +8714,8 @@ async function renderFerias() {
   if (tb) tb.innerHTML = '<tr><td colspan="10" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
   try {
     await ferCarregarDados();
-    const kpis = await handleErr(await sb.from('v_ferias_kpis').select('*').single(), 'KPIs férias');
-    if (kpis) {
-      if ($('kpiEmGozo')) $('kpiEmGozo').textContent = kpis.em_ferias_hoje || 0;
-      if ($('kpiProgramados')) $('kpiProgramados').textContent = kpis.proximas_60_dias || 0;
-      if ($('kpiPendentes')) $('kpiPendentes').textContent = kpis.pendentes || 0;
-    }
     ferBindUiOnce();
+    ferAtualizarDestaqueCardsFerias();
     ferRender();
   } catch (e) {
     showToast('Erro ao carregar férias: ' + (e.message || e), 'error');
@@ -8519,13 +8729,18 @@ function ferAtualizarResumoFiltros() {
   const lot = $('fer-filtro-lotacao')?.value || '';
   const status = $('fer-filtro-status')?.value || '';
   const mes = $('fer-filtro-mes')?.value || '';
+  const kpi = window._ferKpiFiltro || '';
   if (busca) parts.push(`"${busca}"`);
   if (lot) parts.push(lot);
-  if (status) parts.push(status);
+  if (status) parts.push(ferStatusLabel(status));
   if (mes) {
     const nomes = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     parts.push(nomes[parseInt(mes, 10)] || mes);
   }
+  if (kpi === 'em_ferias') parts.push('Em férias');
+  else if (kpi === 'proximas_60') parts.push('Próximas 60 dias');
+  else if (kpi === 'pendentes') parts.push('Pendentes');
+  else if (kpi === 'risco') parts.push('Risco');
   const el = $('fer-filtro-resumo');
   if (el) el.textContent = parts.length ? `· ${parts.join(' · ')}` : '';
 }
@@ -8579,7 +8794,9 @@ function ferBindUiOnce() {
   });
   $('fer-filtro-limpar')?.addEventListener('click', () => {
     ['fer-filtro-busca', 'fer-filtro-lotacao', 'fer-filtro-status', 'fer-filtro-mes'].forEach((id) => { if ($(id)) $(id).value = ''; });
+    window._ferKpiFiltro = '';
     _ferV2.page = 1;
+    ferAtualizarDestaqueCardsFerias();
     ferAtualizarResumoFiltros();
     ferRender();
   });
@@ -9613,8 +9830,8 @@ function atualizarDestaqueCardsLicenca() {
 }
 
 window.filtrarLicencasPorKpi = (kpiKey) => {
-  // Clique no mesmo card ativo limpa o filtro
-  window._licKpiFiltro = (window._licKpiFiltro === kpiKey) ? '' : (kpiKey || '');
+  const key = kpiKey || '';
+  window._licKpiFiltro = (window._licKpiFiltro === key) ? '' : key;
   window._licVencFiltro = '';
   window._licPage = 1;
   if ($('lic-tipo-filtro')) $('lic-tipo-filtro').value = '';
@@ -9623,11 +9840,11 @@ window.filtrarLicencasPorKpi = (kpiKey) => {
 };
 
 async function renderLicencas() {
-  atualizarAlertasLicenca();
+  await atualizarAlertasLicenca();
   const kpis = await handleErr(await sb.from('v_licencas_kpis').select('*').single(), 'KPIs licencas');
   if (kpis) {
     const cards = [
-      ['Total Afastados',     kpis.total_afastados,     'No momento',                 'var(--gov-orange)',      ''],
+      ['Total Afastados',     kpis.total_afastados,     'No momento',                 'var(--gov-orange)',      'total'],
       ['Licença Prêmio',      kpis.premio,              'Concedidas',                 'var(--gov-blue-primary)', 'premio'],
       ['Tratamento de Saúde', kpis.tratamento_saude,    'Licença médica',             'var(--gov-red)',          'tratamento_saude'],
       ['Capacitação',         kpis.capacitacao,         'Estudo / qualificação',      'var(--gov-blue-dark)',    'capacitacao'],
@@ -9641,8 +9858,9 @@ async function renderLicencas() {
         <div class="stat-sub">${sub}</div>
       </div>`).join('');
   }
-  
-  carregarTabelaLicencas();
+
+  await carregarTabelaLicencas();
+  abrirModalLicencasVencidasSeNecessario();
 }
 
 function isLotacaoLicencasEsp(nome) {
@@ -9734,6 +9952,7 @@ async function carregarTabelaLicencas() {
   const porServidor = dedupeLicencasPorServidor(enriquecida);
   window._licencasCache = porServidor;
   window._licencasTotalRegistros = enriquecida.length;
+  invalidarCacheLicencasMapa();
   window._licPage = 1;
   // Popula o filtro de tipo com os tipos realmente presentes (filtragem inteligente)
   const tipos = [...new Set(porServidor.map(l => (l.tipo_afastamento || '').trim()).filter(Boolean))]
@@ -9755,7 +9974,7 @@ function renderTabelaLicencas(lista) {
     const kpiFiltro = window._licKpiFiltro || '';
     const vencFiltro = window._licVencFiltro || '';
     const data = lista.filter(l => {
-      if (kpiFiltro && !tipoLicencaCorrespondeKpi(l.tipo_afastamento, kpiFiltro)) return false;
+      if (kpiFiltro && kpiFiltro !== 'total' && !tipoLicencaCorrespondeKpi(l.tipo_afastamento, kpiFiltro)) return false;
       if (tipoFiltro && (l.tipo_afastamento || '').trim() !== tipoFiltro) return false;
       if (periodoFiltro === 'determinado' && !l.data_final) return false;
       if (periodoFiltro === 'indeterminado' && l.data_final) return false;
@@ -10171,9 +10390,60 @@ window.retornarAtiva = async (licenca_id, funcionario_id) => {
     detalhesComAlteracoes(alteracoes, { licenca_id: licenca_id || null })
   );
   showToast('Afastamento encerrado! O servidor permanece na lotação original.', 'success');
+  invalidarCacheLicencasMapa();
+  await atualizarAlertasLicenca();
+  renderModalLicencasVencidas();
+  if (!window._licAlertasCache?.vencidas?.length) {
+    closeModal('modal-licencas-vencidas');
+  }
   carregarTabelaLicencas();
   carregarFuncionarios();
 };
+
+function licVencidasDismissedHoje() {
+  try {
+    return sessionStorage.getItem('lic-vencidas-dismissed') === new Date().toISOString().slice(0, 10);
+  } catch {
+    return false;
+  }
+}
+
+window.fecharModalLicencasVencidas = function fecharModalLicencasVencidas() {
+  try {
+    sessionStorage.setItem('lic-vencidas-dismissed', new Date().toISOString().slice(0, 10));
+  } catch { /* ignora */ }
+  closeModal('modal-licencas-vencidas');
+};
+
+function renderModalLicencasVencidas() {
+  const tbody = $('tbody-licencas-vencidas');
+  if (!tbody) return;
+  const info = window._licAlertasCache;
+  const vencidas = info?.vencidas || [];
+  if (!vencidas.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Nenhuma licença vencida ativa.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = vencidas.map((l) => {
+    const dias = Math.abs(l.dias_restantes || 0);
+    const lid = Number(l.licenca_id);
+    const fid = Number(l.funcionario_id);
+    return `<tr>
+      <td><strong>${htmlEscape(l.nome)}</strong><br><small style="color:var(--color-text-muted)">${htmlEscape(l.matricula || '—')}</small></td>
+      <td>${htmlEscape(l.tipo_afastamento || '—')}</td>
+      <td>${fmtDataLicenca(l.data_final)}<br><small style="color:var(--gov-red)">vencida há ${dias} dia(s)</small></td>
+      <td><button type="button" class="btn-primary" style="padding:4px 10px;font-size:12px" onclick="retornarAtiva(${lid}, ${fid})">Retornar à ativa</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function abrirModalLicencasVencidasSeNecessario() {
+  const info = window._licAlertasCache;
+  if (!info?.vencidas?.length) return;
+  if (licVencidasDismissedHoje()) return;
+  renderModalLicencasVencidas();
+  openModal('modal-licencas-vencidas');
+}
 
 const TIPOS_LICENCA_OFICIAIS = [
   'Licença Prêmio',
@@ -10866,31 +11136,45 @@ async function carregarTerceirizados(cargoBusca) {
     return;
   }
 
-  const { data: funcs, error: errFuncs } = await sb
-    .from('funcionarios')
-    .select('id, nome, matricula, data_admissao, foto_url, empresa, dirigindo_para, cargo, atuacao_terceirizada, funcao_terceirizada, turno_terceirizada')
-    .eq('empresa', empresaAlvo)
-    .eq('ativo', true)
-    .order('nome');
-
-  if (errFuncs) {
-    tBody.innerHTML = `<tr><td colspan="${colCount}" class="empty-state error-text">Erro ao buscar terceirizados.</td></tr>`;
-    console.error('Erro terceirizados:', errFuncs);
-    return;
+  // Busca paginada (API do Supabase corta em ~1000; PROCAD administrativo passa de 100)
+  const colsFunc =
+    'id, nome, matricula, data_admissao, foto_url, empresa, dirigindo_para, cargo, atuacao_terceirizada, funcao_terceirizada, turno_terceirizada';
+  const funcs = [];
+  for (let de = 0; ; de += 1000) {
+    const { data, error: errFuncs } = await sb
+      .from('funcionarios')
+      .select(colsFunc)
+      .eq('empresa', empresaAlvo)
+      .eq('ativo', true)
+      .order('nome')
+      .order('id')
+      .range(de, de + 999);
+    if (errFuncs) {
+      tBody.innerHTML = `<tr><td colspan="${colCount}" class="empty-state error-text">Erro ao buscar terceirizados.</td></tr>`;
+      console.error('Erro terceirizados:', errFuncs);
+      return;
+    }
+    funcs.push(...(data || []));
+    if (!data || data.length < 1000) break;
   }
 
-  if (!funcs || funcs.length === 0) {
+  if (!funcs.length) {
     tBody.innerHTML = `<tr><td colspan="${colCount}" class="empty-state">Nenhum servidor encontrado para ${empresaAlvo}.</td></tr>`;
     return;
   }
 
   const ids = funcs.map(f => f.id);
-  const { data: atuais } = await sb
-    .from('v_funcionarios_atual')
-    .select('funcionario_id, lotacao_nome, turno, funcao, vinculo')
-    .in('funcionario_id', ids);
+  const atuais = [];
+  for (let i = 0; i < ids.length; i += 200) {
+    const chunk = ids.slice(i, i + 200);
+    const { data } = await sb
+      .from('v_funcionarios_atual')
+      .select('funcionario_id, lotacao_nome, turno, funcao, vinculo')
+      .in('funcionario_id', chunk);
+    atuais.push(...(data || []));
+  }
 
-  const mapAtuais = Object.fromEntries((atuais || []).map(x => [x.funcionario_id, x]));
+  const mapAtuais = Object.fromEntries(atuais.map(x => [x.funcionario_id, x]));
 
   let lista = funcs.map(f => {
     const atual = mapAtuais[f.id] || {};

@@ -1163,6 +1163,40 @@
     .stat.clickable { cursor: pointer; transition: box-shadow .15s, transform .15s; }
     .stat.clickable:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
     .stat.clickable.active { outline: 2px solid var(--gov-blue-primary); outline-offset: 1px; background: var(--gov-blue-light, #e8f0fe); }
+
+    /* Funcionários em licença */
+    #table-body tr.row-afastado {
+      background: rgba(237, 123, 47, 0.07);
+      border-left: 3px solid var(--gov-orange, #ed7b2f);
+    }
+    #table-body tr.row-afastado .badge-afastado {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: 6px;
+      padding: 1px 7px;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--gov-orange, #c05621);
+      background: rgba(237, 123, 47, 0.12);
+      border-radius: 10px;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    /* Painel — Situação do dia */
+    .situacao-dia-grid { margin-bottom: 20px; }
+    .situacao-dia-card { cursor: pointer; transition: box-shadow .15s, transform .15s; }
+    .situacao-dia-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+
+    /* Modal licenças vencidas */
+    .modal-lic-vencidas { max-width: 720px; width: 95%; }
+    .modal-lic-vencidas-intro {
+      font-size: 13px;
+      color: var(--color-text-muted);
+      margin: 0 0 12px;
+      line-height: 1.45;
+    }
     .stat { position: relative; }
 
     /* ─── DASHBOARD MELHORADO ─── */
@@ -2123,6 +2157,23 @@
 #view-ferias.ferias-v2 .fer-v2-kpi.green::before { background: var(--gov-green, #107c41); }
 #view-ferias.ferias-v2 .fer-v2-kpi.orange::before { background: var(--gov-orange, #c05621); }
 #view-ferias.ferias-v2 .fer-v2-kpi.red::before { background: var(--gov-red, #c53030); }
+#view-ferias.ferias-v2 .fer-v2-kpi.clickable {
+  cursor: pointer;
+  transition: box-shadow .15s, transform .15s;
+}
+#view-ferias.ferias-v2 .fer-v2-kpi.clickable:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+#view-ferias.ferias-v2 .fer-v2-kpi.clickable.active {
+  outline: 2px solid var(--gov-blue-primary);
+  outline-offset: 1px;
+  background: var(--gov-blue-light, #e8f0fe);
+}
+#view-ferias.ferias-v2 tr.fer-row-em-ferias {
+  background: rgba(16, 124, 65, 0.06);
+  border-left: 3px solid var(--gov-green, #107c41);
+}
 #view-ferias.ferias-v2 .fer-v2-kpi-lbl {
   font-size: 11px;
   font-weight: 700;
