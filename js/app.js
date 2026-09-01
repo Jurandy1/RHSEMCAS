@@ -481,7 +481,6 @@ async function carregarPerfilUsuario() {
   const coordenadora = state.perfilUsuario?.perfil === 'coordenador' && state.perfilUsuario?.ativo !== false;
   $('nav-usuarios')?.classList.toggle('hidden', !coordenadora);
   $('nav-relatorio-api')?.classList.toggle('hidden', !coordenadora);
-  $('nav-giap-rastreio')?.classList.toggle('hidden', !coordenadora);
   $('btn-editar-meu-nome')?.classList.toggle('hidden', !coordenadora);
 
   if (state.perfilUsuario?.nome) {
@@ -5298,7 +5297,6 @@ async function giapProxy(acao, extra = {}) {
 
 function giapPintarProgresso(job) {
   if (!job) return;
-  const pct = Number(job.progresso_pct || 0);
   const bar = $('giap-progress-bar');
   const lbl = $('giap-progress-label');
   const meta = $('giap-job-meta');
@@ -5312,12 +5310,25 @@ function giapPintarProgresso(job) {
   const totalSrv = Number(prog.total_servidores ?? 0);
   const lotesRest = Number(prog.lotes_restantes ?? 0);
   const loteAtual = Number(prog.lote_atual ?? 1);
+  const continuara = !!job.resumo?.continuara;
+  // Um job "done" é só 1 lote da cadeia — o % que importa pro usuário é o
+  // acumulado processados/total_servidores, não o progresso local do lote
+  // (que sempre fecha em 100%, mesmo faltando lotes).
+  const pct = totalSrv > 0
+    ? Math.round(Math.max(0, Math.min(100, (processados / totalSrv) * 100)))
+    : Math.max(0, Math.min(100, Number(job.progresso_pct || 0)));
+  const emAndamento = job.status === 'running' || job.status === 'pending' || continuara;
+  const statusExibido = job.status === 'error'
+    ? 'error'
+    : emAndamento
+      ? 'em processamento'
+      : (job.status === 'done' && pendentes > 0 ? 'parado' : 'concluído');
   if (bar) {
-    bar.style.width = `${Math.max(0, Math.min(100, pct))}%`;
-    if (job.status === 'running' || job.status === 'pending') {
-      bar.style.background = 'var(--gov-blue-primary, #3182ce)';
-    } else if (job.status === 'error') {
+    bar.style.width = `${pct}%`;
+    if (job.status === 'error') {
       bar.style.background = 'var(--gov-red, #e53e3e)';
+    } else if (emAndamento) {
+      bar.style.background = 'var(--gov-blue-primary, #3182ce)';
     } else {
       bar.style.background = 'var(--gov-green, #2f855a)';
     }
@@ -5331,8 +5342,9 @@ function giapPintarProgresso(job) {
     linhasProg.push(`Pendentes: ${pendentes}`);
   }
   if (lotesRest > 0) linhasProg.push(`Lotes restantes: ${lotesRest} (lote ${loteAtual})`);
+  if (emAndamento && job.status === 'done') linhasProg.push('Servidor continua sozinho — pode fechar a página');
   const progTxt = linhasProg.length ? ` · ${linhasProg.join(' · ')}` : '';
-  if (lbl) lbl.textContent = `${pct}% · ${job.status || '—'}${progTxt}`;
+  if (lbl) lbl.textContent = `${pct}% · ${statusExibido}${progTxt}`;
   if (meta) {
     meta.textContent = job.id
       ? `Job #${job.id} · competência ${job.competencia} · ${job.modo || 'manual'}${job.dry_run ? ' · SIMULAÇÃO' : ''}`
@@ -6549,7 +6561,18 @@ async function renderRelatorioApi() {
     if (job) {
       _giapJobId = job.id;
       giapPintarProgresso(job);
-      if (job.status === 'running' || job.status === 'pending') giapIniciarPoll(job.id);
+      if (job.status === 'running' || job.status === 'pending') {
+        _giapAutoContinuarFolha = true;
+        giapSetPararFolhaVisible(true);
+        giapIniciarPoll(job.id);
+      } else if (job.status === 'done' && job.resumo?.continuara) {
+        // Cadeia entre lotes: o servidor ainda vai criar o próximo sozinho
+        // (watchdog cobre até processo ter caído) — a tela só acompanha.
+        _giapAutoContinuarFolha = true;
+        giapSetPararFolhaVisible(true);
+        const achou = await giapAcompanharProximoJobServidor(job.competencia);
+        if (!achou) setTimeout(() => giapAcompanharProximoJobServidor(job.competencia), 8000);
+      }
     }
   } catch (_) { /* ok */ }
 
