@@ -6506,13 +6506,34 @@ async function renderRelatorioApi() {
     const { count: naFolha } = await sb.from('folha_pmsl')
       .select('id', { count: 'exact', head: true })
       .eq('competencia', comp);
-    const pct = view?.ultimo_progresso ?? 0;
+    let pct = view?.ultimo_progresso ?? 0;
+    let statusKpi = view?.ultimo_status || 'sem job';
+    let corProgresso = 'var(--gov-green)';
+    const { data: jobAtivo } = await sb.from('giap_jobs')
+      .select('id, status, progresso_pct, resumo')
+      .eq('competencia', comp)
+      .in('status', ['running', 'pending'])
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (jobAtivo) {
+      const prog = jobAtivo.resumo?.progresso || {};
+      const totalSrv = Number(prog.total_servidores ?? jobAtivo.resumo?.filtros?._total_inicial ?? 0);
+      const processados = Number(prog.processados ?? 0);
+      pct = totalSrv > 0
+        ? Math.round(Math.max(0, Math.min(100, (processados / totalSrv) * 100)))
+        : Math.max(0, Math.min(100, Number(jobAtivo.progresso_pct || 0)));
+      statusKpi = `em processamento (#${jobAtivo.id})`;
+      corProgresso = 'var(--gov-blue-primary)';
+    } else if (statusKpi === 'error') {
+      corProgresso = 'var(--gov-red, #e53e3e)';
+    }
     if (kpisEl) {
       kpisEl.innerHTML = [
         ['Ativos no RH', ativos ?? view?.total_ativos ?? '—', 'Servidores ativos', 'var(--gov-blue-primary)'],
         ['Sem matrícula', semMatricula ?? '—', 'Prioridade na busca por nome', 'var(--gov-orange,#ed8936)'],
         ['Folha GIAP', naFolha ?? 0, `Competência ${comp}`, 'var(--gov-yellow,#d69e2e)'],
-        ['Último progresso', `${pct ?? 0}%`, view?.ultimo_status || 'sem job', 'var(--gov-green)'],
+        ['Último progresso', `${pct ?? 0}%`, statusKpi, corProgresso],
       ].map(([lbl, val, sub, cor]) => `
         <div class="stat" style="border-left-color:${cor}">
           <div class="stat-lbl">${lbl}</div>
