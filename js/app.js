@@ -5295,6 +5295,23 @@ async function giapProxy(acao, extra = {}) {
   return data;
 }
 
+function giapPctDoJob(job) {
+  if (!job) return 0;
+  const prog = job.resumo?.progresso || {};
+  const sync = job.resumo?.sync || {};
+  const totalSrv = Number(
+    prog.total_servidores
+    ?? sync.total_pendentes_inicial
+    ?? job.resumo?.filtros?._total_inicial
+    ?? 0
+  );
+  const processados = Number(prog.processados ?? 0);
+  if (totalSrv > 0) {
+    return Math.round(Math.max(0, Math.min(100, (processados / totalSrv) * 100)));
+  }
+  return Math.max(0, Math.min(100, Number(job.progresso_pct || 0)));
+}
+
 function giapPintarProgresso(job) {
   if (!job) return;
   const bar = $('giap-progress-bar');
@@ -5314,9 +5331,7 @@ function giapPintarProgresso(job) {
   // Um job "done" é só 1 lote da cadeia — o % que importa pro usuário é o
   // acumulado processados/total_servidores, não o progresso local do lote
   // (que sempre fecha em 100%, mesmo faltando lotes).
-  const pct = totalSrv > 0
-    ? Math.round(Math.max(0, Math.min(100, (processados / totalSrv) * 100)))
-    : Math.max(0, Math.min(100, Number(job.progresso_pct || 0)));
+  const pct = giapPctDoJob(job);
   const emAndamento = job.status === 'running' || job.status === 'pending' || continuara;
   const statusExibido = job.status === 'error'
     ? 'error'
@@ -6198,7 +6213,7 @@ async function giapMarcarCompetenciaBuscada(comp) {
   } catch (_) { /* coluna pode faltar até rodar o SQL */ }
 }
 
-function giapPintarBadgeCompetencia(cfg) {
+function giapPintarBadgeCompetencia(cfg, folhaCount = 0) {
   const el = $('giap-comp-badge');
   if (!el) return;
   const comp = Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
@@ -6207,6 +6222,10 @@ function giapPintarBadgeCompetencia(cfg) {
     el.textContent = `Competência ${comp}: buscas já gravadas`;
     el.style.background = '#c6f6d5';
     el.style.color = '#22543d';
+  } else if (folhaCount > 0) {
+    el.textContent = `Competência ${comp}: folha parcial (${folhaCount} reg.) — busca em andamento`;
+    el.style.background = '#feebc8';
+    el.style.color = '#7b341e';
   } else {
     el.textContent = `Competência ${comp}: ainda sem busca gravada`;
     el.style.background = '#feebc8';
@@ -6484,6 +6503,7 @@ async function renderRelatorioApi() {
   await giapAtualizarBadges();
 
   const kpisEl = $('giap-kpis');
+  let giapFolhaComp = 0;
   try {
     const comp = Number($('giap-cfg-comp')?.value || giapCompetenciaPadrao());
     const { data: view } = await sb.from('v_giap_relatorio').select('*').maybeSingle();
@@ -6506,6 +6526,7 @@ async function renderRelatorioApi() {
     const { count: naFolha } = await sb.from('folha_pmsl')
       .select('id', { count: 'exact', head: true })
       .eq('competencia', comp);
+    giapFolhaComp = naFolha || 0;
     let pct = view?.ultimo_progresso ?? 0;
     let statusKpi = view?.ultimo_status || 'sem job';
     let corProgresso = 'var(--gov-green)';
@@ -6516,17 +6537,29 @@ async function renderRelatorioApi() {
       .order('id', { ascending: false })
       .limit(1)
       .maybeSingle();
+    const { data: ultimoJob } = jobAtivo
+      ? { data: null }
+      : await sb.from('giap_jobs')
+        .select('id, status, progresso_pct, resumo')
+        .eq('competencia', comp)
+        .order('id', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    const jobRef = jobAtivo || ultimoJob;
     if (jobAtivo) {
-      const prog = jobAtivo.resumo?.progresso || {};
-      const totalSrv = Number(prog.total_servidores ?? jobAtivo.resumo?.filtros?._total_inicial ?? 0);
-      const processados = Number(prog.processados ?? 0);
-      pct = totalSrv > 0
-        ? Math.round(Math.max(0, Math.min(100, (processados / totalSrv) * 100)))
-        : Math.max(0, Math.min(100, Number(jobAtivo.progresso_pct || 0)));
+      pct = giapPctDoJob(jobAtivo);
       statusKpi = `em processamento (#${jobAtivo.id})`;
+      corProgresso = 'var(--gov-blue-primary)';
+    } else if (ultimoJob?.resumo?.continuara || Number(ultimoJob?.resumo?.progresso?.pendentes ?? ultimoJob?.resumo?.sync?.buscas_nome_pendentes ?? 0) > 0) {
+      pct = giapPctDoJob(ultimoJob);
+      statusKpi = ultimoJob.resumo?.continuara
+        ? `cadeia ativa (#${ultimoJob.id})`
+        : statusKpi;
       corProgresso = 'var(--gov-blue-primary)';
     } else if (statusKpi === 'error') {
       corProgresso = 'var(--gov-red, #e53e3e)';
+    } else if (jobRef) {
+      pct = giapPctDoJob(jobRef);
     }
     if (kpisEl) {
       kpisEl.innerHTML = [
@@ -6558,7 +6591,7 @@ async function renderRelatorioApi() {
       $('giap-cfg-comp').title =
         'Atualizada automaticamente: dias 20–31 = mês corrente; antes disso = mês anterior. Pode alterar manualmente se precisar.';
     }
-    giapPintarBadgeCompetencia(cfg);
+    giapPintarBadgeCompetencia(cfg, giapFolhaComp);
   } catch (_) { /* ok */ }
 
   if ($('giap-cfg-comp') && !$('giap-cfg-comp').dataset.giapBound) {
@@ -6566,8 +6599,8 @@ async function renderRelatorioApi() {
     $('giap-cfg-comp').addEventListener('change', async () => {
       try {
         const { data: cfg } = await sb.from('giap_config').select('competencias_buscadas').eq('id', 1).maybeSingle();
-        giapPintarBadgeCompetencia(cfg);
-      } catch (_) { giapPintarBadgeCompetencia(null); }
+        giapPintarBadgeCompetencia(cfg, giapFolhaComp);
+      } catch (_) { giapPintarBadgeCompetencia(null, giapFolhaComp); }
       await giapCarregarFolhaTabela();
       await giapCarregarFaltandoFolha();
     });
