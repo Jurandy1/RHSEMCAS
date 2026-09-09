@@ -1578,11 +1578,11 @@ async function carregarDominios() {
   $('edit-vinculo').innerHTML = '<option value="">— Selecione o vínculo —</option>' +
     state.vinculos.map(x => `<option value="${x.id}">${htmlEscape(x.categoria)}</option>`).join('');
   $('edit-turno').innerHTML = '<option value="">—</option>' +
-    state.turnos.map(x => `<option value="${x.id}">${htmlEscape(x.nome)}</option>`).join('');
+    turnosDisponiveis().map(x => `<option value="${x.id}">${htmlEscape(x.nome)}</option>`).join('');
   $('trf-vinculo').innerHTML = '<option value="">Manter atual</option>' +
     state.vinculos.map(x => `<option value="${x.id}">${htmlEscape(x.categoria)}</option>`).join('');
   $('trf-turno').innerHTML = '<option value="">Manter atual</option>' +
-    state.turnos.map(x => `<option value="${x.id}">${htmlEscape(x.nome)}</option>`).join('');
+    turnosDisponiveis().map(x => `<option value="${x.id}">${htmlEscape(x.nome)}</option>`).join('');
 }
 
 // ╔══════════════════════════════════════════════════════════════╗
@@ -2825,7 +2825,7 @@ window.abrirModalAddFuncionario = () => {
   popularSelectSimbologia('add-simbologia');
   
   $('add-vinculo').innerHTML = '<option value="">Selecione...</option>' + state.vinculos.map(v => `<option value="${v.id}">${htmlEscape(v.categoria)}</option>`).join('');
-  $('add-turno').innerHTML = '<option value="">Selecione...</option>' + state.turnos.map(t => `<option value="${t.id}">${htmlEscape(t.nome)}</option>`).join('');
+  $('add-turno').innerHTML = '<option value="">Selecione...</option>' + turnosDisponiveis().map(t => `<option value="${t.id}">${htmlEscape(t.nome)}</option>`).join('');
 
   const lotacoesOrdenadas = [...state.lotacoes].sort((a,b) => a.nome.localeCompare(b.nome));
   $('add-lotacao').innerHTML = '<option value="">Selecione a lotação inicial...</option>' + lotacoesOrdenadas.map(l => `<option value="${l.id}">${htmlEscape(l.nome)}</option>`).join('');
@@ -2923,11 +2923,15 @@ function ehMotoristaTerceirizado(prefix) {
   return funcVinculoEhTerceirizado(prefix) && cargoEhMotorista(prefix);
 }
 
+function turnosDisponiveis() {
+  return (state.turnos || []).filter(t => String(t.nome || '').trim().toLocaleLowerCase('pt-BR') !== 'plantão');
+}
+
 function popularSelectTurnoTerceirizada(prefix, valorAtual = '') {
   const sel = $(`${prefix}-turno-terceirizada`);
   if (!sel) return;
   sel.innerHTML = '<option value="">—</option>' +
-    (state.turnos || []).map(t => `<option value="${htmlEscape(t.nome)}">${htmlEscape(t.nome)}</option>`).join('');
+    turnosDisponiveis().map(t => `<option value="${htmlEscape(t.nome)}">${htmlEscape(t.nome)}</option>`).join('');
   if (valorAtual) {
     if (![...sel.options].some(o => o.value === valorAtual)) {
       sel.insertAdjacentHTML('beforeend', `<option value="${htmlEscape(valorAtual)}">${htmlEscape(valorAtual)}</option>`);
@@ -3293,6 +3297,12 @@ window.abrirEdicao = async (id) => {
   const v = state.vinculos.find(x => x.categoria === data.vinculo);
   $('edit-vinculo').value = v ? v.id : '';
   const t = state.turnos.find(x => x.nome === data.turno);
+  if (t && !turnosDisponiveis().some(x => x.id === t.id)) {
+    $('edit-turno').insertAdjacentHTML(
+      'beforeend',
+      `<option value="${t.id}" hidden>${htmlEscape(t.nome)} (legado)</option>`
+    );
+  }
   $('edit-turno').value = t ? t.id : '';
 
   // Servidor sem lotação ativa: mostra seletor pra regularizar o cadastro
@@ -9482,7 +9492,7 @@ window.abrirCadastrarPendente = async (pendId) => {
     state.lotacoes.filter(l => l.funcionarios_direto !== null).sort((a,b) => a.nome.localeCompare(b.nome))
       .map(l => `<option value="${l.id}">${htmlEscape(l.nome)} [${l.tipo}]</option>`).join('');
   $('cad-pend-vinculo').innerHTML = state.vinculos.map(v => `<option value="${v.id}">${htmlEscape(v.categoria)}</option>`).join('');
-  $('cad-pend-turno').innerHTML = '<option value="">—</option>' + state.turnos.map(t => `<option value="${t.id}">${htmlEscape(t.nome)}</option>`).join('');
+  $('cad-pend-turno').innerHTML = '<option value="">—</option>' + turnosDisponiveis().map(t => `<option value="${t.id}">${htmlEscape(t.nome)}</option>`).join('');
 
   // Pré-preenche a partir dos dados da folha
   const semAc = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
