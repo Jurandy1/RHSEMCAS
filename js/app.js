@@ -2145,6 +2145,68 @@ function renderFilterTags() {
 
 /** Busca na RPC; com várias funções aplica filtro no cliente.
  *  Cedidos/Recebidos (fora de v_funcionarios_atual) entram quando há termo de busca. */
+function normalizarPesquisaFuncionario(valor) {
+  return String(valor || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+}
+
+async function buscarFuncionariosFallbackLocal(termo) {
+  const busca = normalizarPesquisaFuncionario(termo);
+  const tokens = busca.split(' ').filter(Boolean);
+  if (!tokens.length) return null;
+
+  const funcionarios = [];
+  for (let de = 0; ; de += 1000) {
+    const { data, error } = await sb.from('funcionarios')
+      .select('id, nome, matricula')
+      .eq('ativo', true)
+      .order('id')
+      .range(de, de + 999);
+    if (error) return null;
+    funcionarios.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
+
+  const encontrados = funcionarios
+    .map((f) => {
+      const nome = normalizarPesquisaFuncionario(f.nome);
+      const matricula = normalizarPesquisaFuncionario(f.matricula);
+      const todosTokens = tokens.every(t => nome.includes(t) || matricula.includes(t));
+      if (!todosTokens) return null;
+      const score = nome === busca ? 0 : nome.startsWith(busca) ? 1 : nome.includes(busca) ? 2 : 3;
+      return { ...f, score };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.score - b.score || a.nome.localeCompare(b.nome, 'pt-BR'));
+
+  if (!encontrados.length) return { rows: [], total: 0 };
+  const ids = encontrados.map(f => f.id);
+  const atuais = await fetchInChunks(
+    'v_funcionarios_atual',
+    'funcionario_id, nome, vinculo, funcao, lotacao_nome, caminho_lotacao, turno',
+    'funcionario_id',
+    ids
+  );
+  const porId = new Map(atuais.map(r => [r.funcionario_id, r]));
+  return {
+    rows: encontrados.map(f => porId.get(f.id) || {
+      funcionario_id: f.id,
+      nome: f.nome,
+      vinculo: null,
+      funcao: null,
+      lotacao_nome: null,
+      caminho_lotacao: null,
+      turno: null
+    }),
+    total: encontrados.length
+  };
+}
+
 async function buscarFuncionariosRpc({ paginar = true } = {}) {
   const funcoesSel = Array.isArray(state.filtros.funcoes) ? state.filtros.funcoes : [];
   const multiFunc = funcoesSel.length > 1;
@@ -2200,6 +2262,20 @@ async function buscarFuncionariosRpc({ paginar = true } = {}) {
     };
     const data = await handleErr(await sb.rpc('fn_buscar_funcionarios', params), 'busca funcionários');
     if (!data) return null;
+    if (
+      data.length === 0 && termo &&
+      !state.filtros.vinculo_id && !state.filtros.lotacao_id &&
+      !state.filtros.turno_id && funcoesSel.length === 0
+    ) {
+      const fallback = await buscarFuncionariosFallbackLocal(termo);
+      if (fallback) {
+        const ini = (state.page - 1) * state.pageSize;
+        return {
+          rows: fallback.rows.slice(ini, ini + state.pageSize),
+          total: fallback.total
+        };
+      }
+    }
     const baseTotal = data[0]?.total || 0;
     if (state.page === 1 && termo) {
       const m = await mesclarCedidos(data, baseTotal);
@@ -2275,13 +2351,16 @@ function invalidarCacheLicencasMapa() {
 }
 
 async function carregarFuncionarios() {
+  const requisicao = ++carregarFuncionarios._seq;
   $('table-body').innerHTML = `<tr><td colspan="9" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>`;
   const resultado = await buscarFuncionariosRpc({ paginar: true });
+  if (requisicao !== carregarFuncionarios._seq) return;
   if (!resultado) return;
   const { rows: data, total } = resultado;
   state.total = total;
 
   const licMap = await carregarMapaLicencasAtivas();
+  if (requisicao !== carregarFuncionarios._seq) return;
 
   if (data.length === 0) {
     $('table-body').innerHTML = `<tr><td colspan="9"><div class="empty-state">Nenhum funcionário encontrado</div></td></tr>`;
@@ -2321,6 +2400,7 @@ async function carregarFuncionarios() {
   }
   renderPaginacao();
 }
+carregarFuncionarios._seq = 0;
 
 function renderPaginacao() {
   const total = state.total;
