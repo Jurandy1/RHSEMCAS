@@ -697,7 +697,7 @@
         <div class="fer-v2-head">
           <div>
             <div class="row-label" style="margin:0"><i class="ti ti-beach"></i> Programação e Escala de Gozo</div>
-            <p class="view-help" style="margin:6px 0 0">Controle integrado à base de funcionários da SEMCAS.</p>
+            <p class="view-help" style="margin:6px 0 0">Controle integrado à base de funcionários da SEMCAS. Ao encerrar o gozo, o registro vai para o Histórico e uma nova pendência é preparada automaticamente.</p>
           </div>
           <button class="btn-primary" onclick="abrirAgendarFerias()"><i class="ti ti-plus"></i> Novo Registro de Férias</button>
         </div>
@@ -728,12 +728,15 @@
         <div class="fer-v2-panel">
           <div class="fer-v2-view-switcher" id="ferias-tabs">
             <button type="button" class="fer-v2-view-tab active" data-view="tabela" onclick="ferSwitchView('tabela')">
-              Tabela Geral <span class="fer-v2-tab-badge" id="badgeTotalTable">0</span>
+              Férias atuais e programadas <span class="fer-v2-tab-badge" id="badgeTotalTable">0</span>
             </button>
             <button type="button" class="fer-v2-view-tab" data-view="mensal" onclick="ferSwitchView('mensal')">Escala Mensal</button>
             <button type="button" class="fer-v2-view-tab" data-view="unidade" onclick="ferSwitchView('unidade')">Por Lotação / Unidade SUAS</button>
             <button type="button" class="fer-v2-view-tab" data-view="pendencias" onclick="ferSwitchView('pendencias')">
               Apenas Pendências <span class="fer-v2-tab-badge" id="badgePendencies">0</span>
+            </button>
+            <button type="button" class="fer-v2-view-tab" data-view="historico" onclick="ferSwitchView('historico')">
+              Histórico <span class="fer-v2-tab-badge" id="badgeFerHistorico">0</span>
             </button>
           </div>
 
@@ -759,6 +762,7 @@
                   <option value="Em Gozo">Em férias</option>
                   <option value="Pendente">Pendente</option>
                   <option value="Concluído">Concluído</option>
+                  <option value="Cancelado">Cancelado</option>
                 </select>
               </div>
               <div class="filter-field">
@@ -835,6 +839,30 @@
                 </thead>
                 <tbody id="fer-pend-body"></tbody>
               </table>
+            </div>
+          </div>
+
+          <div class="fer-v2-pane" id="fer-pane-historico">
+            <div class="table-container">
+              <table class="gov-table fer-v2-table">
+                <thead>
+                  <tr>
+                    <th>Servidor / Matrícula</th>
+                    <th>Lotação / Unidade</th>
+                    <th>Período Aquisitivo</th>
+                    <th>Período de Gozo</th>
+                    <th>Tipo</th>
+                    <th>Situação</th>
+                    <th>Documento / Link</th>
+                    <th style="width:90px">Detalhes</th>
+                  </tr>
+                </thead>
+                <tbody id="fer-historico-body"></tbody>
+              </table>
+            </div>
+            <div class="fer-v2-pagination pagination">
+              <div class="page-info" id="fer-historico-page-info">—</div>
+              <div class="page-controls" id="fer-historico-page-controls"></div>
             </div>
           </div>
 

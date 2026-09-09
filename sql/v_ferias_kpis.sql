@@ -7,44 +7,50 @@
 DROP VIEW IF EXISTS public.v_ferias_kpis CASCADE;
 
 CREATE VIEW public.v_ferias_kpis AS
-WITH ativos AS (
+WITH referencia AS (
+  SELECT (now() AT TIME ZONE 'America/Fortaleza')::date AS hoje
+),
+ativos AS (
   SELECT DISTINCT ON (ff.funcionario_id)
     ff.funcionario_id,
     ff.data_inicio,
     ff.data_fim,
     ff.periodo_pendente,
     ff.observacao,
-    COALESCE(ff.status_ferias,
-      CASE
-        WHEN ff.data_inicio IS NULL THEN 'Pendente'
-        WHEN ff.data_inicio <= CURRENT_DATE AND ff.data_fim >= CURRENT_DATE THEN 'Em Gozo'
-        WHEN ff.data_inicio > CURRENT_DATE THEN 'Programado'
-        WHEN ff.data_fim < CURRENT_DATE THEN 'Concluído'
-        ELSE 'Programado'
-      END
-    ) AS status_calc
+    CASE
+      WHEN ff.status_ferias = 'Cancelado' OR ff.ativo = false THEN 'Cancelado'
+      WHEN ff.data_inicio IS NULL THEN 'Pendente'
+      WHEN ff.data_inicio <= r.hoje AND ff.data_fim >= r.hoje THEN 'Em Gozo'
+      WHEN ff.data_inicio > r.hoje THEN 'Programado'
+      WHEN ff.data_fim < r.hoje THEN 'Concluído'
+      ELSE COALESCE(ff.status_ferias, 'Programado')
+    END AS status_calc,
+    r.hoje
   FROM public.funcionario_ferias ff
+  CROSS JOIN referencia r
   WHERE ff.ativo = true
   ORDER BY ff.funcionario_id, ff.data_inicio DESC NULLS LAST, ff.id DESC
 )
 SELECT
   count(*) FILTER (
     WHERE status_calc = 'Em Gozo'
-       OR (data_inicio <= CURRENT_DATE AND data_fim >= CURRENT_DATE)
+       OR (data_inicio <= hoje AND data_fim >= hoje)
   ) AS em_ferias_hoje,
   count(*) FILTER (
-    WHERE data_inicio > CURRENT_DATE
-      AND data_inicio <= CURRENT_DATE + 60
-      AND NOT (data_inicio <= CURRENT_DATE AND data_fim >= CURRENT_DATE)
+    WHERE data_inicio > hoje
+      AND data_inicio <= hoje + 60
+      AND NOT (data_inicio <= hoje AND data_fim >= hoje)
   ) AS proximas_60_dias,
   count(*) FILTER (
     WHERE status_calc = 'Pendente'
-       OR data_inicio IS NULL
-       OR nullif(trim(periodo_pendente), '') IS NOT NULL
+      AND status_calc NOT IN ('Concluído', 'Cancelado')
   ) AS pendentes,
   count(*) FILTER (
-    WHERE coalesce(periodo_pendente, '') ILIKE '%acumulado%'
-       OR coalesce(observacao, '') ILIKE '%risco%'
+    WHERE status_calc NOT IN ('Concluído', 'Cancelado')
+      AND (
+        coalesce(periodo_pendente, '') ILIKE '%acumulado%'
+        OR coalesce(observacao, '') ILIKE '%risco%'
+      )
   ) AS risco
 FROM ativos;
 
