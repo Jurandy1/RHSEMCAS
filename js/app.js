@@ -1562,7 +1562,7 @@ async function carregarDominios() {
   }
 
   $('f-vinculo').innerHTML = '<option value="">Todos os vínculos</option>' +
-    state.vinculos.map(x => `<option value="${x.id}">${htmlEscape(x.categoria)}</option>`).join('');
+    vinculosDisponiveis().map(x => `<option value="${x.id}">${htmlEscape(x.categoria)}</option>`).join('');
 
   initMultiSelectFuncoes();
   renderMultiSelectFuncoes((state.funcoes || []).map(x => x.funcao).filter(Boolean));
@@ -1576,11 +1576,11 @@ async function carregarDominios() {
     state.turnos.map(x => `<option value="${x.id}">${htmlEscape(x.nome)}</option>`).join('');
 
   $('edit-vinculo').innerHTML = '<option value="">— Selecione o vínculo —</option>' +
-    state.vinculos.map(x => `<option value="${x.id}">${htmlEscape(x.categoria)}</option>`).join('');
+    vinculosDisponiveis().map(x => `<option value="${x.id}">${htmlEscape(x.categoria)}</option>`).join('');
   $('edit-turno').innerHTML = '<option value="">—</option>' +
     turnosDisponiveis().map(x => `<option value="${x.id}">${htmlEscape(x.nome)}</option>`).join('');
   $('trf-vinculo').innerHTML = '<option value="">Manter atual</option>' +
-    state.vinculos.map(x => `<option value="${x.id}">${htmlEscape(x.categoria)}</option>`).join('');
+    vinculosDisponiveis().map(x => `<option value="${x.id}">${htmlEscape(x.categoria)}</option>`).join('');
   $('trf-turno').innerHTML = '<option value="">Manter atual</option>' +
     turnosDisponiveis().map(x => `<option value="${x.id}">${htmlEscape(x.nome)}</option>`).join('');
 }
@@ -1678,17 +1678,11 @@ async function renderPainel() {
   ]);
 
   const kpi    = kpiRes.data    || null;
-  // Vínculos "Contrato", "Contrato/SEMUS" e "PROCAD" não devem aparecer nos cards nem no gráfico do dashboard
-  const vincsRaw = (vincsRes.data || []).filter(v => {
+  // Vínculos Contrato / Contrato/SEMUS / PROCAD não entram no dashboard
+  const vincs = (vincsRes.data || []).filter(v => {
     const nome = (v.vinculo || '').trim().toLowerCase();
-    return nome !== 'contrato' && nome !== 'contrato/semus' && nome !== 'procad';
+    return nome !== 'contrato' && nome !== 'contrato/semus' && nome !== 'procad' && nome !== 'jovem aprendiz';
   });
-  // Garante o card "Jovem Aprendiz" mesmo com zero servidores
-  const vincs = [...vincsRaw];
-  if (!vincs.some(v => (v.vinculo || '').trim().toLowerCase() === 'jovem aprendiz')) {
-    const vId = state.vinculos.find(x => (x.categoria || '').trim().toLowerCase() === 'jovem aprendiz')?.id ?? null;
-    vincs.push({ vinculo: 'Jovem Aprendiz', vinculo_id: vId, total: 0 });
-  }
   const locais = locaisRes.data || [];
   const cedKpi = cedKpiRes.data || null;
   const totalAtivos = totalRes.count ?? null;
@@ -1699,9 +1693,7 @@ async function renderPainel() {
   const corVinc = {
     'Efetivo':'#1351b4','Comissionado':'#b28900',
     'Terceirizado':'#3B6D11','Serviço Prestado':'#534AB7',
-    'Contrato Temporário':'#993C1D','PROCAD':'#0F6E56',
-    'Jovem Aprendiz':'#0c7c59',
-    'Contrato/SEMUS':'#e52207','Contrato':'#888','Outro':'#999'
+    'Contrato Temporário':'#993C1D','Outro':'#999'
   };
 
   const irParaFuncionarios = (filtros) => {
@@ -2904,7 +2896,7 @@ window.abrirModalAddFuncionario = () => {
   if ($('add-orgao-origem-wrap')) $('add-orgao-origem-wrap').style.display = 'none';
   popularSelectSimbologia('add-simbologia');
   
-  $('add-vinculo').innerHTML = '<option value="">Selecione...</option>' + state.vinculos.map(v => `<option value="${v.id}">${htmlEscape(v.categoria)}</option>`).join('');
+  $('add-vinculo').innerHTML = '<option value="">Selecione...</option>' + vinculosDisponiveis().map(v => `<option value="${v.id}">${htmlEscape(v.categoria)}</option>`).join('');
   $('add-turno').innerHTML = '<option value="">Selecione...</option>' + turnosDisponiveis().map(t => `<option value="${t.id}">${htmlEscape(t.nome)}</option>`).join('');
 
   const lotacoesOrdenadas = [...state.lotacoes].sort((a,b) => a.nome.localeCompare(b.nome));
@@ -3005,6 +2997,12 @@ function ehMotoristaTerceirizado(prefix) {
 
 function turnosDisponiveis() {
   return (state.turnos || []).filter(t => String(t.nome || '').trim().toLocaleLowerCase('pt-BR') !== 'plantão');
+}
+
+/** Vínculos que ainda podem ser escolhidos em cadastro/edição/filtro. */
+function vinculosDisponiveis() {
+  const ocultos = new Set(['contrato', 'contrato/semus', 'procad', 'jovem aprendiz']);
+  return (state.vinculos || []).filter(v => !ocultos.has(String(v.categoria || '').trim().toLowerCase()));
 }
 
 function popularSelectTurnoTerceirizada(prefix, valorAtual = '') {
@@ -3375,6 +3373,12 @@ window.abrirEdicao = async (id) => {
   $('edit-afast-sei').value = '';
   
   const v = state.vinculos.find(x => x.categoria === data.vinculo);
+  if (v && !vinculosDisponiveis().some(x => x.id === v.id)) {
+    $('edit-vinculo').insertAdjacentHTML(
+      'beforeend',
+      `<option value="${v.id}" hidden>${htmlEscape(v.categoria)} (legado)</option>`
+    );
+  }
   $('edit-vinculo').value = v ? v.id : '';
   const t = state.turnos.find(x => x.nome === data.turno);
   if (t && !turnosDisponiveis().some(x => x.id === t.id)) {
@@ -9761,7 +9765,7 @@ window.abrirCadastrarPendente = async (pendId) => {
   $('cad-pend-lotacao').innerHTML = '<option value="">Selecione…</option>' +
     state.lotacoes.filter(l => l.funcionarios_direto !== null).sort((a,b) => a.nome.localeCompare(b.nome))
       .map(l => `<option value="${l.id}">${htmlEscape(l.nome)} [${l.tipo}]</option>`).join('');
-  $('cad-pend-vinculo').innerHTML = state.vinculos.map(v => `<option value="${v.id}">${htmlEscape(v.categoria)}</option>`).join('');
+  $('cad-pend-vinculo').innerHTML = vinculosDisponiveis().map(v => `<option value="${v.id}">${htmlEscape(v.categoria)}</option>`).join('');
   $('cad-pend-turno').innerHTML = '<option value="">—</option>' + turnosDisponiveis().map(t => `<option value="${t.id}">${htmlEscape(t.nome)}</option>`).join('');
 
   // Pré-preenche a partir dos dados da folha
