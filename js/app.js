@@ -1668,13 +1668,14 @@ async function carregarResumoDiaPainel() {
 async function renderPainel() {
   atualizarAlertasLicenca(); // fire-and-forget no topo do painel
   carregarResumoDiaPainel(); // fire-and-forget
-  const [kpiRes, vincsRes, locaisRes, cedKpiRes, totalRes] = await Promise.all([
+  const [kpiRes, vincsRes, locaisRes, cedKpiRes, totalRes, semLotRes] = await Promise.all([
     sb.from('v_dashboard_kpis').select('*').single(),
     sb.from('v_dashboard_vinculos').select('*'),
     sb.from('v_locais_resumo').select('*'),
     sb.from('v_cedencias_kpis').select('*').single().then(r=>r).catch(()=>({data:null, error:true})),
     // total real de ativos: a view de KPIs só conta quem tem lotação ativa
-    sb.from('v_funcionarios_atual').select('funcionario_id', { count: 'exact', head: true })
+    sb.from('v_funcionarios_atual').select('funcionario_id', { count: 'exact', head: true }),
+    sb.from('v_servidores_sem_lotacao').select('funcionario_id', { count: 'exact', head: true }).then(r => r).catch(() => ({ count: 0, error: true }))
   ]);
 
   const kpi    = kpiRes.data    || null;
@@ -1686,6 +1687,7 @@ async function renderPainel() {
   const locais = locaisRes.data || [];
   const cedKpi = cedKpiRes.data || null;
   const totalAtivos = totalRes.count ?? null;
+  const totalSemLotacao = semLotRes?.count || 0;
 
   ajustarLocaisResumo(locais);
   const ctCard = locais.find(l => (l.categoria || '').toUpperCase().includes('TUTELAR'));
@@ -1736,6 +1738,15 @@ async function renderPainel() {
         click: () => { location.hash = '#cedidos'; }
       });
     }
+
+    cards.push({
+      lbl: 'Sem lotação',
+      val: totalSemLotacao,
+      sub: 'Ativos sem lotação atual',
+      cor: 'var(--gov-orange,#ed8936)',
+      click: () => { location.hash = '#sem-lotacao'; }
+    });
+
     $('stats-grid').innerHTML = cards.map(c => `
       <div class="kpi-card" style="border-top-color:${c.cor}">
         <div class="kpi-card-label">${htmlEscape(c.lbl)}</div>
