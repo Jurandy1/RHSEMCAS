@@ -1907,7 +1907,17 @@
 
         <div style="grid-column:1/-1;padding-top:12px;margin-top:4px;border-top:1px solid var(--gov-border)">
           <strong style="font-size:13px;color:var(--gov-blue-dark)">Vínculo Atual</strong>
-          <small style="display:block;color:var(--color-text-muted);font-size:11px;margin-top:2px">Correções aqui não geram histórico. Pra mover de lotação, use o botão <em>Transferir</em>.</small>
+          <small style="display:block;color:var(--color-text-muted);font-size:11px;margin-top:2px">Correções aqui não geram histórico. Pra mover de lotação, use <em>Transferir</em>. Pra tirar a lotação, use <em>Remover lotação</em>.</small>
+        </div>
+        <div class="form-group full-width" id="edit-lotacao-atual-group" style="display:none">
+          <label class="form-label">Lotação atual</label>
+          <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
+            <input type="text" class="form-control" id="edit-lotacao-atual" readonly style="flex:1;min-width:180px;background:var(--gov-bg-light)">
+            <button type="button" class="btn btn-outline" id="btn-edit-remover-lotacao" onclick="removerLotacaoNoEdit()" style="color:var(--gov-orange,#ed8936);border-color:var(--gov-orange,#ed8936);white-space:nowrap" title="Encerra a lotação ativa e envia o servidor para Sem Lotação">
+              <i class="ti ti-map-off"></i> Remover lotação
+            </button>
+          </div>
+          <small style="display:block;color:var(--color-text-muted);font-size:11px;margin-top:4px">A lotação atual vai para o histórico com a data de hoje. O servidor passa a aparecer em <strong>Sem Lotação</strong>.</small>
         </div>
         <div class="form-group full-width" id="edit-lotacao-fixa-group" style="display:none">
           <label class="form-label">Lotação</label>

@@ -3410,6 +3410,18 @@ window.abrirEdicao = async (id) => {
     return isTerc && (cargo.includes('MOTORISTA') || funcao.includes('MOTORISTA') || empresa === 'MEGA ON');
   })();
 
+  const lotAtualGroup = $('edit-lotacao-atual-group');
+  const lotAtualInp = $('edit-lotacao-atual');
+  if (lotAtualGroup && lotAtualInp) {
+    if (!semLotacao && !isMotorista) {
+      lotAtualGroup.style.display = '';
+      lotAtualInp.value = data.caminho_lotacao || data.lotacao_nome || '—';
+    } else {
+      lotAtualGroup.style.display = 'none';
+      lotAtualInp.value = '';
+    }
+  }
+
   $('edit-lotacao-group').style.display = (semLotacao && !isMotorista) ? '' : 'none';
   if (semLotacao) {
     const ords = [...state.lotacoes].sort((a,b) => a.nome.localeCompare(b.nome));
@@ -10667,62 +10679,114 @@ window.definirLotacaoLicenca = async (funcionario_id) => {
 };
 
 /** Remove lotação ativa → servidor vai para Sem Lotação; histórico guarda de onde veio e a data. */
+async function enviarParaSemLotacao(funcionario_id, opts = {}) {
+  const origem = opts.origem || 'edicao';
+  const nomeInformado = opts.nome || null;
+  const lotNomeInformado = opts.lotacao_nome || null;
+  const licenca_id = opts.licenca_id || null;
+
+  let nome = nomeInformado;
+  let lotNome = lotNomeInformado;
+  if (!nome || !lotNome) {
+    const { data: atual } = await sb.from('v_funcionarios_atual')
+      .select('nome, lotacao_nome')
+      .eq('funcionario_id', funcionario_id)
+      .maybeSingle();
+    nome = nome || atual?.nome || 'Servidor(a)';
+    lotNome = lotNome || atual?.lotacao_nome || 'lotação atual';
+  }
+
+  const extraLic = origem === 'licencas'
+    ? '\nA licença/afastamento continua registrada.'
+    : '';
+  if (!confirm(
+    `Remover lotação de “${nome}”?\n\n` +
+    `A lotação “${lotNome}” será encerrada e ficará no histórico com a data de hoje.\n` +
+    `O servidor passa a aparecer em Sem Lotação.${extraLic}`
+  )) return false;
+
+  const { data: atuais, error: e1 } = await sb.from('funcionario_lotacao')
+    .select('id, lotacao_id, funcao, observacao, data_inicio')
+    .eq('funcionario_id', funcionario_id)
+    .eq('ativo', true);
+  if (e1) throw e1;
+  if (!atuais?.length) {
+    showToast('Este servidor já está sem lotação ativa.', 'info');
+    atualizarBadgesSemLotacaoExonerados();
+    return false;
+  }
+
+  const hoje = new Date().toISOString().slice(0, 10);
+  const lotMap = Object.fromEntries((state.lotacoes || []).map((l) => [l.id, l.nome]));
+  const via = origem === 'licencas' ? 'via Licenças' : 'via Edição';
+
+  for (const fl of atuais) {
+    const deOnde = lotMap[fl.lotacao_id] || 'lotação';
+    const obsBase = (fl.observacao || '').trim();
+    const obsNova = [
+      obsBase,
+      `Encerrado em ${hoje.split('-').reverse().join('/')}: enviado para Sem Lotação (${via}). Origem: ${deOnde}.`
+    ].filter(Boolean).join(' | ');
+
+    const { error } = await sb.from('funcionario_lotacao').update({
+      ativo: false,
+      data_fim: hoje,
+      observacao: obsNova
+    }).eq('id', fl.id);
+    if (error) throw error;
+  }
+
+  await registrarLog('ENVIO PARA SEM LOTAÇÃO', funcionario_id, nome, {
+    licenca_id,
+    lotacao_anterior: lotNome,
+    data: hoje,
+    origem
+  });
+
+  showToast(`${nome} foi para Sem Lotação. O histórico guarda de onde veio.`, 'success');
+  gsInvalidarCache();
+  atualizarBadgesSemLotacaoExonerados();
+  return true;
+}
+
 window.enviarLicencaParaSemLotacao = async (funcionario_id, licenca_id) => {
   const lic = (window._licencasCache || []).find((l) => Number(l.funcionario_id) === Number(funcionario_id));
-  const nome = lic?.nome || 'Servidor(a)';
-  const lotNome = lic?.lotacao_nome || 'lotação atual';
-  if (!confirm(
-    `Enviar “${nome}” para Sem Lotação?\n\n` +
-    `A lotação “${lotNome}” será encerrada e ficará no histórico com a data de hoje.\n` +
-    `A licença/afastamento continua registrada.`
-  )) return;
-
   try {
-    const { data: atuais, error: e1 } = await sb.from('funcionario_lotacao')
-      .select('id, lotacao_id, funcao, observacao, data_inicio')
-      .eq('funcionario_id', funcionario_id)
-      .eq('ativo', true);
-    if (e1) throw e1;
-    if (!atuais?.length) {
-      showToast('Este servidor já está sem lotação ativa.', 'info');
-      atualizarBadgesSemLotacaoExonerados();
-      return;
-    }
-
-    const hoje = new Date().toISOString().slice(0, 10);
-    const lotMap = Object.fromEntries((state.lotacoes || []).map((l) => [l.id, l.nome]));
-
-    for (const fl of atuais) {
-      const deOnde = lotMap[fl.lotacao_id] || 'lotação';
-      const obsBase = (fl.observacao || '').trim();
-      const obsNova = [
-        obsBase,
-        `Encerrado em ${hoje.split('-').reverse().join('/')}: enviado para Sem Lotação (via Licenças). Origem: ${deOnde}.`
-      ].filter(Boolean).join(' | ');
-
-      const { error } = await sb.from('funcionario_lotacao').update({
-        ativo: false,
-        data_fim: hoje,
-        observacao: obsNova
-      }).eq('id', fl.id);
-      if (error) throw error;
-    }
-
-    await registrarLog('ENVIO PARA SEM LOTAÇÃO', funcionario_id, nome, {
-      licenca_id: licenca_id || null,
-      lotacao_anterior: lotNome,
-      data: hoje,
-      origem: 'licencas'
+    const ok = await enviarParaSemLotacao(funcionario_id, {
+      origem: 'licencas',
+      licenca_id,
+      nome: lic?.nome || null,
+      lotacao_nome: lic?.lotacao_nome || null
     });
-
-    showToast(`${nome} foi para Sem Lotação. O histórico guarda de onde veio.`, 'success');
-    gsInvalidarCache();
-    invalidarCacheFiltros();
-    atualizarBadgesSemLotacaoExonerados();
-    if (state.rotaAtual === 'licencas') carregarTabelaLicencas();
-    if (state.rotaAtual === 'sem-lotacao') renderSemLotacao();
+    if (ok) {
+      if (state.rotaAtual === 'licencas') renderLicencas();
+      if (state.rotaAtual === 'sem-lotacao') renderSemLotacao();
+    }
   } catch (e) {
     showToast(e.message || String(e), 'error');
+  }
+};
+
+window.removerLotacaoNoEdit = async function removerLotacaoNoEdit() {
+  const id = Number($('edit-id')?.value);
+  if (!id) return;
+  const btn = $('btn-edit-remover-lotacao');
+  if (btn) btn.disabled = true;
+  try {
+    const ok = await enviarParaSemLotacao(id, {
+      origem: 'edicao',
+      nome: state.funcionarioAtual?.nome || $('edit-nome')?.value || null,
+      lotacao_nome: state.funcionarioAtual?.lotacao_nome || $('edit-lotacao-atual')?.value || null
+    });
+    if (!ok) return;
+    closeModal('modal-edit');
+    if (state.rotaAtual === 'funcionarios') carregarFuncionarios();
+    else if (state.rotaAtual === 'sem-lotacao') renderSemLotacao();
+    else if (state.rotaAtual === 'painel') renderPainel();
+  } catch (e) {
+    showToast(e.message || String(e), 'error');
+  } finally {
+    if (btn) btn.disabled = false;
   }
 };
 
