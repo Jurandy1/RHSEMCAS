@@ -1547,6 +1547,37 @@
     }
     .timeline .lot-nome { font-weight: 600; color: var(--gov-blue-dark); font-size: 14px; }
     .timeline .meta { font-size: 12px; color: var(--color-text-sec); margin-top: 6px; }
+    .hist-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .hist-head-info { min-width: 0; flex: 1; }
+    .hist-head-info h4 {
+      color: var(--gov-blue-dark);
+      margin: 0 0 4px;
+      font-size: 18px;
+      line-height: 1.3;
+    }
+    .hist-mat { font-size: 12px; color: var(--color-text-muted); }
+    .hist-foto {
+      width: 96px;
+      height: 96px;
+      border-radius: 12px;
+      object-fit: cover;
+      flex-shrink: 0;
+      border: 1px solid var(--gov-border);
+      background: #f1f5f9;
+    }
+    .hist-foto--empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--color-text-muted);
+      font-size: 36px;
+    }
 
     /* Toast */
     .toast {

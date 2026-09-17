@@ -3904,15 +3904,31 @@ window.abrirHistoricoDoTransfer = () => {
 window.verHistorico = async (id) => {
   openModal('modal-historico');
   $('hist-content').innerHTML = '<span class="spinner"></span> Carregando…';
-  const data = await handleErr(await sb.from('v_funcionario_historico')
-    .select('*').eq('funcionario_id', id).order('data_inicio', { ascending: false }), 'histórico');
+  const [histRes, funcRes] = await Promise.all([
+    sb.from('v_funcionario_historico')
+      .select('*').eq('funcionario_id', id).order('data_inicio', { ascending: false }),
+    sb.from('funcionarios').select('nome, foto_url, matricula').eq('id', id).maybeSingle()
+  ]);
+  const data = await handleErr(histRes, 'histórico');
   if (!data || data.length === 0) {
     $('hist-content').innerHTML = '<div class="empty-state">Sem histórico</div>';
     return;
   }
-  const nome = data[0].funcionario_nome;
+  const nome = data[0].funcionario_nome || funcRes.data?.nome || 'Servidor';
+  const fotoUrl = funcRes.data?.foto_url ? urlPublicaFoto(funcRes.data.foto_url) : null;
+  const fotoHtml = fotoUrl
+    ? `<img class="hist-foto" src="${htmlEscape(fotoUrl)}" alt="Foto de ${htmlEscape(nome)}" loading="lazy">`
+    : `<div class="hist-foto hist-foto--empty" aria-hidden="true"><i class="ti ti-user"></i></div>`;
+  const mat = funcRes.data?.matricula ? `<div class="hist-mat">Mat.: ${htmlEscape(funcRes.data.matricula)}</div>` : '';
+
   $('hist-content').innerHTML = `
-    <h4 style="color:var(--gov-blue-dark);margin-bottom:14px">${htmlEscape(nome)}</h4>
+    <div class="hist-head">
+      <div class="hist-head-info">
+        <h4>${htmlEscape(nome)}</h4>
+        ${mat}
+      </div>
+      ${fotoHtml}
+    </div>
     <ul class="timeline">
       ${(() => {
         const temAtiva = data.some((h) => h.lotacao_ativa);
