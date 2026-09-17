@@ -1550,7 +1550,7 @@ async function carregarDominios() {
   
   state.vinculos = vRes.data  || [];
   state.turnos   = tRes.data  || [];
-  state.lotacoes = (lRes.data || []).filter(l => l.ativo !== false);
+  state.lotacoes = filtrarLotacoesState(lRes.data || []);
   state.funcoes  = fRes?.data || [];
 
   const listaFuncoes = $('funcoes-cadastradas');
@@ -3509,6 +3509,11 @@ $('btn-salvar-edit').onclick = async () => {
   if (semLotacao) {
     // Sem registro ativo em funcionario_lotacao: cria um pra regularizar
     const lotIdReg = isMotorista ? Number(lotacaoMotoristaId()) : Number($('edit-lotacao').value);
+    const lotReg = state.lotacoes.find((l) => l.id == lotIdReg);
+    if (!isMotorista && ehLotacaoFantasmaSemLotacao(lotReg)) {
+      btn.disabled = false;
+      return showToast('“Sem Lotação” não é uma unidade. Escolha a lotação real do servidor.', 'warning');
+    }
     r2 = await sb.from('funcionario_lotacao').insert([{
       funcionario_id: id,
       lotacao_id:   lotIdReg,
@@ -3641,11 +3646,23 @@ $('btn-edit-afastar').onclick = async () => {
 // ║                    MODAL TRANSFERÊNCIA                        ║
 // ╚══════════════════════════════════════════════════════════════╝
 
+function ehLotacaoFantasmaSemLotacao(nomeOuLot) {
+  const nome = typeof nomeOuLot === 'string'
+    ? nomeOuLot
+    : (nomeOuLot?.nome || '');
+  const n = String(nome || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  return n === 'sem lotacao';
+}
+
+function filtrarLotacoesState(lista) {
+  return (lista || []).filter((l) => l && l.ativo !== false && !ehLotacaoFantasmaSemLotacao(l));
+}
+
 /** Carrega a mesma árvore usada em Gestão de Lotações (fn_organograma_completo). */
 async function carregarLotacoesParaArvore() {
   const org = await handleErr(await sb.rpc('fn_organograma_completo'), 'organograma lotacoes');
   if (org?.length) {
-    state.lotacoes = org.map(l => ({
+    state.lotacoes = filtrarLotacoesState(org.map(l => ({
       id: l.id,
       nome: l.nome,
       parent_id: l.parent_id,
@@ -3654,11 +3671,11 @@ async function carregarLotacoesParaArvore() {
       marcador: l.marcador || null,
       funcionarios_direto: l.funcionarios_direto ?? 0,
       funcionarios_total: l.funcionarios_total ?? 0,
-    }));
+    })));
     return state.lotacoes;
   }
   const { data } = await sb.from('v_lotacoes_com_count').select('*').range(0, 9999).order('nome');
-  state.lotacoes = (data || []).filter(l => l.ativo !== false);
+  state.lotacoes = filtrarLotacoesState(data || []);
   return state.lotacoes;
 }
 
@@ -3807,6 +3824,11 @@ $('btn-confirmar-trf').onclick = async () => {
   const id = Number($('trf-id').value);
   const novaLot = Number($('trf-lotacao-id').value);
   if (!novaLot) { showToast('Selecione a nova lotação', 'warning'); return; }
+  const lotDest = state.lotacoes.find((l) => l.id == novaLot);
+  if (ehLotacaoFantasmaSemLotacao(lotDest)) {
+    showToast('“Sem Lotação” não é uma unidade. Use Remover lotação ou escolha uma lotação real.', 'warning');
+    return;
+  }
 
   const veioDeLicencas = !!state._trfFromLicencas;
   const veioDeSemLotacao = !!state._trfFromSemLotacao;
@@ -9843,7 +9865,8 @@ window.abrirCadastrarPendente = async (pendId) => {
 const stateLot = { busca: '' };
 
 async function renderLotacoes() {
-  const data = await handleErr(await sb.rpc('fn_organograma_completo'), 'organograma') || [];
+  const data = (await handleErr(await sb.rpc('fn_organograma_completo'), 'organograma') || [])
+    .filter((n) => !ehLotacaoFantasmaSemLotacao(n));
   const byId = Object.fromEntries(data.map(x => [x.id, { ...x, filhos: [] }]));
   const raizes = [];
   for (const n of Object.values(byId)) {
@@ -9956,8 +9979,12 @@ window.abrirEditarLotacao = (id) => {
 window.salvarLotacao = async () => {
   const id = $('nl-id').value;
   const parent = $('nl-parent').value ? Number($('nl-parent').value) : null;
+  const nomeLot = $('nl-nome').value.trim();
+  if (ehLotacaoFantasmaSemLotacao(nomeLot)) {
+    return showToast('Não crie uma lotação chamada “Sem Lotação”. Isso é um status do menu Sem Lotação.', 'warning');
+  }
   const params = {
-    p_nome: $('nl-nome').value.trim(),
+    p_nome: nomeLot,
     p_tipo: $('nl-tipo').value,
     p_marcador: $('nl-marcador').value.trim() || null,
   };
@@ -10016,7 +10043,7 @@ window.inativarLotacao = async (id) => {
 
 async function recarregarLotacoes() {
   const { data } = await sb.from('v_lotacoes_com_count').select('*').range(0, 9999).order('nome');
-  if (data) state.lotacoes = data.filter(l => l.ativo !== false);
+  if (data) state.lotacoes = filtrarLotacoesState(data);
 }
 
 // === Submit modais ===
