@@ -3415,10 +3415,16 @@ window.abrirEdicao = async (id) => {
   if (lotAtualGroup && lotAtualInp) {
     if (!semLotacao && !isMotorista) {
       lotAtualGroup.style.display = '';
-      lotAtualInp.value = data.caminho_lotacao || data.lotacao_nome || '—';
+      // Só o nome da unidade (não a raiz/caminho completo)
+      const unidade = data.lotacao_nome
+        || String(data.caminho_lotacao || '').split(/\s*›\s*/).filter(Boolean).pop()
+        || '—';
+      lotAtualInp.value = unidade;
+      lotAtualInp.title = data.caminho_lotacao || unidade;
     } else {
       lotAtualGroup.style.display = 'none';
       lotAtualInp.value = '';
+      lotAtualInp.title = '';
     }
   }
 
@@ -3705,7 +3711,8 @@ window.abrirTransferencia = async (id, { fromLicencas = false, fromSemLotacao = 
   }
 
   $('trf-id').value = id;
-  const lotAtualLbl = data.caminho_lotacao || data.lotacao_nome
+  const lotAtualLbl = data.lotacao_nome
+    || String(data.caminho_lotacao || '').split(/\s*›\s*/).filter(Boolean).pop()
     || (fromSemLotacao ? 'Sem lotação' : (fromLicencas ? 'Pendente de definição' : '—'));
   $('trf-servidor-info').innerHTML = `
     <strong>${htmlEscape(data.nome)}</strong><br>
@@ -10715,10 +10722,13 @@ async function enviarParaSemLotacao(funcionario_id, opts = {}) {
   const extraLic = origem === 'licencas'
     ? '\nA licença/afastamento continua registrada.'
     : '';
-  if (!confirm(
-    `Remover lotação de “${nome}”?\n\n` +
-    `A lotação “${lotNome}” será encerrada e ficará no histórico com a data de hoje.\n` +
-    `O servidor passa a aparecer em Sem Lotação.${extraLic}`
+  const unidadeCurta = String(lotNome || '')
+    .split(/\s*›\s*/).filter(Boolean).pop() || lotNome || 'lotação atual';
+  if (!opts.jaConfirmado && !confirm(
+    `Deseja remover a lotação de “${nome}” mesmo?\n\n` +
+    `Unidade: ${unidadeCurta}\n\n` +
+    `SIM (OK) → a lotação será encerrada e o servidor vai para Sem Lotação.\n` +
+    `NÃO (Cancelar) → nada muda.${extraLic}`
   )) return false;
 
   const { data: atuais, error: e1 } = await sb.from('funcionario_lotacao')
@@ -10786,13 +10796,28 @@ window.enviarLicencaParaSemLotacao = async (funcionario_id, licenca_id) => {
 window.removerLotacaoNoEdit = async function removerLotacaoNoEdit() {
   const id = Number($('edit-id')?.value);
   if (!id) return;
+  const nome = state.funcionarioAtual?.nome || $('edit-nome')?.value || 'este servidor';
+  const unidade = state.funcionarioAtual?.lotacao_nome
+    || String($('edit-lotacao-atual')?.value || '').split(/\s*›\s*/).filter(Boolean).pop()
+    || 'a lotação atual';
+  // Confirmação de segurança antes de qualquer ação
+  if (!confirm(
+    `Deseja remover a lotação mesmo?\n\n` +
+    `Servidor: ${nome}\n` +
+    `Unidade: ${unidade}\n\n` +
+    `SIM (OK) — remove a lotação.\n` +
+    `NÃO (Cancelar) — mantém como está.`
+  )) return;
+
   const btn = $('btn-edit-remover-lotacao');
   if (btn) btn.disabled = true;
   try {
+    // Pula o 2º confirm interno: já perguntamos acima
     const ok = await enviarParaSemLotacao(id, {
       origem: 'edicao',
-      nome: state.funcionarioAtual?.nome || $('edit-nome')?.value || null,
-      lotacao_nome: state.funcionarioAtual?.lotacao_nome || $('edit-lotacao-atual')?.value || null
+      nome,
+      lotacao_nome: unidade,
+      jaConfirmado: true
     });
     if (!ok) return;
     closeModal('modal-edit');
