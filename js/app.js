@@ -4021,6 +4021,108 @@ window.verHistorico = async (id) => {
 let _fpServidores = [];
 let _fpInited = false;
 const _fpHolCfg = { nac: true, est: true, mun: true, custom: [] };
+let _fpSrvId = null;            // servidor da aba Individual
+let _fpUnidades = [];           // [{ chave, nome, caminho, servidores }]
+let _fpUnidadeAtual = null;     // unidade da aba Por Unidade
+const _fpExcluidos = new Set(); // funcionario_id desmarcados na unidade atual
+
+const fpNorm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+// Só quem tem matrícula: efetivo, comissionado, contrato e serviço prestado
+function fpVinculoPermitido(vinculo) {
+  const v = fpNorm(vinculo);
+  if (v.includes('terceiriz')) return false;
+  return v.includes('efetivo') || v.includes('comission') || v.includes('contrat') || v.includes('prestado');
+}
+
+function fpMontarUnidades() {
+  const lotPorId = new Map((state.lotacoes || []).map(l => [Number(l.id), l]));
+  const caminho = (id) => {
+    const nomes = [];
+    const vistos = new Set();
+    let l = lotPorId.get(Number(id));
+    while (l && l.parent_id != null && !vistos.has(l.id)) {
+      vistos.add(l.id);
+      l = lotPorId.get(Number(l.parent_id));
+      if (l) nomes.unshift(l.nome);
+    }
+    return nomes.join(' › ');
+  };
+  const grupos = new Map();
+  _fpServidores.forEach(s => {
+    const nome = (s.lotacao_nome || '').trim();
+    if (!nome) return;
+    const chave = s.lotacao_id != null ? `id:${s.lotacao_id}` : `nome:${nome}`;
+    if (!grupos.has(chave)) {
+      grupos.set(chave, { chave, nome, caminho: s.lotacao_id != null ? caminho(s.lotacao_id) : '', servidores: [] });
+    }
+    grupos.get(chave).servidores.push(s);
+  });
+  _fpUnidades = [...grupos.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+/** Campo de busca com lista suspensa (setas, Enter, Esc). */
+function fpCombo({ input, lista, fonte, texto, html, aoEscolher, max = 80 }) {
+  let atuais = [];
+  let ativo = -1;
+  const fechar = () => { lista.hidden = true; input.setAttribute('aria-expanded', 'false'); };
+  const marcar = () => {
+    lista.querySelectorAll('.fp-busca-item').forEach((el, i) => {
+      el.classList.toggle('ativo', i === ativo);
+      if (i === ativo) el.scrollIntoView({ block: 'nearest' });
+    });
+  };
+  const abrir = (termo) => {
+    const partes = fpNorm(termo).split(/\s+/).filter(Boolean);
+    atuais = fonte().filter(it => { const t = fpNorm(texto(it)); return partes.every(p => t.includes(p)); });
+    ativo = atuais.length ? 0 : -1;
+    lista.innerHTML = atuais.length
+      ? atuais.slice(0, max).map((it, i) =>
+          `<div class="fp-busca-item${i === ativo ? ' ativo' : ''}" role="option" data-i="${i}">${html(it)}</div>`).join('') +
+        (atuais.length > max ? `<div class="fp-busca-mais">+${atuais.length - max} resultados — digite mais para refinar</div>` : '')
+      : '<div class="fp-busca-vazio">Nada encontrado</div>';
+    lista.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+  };
+  const escolher = (i) => {
+    const it = atuais[i];
+    if (!it) return;
+    fechar();
+    aoEscolher(it);
+    input.blur();
+  };
+  input.addEventListener('focus', () => { input.select(); abrir(''); });
+  input.addEventListener('input', () => abrir(input.value));
+  input.addEventListener('blur', fechar);
+  input.addEventListener('keydown', (e) => {
+    const n = Math.min(atuais.length, max);
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (lista.hidden) { abrir(input.value); return; }
+      if (!n) return;
+      ativo = (ativo + (e.key === 'ArrowDown' ? 1 : -1) + n) % n;
+      marcar();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      escolher(ativo);
+    } else if (e.key === 'Escape') {
+      fechar();
+    }
+  });
+  // mousedown (não click) para escolher antes do blur fechar a lista
+  lista.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const el = e.target.closest('[data-i]');
+    if (el) escolher(Number(el.dataset.i));
+  });
+}
+
+function fpSelecionarServidor(srv) {
+  _fpSrvId = srv ? Number(srv.funcionario_id) : null;
+  const inp = $('fp-srv-busca');
+  if (inp) inp.value = srv?.nome || '';
+  fpPreencherServidor();
+}
 
 async function renderFolhaPonto() {
   const now = new Date();
@@ -4053,6 +4155,31 @@ async function renderFolhaPonto() {
     if (chkE) chkE.onchange = () => { _fpHolCfg.est = chkE.checked; fpRenderFeriados(); fpPopularDias(); };
     if (chkM) chkM.onchange = () => { _fpHolCfg.mun = chkM.checked; fpRenderFeriados(); fpPopularDias(); };
     $('fp-paper')?.addEventListener('input', e => { if (e.target.dataset?.larg) fpAjustarFonte(e.target); });
+
+    fpCombo({
+      input: $('fp-srv-busca'), lista: $('fp-srv-lista'),
+      fonte: () => _fpServidores,
+      texto: s => `${s.nome} ${s.matricula || ''} ${s.funcao || ''} ${s.lotacao_nome || ''} ${s.vinculo || ''}`,
+      html: s => `<strong>${htmlEscape(s.nome)}</strong><small>${htmlEscape(
+        [s.matricula ? `Mat. ${s.matricula}` : 'Sem matrícula', s.vinculo, s.funcao, s.lotacao_nome].filter(Boolean).join(' · '))}</small>`,
+      aoEscolher: fpSelecionarServidor,
+    });
+    fpCombo({
+      input: $('fp-und-busca'), lista: $('fp-und-lista'),
+      fonte: () => _fpUnidades,
+      texto: u => `${u.nome} ${u.caminho}`,
+      html: u => `<span class="fp-qtd">${u.servidores.length}</span><strong>${htmlEscape(u.nome)}</strong>` +
+        (u.caminho ? `<small>${htmlEscape(u.caminho)}</small>` : ''),
+      aoEscolher: fpSelecionarUnidade,
+    });
+    $('fp-und-servidores')?.addEventListener('change', (e) => {
+      const id = Number(e.target.dataset?.id);
+      if (!id) return;
+      if (e.target.checked) _fpExcluidos.delete(id); else _fpExcluidos.add(id);
+      e.target.closest('.fp-und-srv')?.classList.toggle('fora', !e.target.checked);
+      fpAtualizarContagemUnidade();
+    });
+    $('fp-und-filtro')?.addEventListener('input', fpFiltrarListaUnidade);
     sb.from('feriados').select('*').eq('ativo', true).then(res => {
       if (res.data) {
         _fpHolCfg.custom = res.data.map(d => ({ id: d.id, date: d.data, nome: d.nome }));
@@ -4064,10 +4191,8 @@ async function renderFolhaPonto() {
 
   // Carrega servidores do Supabase (uma vez)
   if (_fpServidores.length === 0) {
-    const sel = $('fp-servidor-select');
-    if (sel) sel.innerHTML = '<option value="">Carregando&#8230;</option>';
     const [{ data, error }, cargos] = await Promise.all([
-      fetchTudo('v_funcionarios_atual', 'funcionario_id, nome, funcao, matricula, vinculo, lotacao_nome', 'nome'),
+      fetchTudo('v_funcionarios_atual', 'funcionario_id, nome, funcao, matricula, vinculo, lotacao_id, lotacao_nome', 'nome'),
       fetchTudo('funcionarios', 'id, cargo', 'id'),
     ]);
     if (!error && data && data.length > 0) {
@@ -4081,34 +4206,15 @@ async function renderFolhaPonto() {
       });
       _fpServidores = r.data || [];
     }
-  // Filtra apenas vínculos permitidos (Efetivo, Comissionado, Serviço Prestado)
-    const vincPermitidos = d => {
-      const v = (d.vinculo || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-      return v.includes('efetivo') || v.includes('comission') ||
-             v.includes('servico prestado') || v.includes('servico pres') ||
-             v.includes('prestado') || v.includes('ps ');
-    };
-    _fpServidores = _fpServidores.filter(vincPermitidos);
+    _fpServidores = _fpServidores.filter(s => fpVinculoPermitido(s.vinculo));
     const cargoPorId = new Map((cargos.data || []).map(f => [Number(f.id), f.cargo]));
     _fpServidores.forEach(s => { s.cargo = cargoPorId.get(Number(s.funcionario_id)) || s.cargo || ''; });
-
-    const sel2 = $('fp-servidor-select');
-    if (sel2) {
-      sel2.innerHTML = '<option value="">— Selecione o servidor —</option>' +
-        _fpServidores.map(s =>
-          `<option value="${s.funcionario_id}">${htmlEscape(s.nome)} <small>(${s.vinculo || ''})</small></option>`
-        ).join('');
-    }
+    fpMontarUnidades();
+    const inp = $('fp-srv-busca');
+    if (inp) inp.placeholder = `Buscar entre ${_fpServidores.length} servidores por nome, matrícula, função ou unidade…`;
   }
 
   fpRenderFeriados();
-
-  // Adiciona listener no select de servidor (gera folha ao trocar)
-  const selSrv = $('fp-servidor-select');
-  if (selSrv && !selSrv._fpListenerOk) {
-    selSrv._fpListenerOk = true;
-    selSrv.addEventListener('change', fpPreencherServidor);
-  }
 
   // Listeners de mês/ano (individual)
   const selM = $('fp-mes'), selA = $('fp-ano');
@@ -4119,14 +4225,13 @@ async function renderFolhaPonto() {
   const ferA = $('fp-fer-ano');
   if (ferA && !ferA._fpListenerOk) { ferA._fpListenerOk = true; ferA.addEventListener('change', fpRenderFeriados); }
 
-  // Pré-seleciona Jurandy se disponível
-  const jurandy = _fpServidores.find(s =>
-    (s.nome || '').toUpperCase().includes('JURANDY')
-  );
-  if (jurandy) {
-    $('fp-servidor-select').value = jurandy.funcionario_id;
+  // Pré-seleciona Jurandy na primeira abertura
+  if (_fpSrvId == null) {
+    const jurandy = _fpServidores.find(s => (s.nome || '').toUpperCase().includes('JURANDY'));
+    fpSelecionarServidor(jurandy || null);
+  } else {
+    fpPreencherServidor();
   }
-  fpPreencherServidor();
 }
 
 // Regra de negócio: Jurandy → Função e Unidade específicas
@@ -4186,8 +4291,7 @@ function fpLinhasDias(mm, aa) {
 }
 
 function fpPreencherServidor() {
-  const id  = Number($('fp-servidor-select')?.value);
-  const srv = _fpServidores.find(s => Number(s.funcionario_id) === id);
+  const srv = _fpServidores.find(s => Number(s.funcionario_id) === _fpSrvId);
   const paper = $('fp-paper');
   if (paper) fpPreencherPagina(paper, fpDadosServidor(srv));
   fpPopularDias();
@@ -4310,10 +4414,10 @@ window.fpDelFeriado = async (id) => {
 window.fpSwitchTab         = fpSwitchTab;
 window.fpImprimir          = fpImprimir;
 window.fpAddFeriado        = fpAddFeriado;
-window.fpPreencherServidor = fpPreencherServidor;
 window.fpPopularDias       = fpPopularDias;
 window.fpRenderFeriados    = fpRenderFeriados;
 window.fpImprimirUnidade   = fpImprimirUnidade;
+window.fpMarcarTodos       = fpMarcarTodos;
 
 // ── Aba Por Unidade ────────────────────────────────────────────────────────────
 function fpIniciarAbaUnidade() {
@@ -4333,42 +4437,68 @@ function fpIniciarAbaUnidade() {
       undA.innerHTML += `<option value="${y}" ${y===now.getFullYear()?'selected':''}>${y}</option>`;
   }
 
-  // Popula select de unidades (lotacao_nome únicas)
-  const sel = $('fp-unidade-select');
-  if (sel && _fpServidores.length > 0) {
-    const unidades = [...new Set(
-      _fpServidores
-        .map(s => (s.lotacao_nome || '').trim())
-        .filter(Boolean)
-    )].sort();
-    sel.innerHTML = '<option value="">— Selecione a unidade —</option>' +
-      unidades.map(u => `<option value="${htmlEscape(u)}">${htmlEscape(u)}</option>`).join('');
-    // Listener para atualizar contagem de servidores
-    if (!sel._fpUndListenerOk) {
-      sel._fpUndListenerOk = true;
-      sel.addEventListener('change', () => {
-        const unit = sel.value;
-        const prev = $('fp-und-preview');
-        if (!unit || !prev) return;
-        const lista = _fpServidores.filter(s => (s.lotacao_nome||'').trim() === unit);
-        prev.innerHTML = lista.length === 0
-          ? '<span style="color:#e52207">Nenhum servidor encontrado nesta unidade.</span>'
-          : `<i class="ti ti-users"></i> <strong>${lista.length}</strong> servidor(es) encontrado(s):&nbsp;` +
-            lista.map(s => htmlEscape(s.nome)).join(' &bull; ');
-      });
-    }
+  const inp = $('fp-und-busca');
+  if (inp && _fpUnidades.length) {
+    inp.placeholder = `Buscar entre ${_fpUnidades.length} unidades pelo nome ou pela coordenação…`;
   }
 }
 
+function fpSelecionarUnidade(u) {
+  _fpUnidadeAtual = u;
+  _fpExcluidos.clear();
+  $('fp-und-busca').value = u.nome;
+  $('fp-und-filtro').value = '';
+  $('fp-und-nome').textContent = u.nome;
+  $('fp-und-caminho').textContent = u.caminho;
+  $('fp-und-servidores').innerHTML = u.servidores.map(s => {
+    const meta = [s.matricula ? `Mat. ${s.matricula}` : 'Sem matrícula', s.vinculo, s.funcao].filter(Boolean).join(' · ');
+    const busca = fpNorm(`${s.nome} ${s.matricula || ''} ${s.funcao || ''} ${s.vinculo || ''}`);
+    return `<label class="fp-und-srv" data-busca="${htmlEscape(busca)}">
+      <input type="checkbox" data-id="${Number(s.funcionario_id)}" checked>
+      <span><span class="fp-und-srv-nome">${htmlEscape(s.nome)}</span><span class="fp-und-srv-meta">${htmlEscape(meta)}</span></span>
+    </label>`;
+  }).join('');
+  $('fp-und-painel').hidden = false;
+  fpAtualizarContagemUnidade();
+}
+
+function fpFiltrarListaUnidade() {
+  const partes = fpNorm($('fp-und-filtro')?.value).split(/\s+/).filter(Boolean);
+  $$('#fp-und-servidores .fp-und-srv').forEach(el => {
+    el.hidden = !partes.every(p => el.dataset.busca.includes(p));
+  });
+}
+
+// Marca/desmarca só os servidores visíveis (respeita o filtro da lista)
+function fpMarcarTodos(marcar) {
+  $$('#fp-und-servidores .fp-und-srv:not([hidden]) input').forEach(chk => {
+    chk.checked = marcar;
+    const id = Number(chk.dataset.id);
+    if (marcar) _fpExcluidos.delete(id); else _fpExcluidos.add(id);
+    chk.closest('.fp-und-srv').classList.toggle('fora', !marcar);
+  });
+  fpAtualizarContagemUnidade();
+}
+
+function fpServidoresDaUnidade() {
+  return (_fpUnidadeAtual?.servidores || []).filter(s => !_fpExcluidos.has(Number(s.funcionario_id)));
+}
+
+function fpAtualizarContagemUnidade() {
+  const total = _fpUnidadeAtual?.servidores.length || 0;
+  const n = fpServidoresDaUnidade().length;
+  $('fp-und-contagem').innerHTML = `<strong>${n}</strong> de ${total} selecionado(s)`;
+  $('fp-btn-lote-txt').textContent = n ? `Gerar ${n} folha${n > 1 ? 's' : ''}` : 'Gerar folhas';
+  $('fp-btn-lote').disabled = n === 0;
+}
+
 function fpImprimirUnidade() {
-  const unidade = $('fp-unidade-select')?.value?.trim();
-  const mm      = $('fp-und-mes')?.value || String(new Date().getMonth()+1).padStart(2,'0');
-  const aa      = $('fp-und-ano')?.value || String(new Date().getFullYear());
+  const mm = $('fp-und-mes')?.value || String(new Date().getMonth()+1).padStart(2,'0');
+  const aa = $('fp-und-ano')?.value || String(new Date().getFullYear());
 
-  if (!unidade) { showToast('Selecione a Unidade Administrativa', 'warning'); return; }
-
-  const lista = _fpServidores.filter(s => (s.lotacao_nome||'').trim() === unidade);
-  if (lista.length === 0) { showToast('Nenhum servidor na unidade selecionada', 'warning'); return; }
+  if (!_fpUnidadeAtual) { showToast('Busque e selecione a Unidade Administrativa', 'warning'); return; }
+  const lista = fpServidoresDaUnidade();
+  if (lista.length === 0) { showToast('Marque pelo menos um servidor', 'warning'); return; }
 
   showToast(`Gerando ${lista.length} folha(s) para impressão…`, 'info');
 

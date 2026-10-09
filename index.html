@@ -525,12 +525,14 @@
           <!-- Tab: Individual -->
           <div class="fp-tab-pane active" id="fp-tab-individual">
             <div class="fp-ctrl-grid">
-              <div>
-                <label class="form-label" style="font-size:12px">Servidor</label>
-                <select id="fp-servidor-select" class="form-control" style="font-size:13px"
-                  onchange="fpPreencherServidor()">
-                  <option value="">Carregando servidores&#8230;</option>
-                </select>
+              <div class="fp-busca">
+                <label class="form-label" style="font-size:12px" for="fp-srv-busca">Servidor</label>
+                <div class="fp-busca-campo">
+                  <i class="ti ti-search"></i>
+                  <input type="search" id="fp-srv-busca" class="form-control" autocomplete="off"
+                    placeholder="Carregando servidores&#8230;" role="combobox" aria-expanded="false" aria-controls="fp-srv-lista">
+                </div>
+                <div class="fp-busca-lista" id="fp-srv-lista" role="listbox" hidden></div>
               </div>
               <div>
                 <label class="form-label" style="font-size:12px">M&ecirc;s</label>
@@ -575,15 +577,18 @@
           <div class="fp-tab-pane" id="fp-tab-unidade">
             <div style="background:#e8f4fd;border:1px solid #b3d9f7;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#1351b4">
               <i class="ti ti-info-circle"></i>
-              Gera e imprime a folha de ponto de <strong>todos os servidores</strong> da unidade selecionada em sequência (uma página por servidor).
-              Apenas v&iacute;nculos: <strong>Efetivo, Comissionado e Servi&ccedil;o Prestado</strong>.
+              Gera a folha de ponto dos servidores da unidade escolhida (uma p&aacute;gina por servidor). Desmarque quem n&atilde;o deve receber folha.
+              Entram s&oacute; servidores com matr&iacute;cula: <strong>Efetivo, Comissionado, Contrato e Servi&ccedil;o Prestado</strong> &mdash; terceirizados ficam de fora.
             </div>
             <div class="fp-ctrl-grid fp-ctrl-und">
-              <div>
-                <label class="form-label" style="font-size:12px">Unidade Administrativa</label>
-                <select id="fp-unidade-select" class="form-control" style="font-size:13px">
-                  <option value="">— Selecione a unidade —</option>
-                </select>
+              <div class="fp-busca">
+                <label class="form-label" style="font-size:12px" for="fp-und-busca">Unidade Administrativa</label>
+                <div class="fp-busca-campo">
+                  <i class="ti ti-search"></i>
+                  <input type="search" id="fp-und-busca" class="form-control" autocomplete="off"
+                    placeholder="Buscar unidade pelo nome ou pela coordena&ccedil;&atilde;o&#8230;" role="combobox" aria-expanded="false" aria-controls="fp-und-lista">
+                </div>
+                <div class="fp-busca-lista" id="fp-und-lista" role="listbox" hidden></div>
               </div>
               <div>
                 <label class="form-label" style="font-size:12px">M&ecirc;s</label>
@@ -594,12 +599,30 @@
                 <select id="fp-und-ano" class="form-control" style="font-size:13px"></select>
               </div>
               <div style="padding-bottom:2px">
-                <button onclick="fpImprimirUnidade()" class="btn-primary" style="height:38px;width:100%;justify-content:center">
-                  <i class="ti ti-printer"></i> Imprimir Todas
+                <button id="fp-btn-lote" onclick="fpImprimirUnidade()" class="btn-primary" style="height:38px;width:100%;justify-content:center" disabled>
+                  <i class="ti ti-printer"></i> <span id="fp-btn-lote-txt">Gerar folhas</span>
                 </button>
               </div>
             </div>
-            <div id="fp-und-preview" style="margin-top:14px;font-size:13px;color:var(--color-text-muted)"></div>
+
+            <div class="fp-und-painel" id="fp-und-painel" hidden>
+              <div class="fp-und-cab">
+                <div style="min-width:0">
+                  <div class="fp-und-nome" id="fp-und-nome"></div>
+                  <div class="fp-und-caminho" id="fp-und-caminho"></div>
+                </div>
+                <div class="fp-und-acoes">
+                  <span id="fp-und-contagem"></span>
+                  <button type="button" class="btn btn-outline fp-btn-xs" onclick="fpMarcarTodos(true)"><i class="ti ti-checks"></i> Marcar todos</button>
+                  <button type="button" class="btn btn-outline fp-btn-xs" onclick="fpMarcarTodos(false)"><i class="ti ti-square"></i> Desmarcar todos</button>
+                </div>
+              </div>
+              <div class="fp-busca-campo fp-und-filtro">
+                <i class="ti ti-search"></i>
+                <input type="search" id="fp-und-filtro" class="form-control" autocomplete="off" placeholder="Filtrar servidores desta unidade (nome, matr&iacute;cula, fun&ccedil;&atilde;o)&#8230;">
+              </div>
+              <div class="fp-und-servidores" id="fp-und-servidores"></div>
+            </div>
           </div>
         </div>
 

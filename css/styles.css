@@ -2106,10 +2106,69 @@
       grid-template-columns: minmax(0, 1fr) 150px 100px;
     }
     .fp-ctrl-grid.fp-ctrl-und { grid-template-columns: minmax(0, 1fr) 150px 100px auto; }
-    @media (max-width: 720px) {
+    /* Responde à largura do painel (não da janela); z-index mantém a lista suspensa acima da folha */
+    #fp-controls { container-type: inline-size; position: relative; z-index: 5; }
+    @container (max-width: 780px) {
+      .fp-ctrl-grid.fp-ctrl-und { grid-template-columns: 1fr 1fr auto; }
+      .fp-ctrl-und > :first-child { grid-column: 1 / -1; }
+    }
+    @container (max-width: 520px) {
       .fp-ctrl-grid, .fp-ctrl-grid.fp-ctrl-und { grid-template-columns: 1fr 1fr; }
       .fp-ctrl-grid > :first-child, .fp-ctrl-und > :last-child { grid-column: 1 / -1; }
     }
+    #fp-btn-lote:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
+
+    /* Busca com lupa (servidor / unidade) */
+    .fp-busca { position: relative; min-width: 0; }
+    .fp-busca-campo { position: relative; }
+    .fp-busca-campo > .ti {
+      position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+      font-size: 16px; color: var(--color-text-muted); pointer-events: none;
+    }
+    .fp-busca-campo > .form-control { padding-left: 36px; font-size: 13px; }
+    .fp-busca-lista {
+      position: absolute; z-index: 60; left: 0; right: 0; top: calc(100% + 4px);
+      max-height: 340px; overflow-y: auto;
+      background: #fff; border: 1px solid var(--gov-border);
+      border-radius: var(--br-md); box-shadow: var(--shadow-modal);
+    }
+    .fp-busca-item { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--gov-border); }
+    .fp-busca-item:last-child { border-bottom: none; }
+    .fp-busca-item:hover, .fp-busca-item.ativo { background: var(--gov-blue-light); }
+    .fp-busca-item strong { display: block; font-size: 13px; color: var(--gov-blue-dark); }
+    .fp-busca-item small { display: block; font-size: 11px; color: var(--color-text-sec); margin-top: 2px; }
+    .fp-busca-item .fp-qtd {
+      float: right; margin-left: 8px; font-size: 11px; font-weight: 600;
+      background: var(--gov-blue-light); color: var(--gov-blue-dark);
+      padding: 1px 8px; border-radius: 10px;
+    }
+    .fp-busca-item.ativo .fp-qtd, .fp-busca-item:hover .fp-qtd { background: #fff; }
+    .fp-busca-vazio, .fp-busca-mais { padding: 10px 12px; font-size: 12px; color: var(--color-text-muted); text-align: center; }
+
+    /* Servidores da unidade (marcar / desmarcar) */
+    .fp-und-painel { margin-top: 14px; border: 1px solid var(--gov-border); border-radius: var(--br-md); overflow: hidden; }
+    .fp-und-cab {
+      display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; align-items: center;
+      padding: 10px 14px; background: var(--gov-bg-light); border-bottom: 1px solid var(--gov-border);
+    }
+    .fp-und-nome { font-size: 14px; font-weight: 700; color: var(--gov-blue-dark); }
+    .fp-und-caminho { font-size: 11px; color: var(--color-text-muted); margin-top: 2px; }
+    .fp-und-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: var(--color-text-sec); }
+    .fp-btn-xs { padding: 5px 12px; font-size: 12px; }
+    .fp-und-filtro { padding: 10px 14px 4px; }
+    .fp-und-filtro > .ti { left: 26px; top: calc(50% + 3px); }
+    .fp-und-servidores {
+      max-height: 360px; overflow-y: auto; padding: 6px 8px 10px;
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 2px 12px;
+    }
+    .fp-und-srv { display: flex; align-items: flex-start; gap: 10px; padding: 7px 8px; border-radius: 6px; cursor: pointer; }
+    .fp-und-srv[hidden] { display: none; }
+    .fp-und-srv:hover { background: var(--gov-blue-light); }
+    .fp-und-srv input { margin-top: 2px; width: 16px; height: 16px; flex: none; accent-color: var(--gov-blue-primary); }
+    .fp-und-srv-nome { display: block; font-size: 13px; font-weight: 600; color: var(--color-text-main); }
+    .fp-und-srv-meta { display: block; font-size: 11px; color: var(--color-text-sec); margin-top: 1px; }
+    .fp-und-srv.fora .fp-und-srv-nome { color: var(--color-text-muted); text-decoration: line-through; }
+    .fp-und-srv.fora .fp-und-srv-meta { color: var(--color-text-muted); }
 
     @media print {
       @page {
