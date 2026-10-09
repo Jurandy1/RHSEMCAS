@@ -51,3 +51,21 @@ https://isqslnnixdudhpunwnpx.supabase.co/functions/v1/criar-usuario
 A coordenadora entra normalmente e acessa **Usuários do Sistema** no menu.
 Contas criadas por essa tela recebem o perfil `usuario` e acesso completo aos
 módulos, mas não podem cadastrar outras contas.
+
+# Alerta do Diário Oficial (nomeações/exonerações SEMCAS)
+
+O popup das 17h depende da Edge Function `diario-semcas` (o site do Diário
+Oficial não libera CORS, então o navegador não consegue consultá-lo direto).
+
+```powershell
+npx supabase functions deploy diario-semcas --project-ref isqslnnixdudhpunwnpx
+```
+
+Ou pelo Dashboard: **Deploy a new function**, nome `diario-semcas`, colando
+`supabase/functions/diario-semcas/index.ts`. Não precisa de secrets.
+
+Testar (logado no sistema, console do navegador F12):
+
+```js
+verificarDiarioSemcas('2026-10-07')   // deve abrir o popup com a exoneração de Letícia G. M. Costa
+```

@@ -433,6 +433,7 @@ async function bootApp() {
     }
     atualizarBadgesSemLotacaoExonerados();
     atualizarAlertasLicenca();
+    iniciarMonitorDiarioSemcas();
   } catch (e) {
     _appBooted = false;
     console.error('Boot failed:', e);
@@ -480,7 +481,6 @@ async function carregarPerfilUsuario() {
 
   const coordenadora = state.perfilUsuario?.perfil === 'coordenador' && state.perfilUsuario?.ativo !== false;
   $('nav-usuarios')?.classList.toggle('hidden', !coordenadora);
-  $('nav-relatorio-api')?.classList.toggle('hidden', !coordenadora);
   $('btn-editar-meu-nome')?.classList.toggle('hidden', !coordenadora);
 
   if (state.perfilUsuario?.nome) {
@@ -4986,7 +4986,6 @@ async function atualizarBadgesSemLotacaoExonerados() {
       be.textContent = ne;
       be.style.display = ne > 0 ? '' : 'none';
     }
-    if (typeof giapAtualizarBadges === 'function') giapAtualizarBadges();
   } catch (_) { /* views podem ainda não existir */ }
 }
 
@@ -11014,6 +11013,140 @@ function abrirModalLicencasVencidasSeNecessario() {
   renderModalLicencasVencidas();
   openModal('modal-licencas-vencidas');
 }
+
+// ─── DIÁRIO OFICIAL · nomeações/exonerações SEMCAS ───────────────────────────
+// Só a edição DO DIA e só de segunda a sexta (o DO sai às 17h). Para quem já
+// está logado, das 17:00 às 17:10 (hora de São Luís) consulta a Edge Function
+// `diario-semcas` a cada minuto até a edição do dia aparecer. Quem entrar
+// depois das 17h recebe a mesma checagem ao logar. Abre o popup com as
+// nomeações/exonerações da SEMCAS que ESTE usuário ainda não marcou "Ciente".
+const DIARIO_INICIO_MIN = 17 * 60;       // 17:00
+const DIARIO_FIM_MIN = 17 * 60 + 10;     // 17:10
+const DIARIO_INTERVALO_MS = 60 * 1000;
+let _diarioTimer = null;
+let _diarioBuscando = false;
+let _diarioExibindo = [];
+
+function agoraSaoLuis() {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Fortaleza', year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23', weekday: 'short'
+    }).formatToParts(new Date()).map((x) => [x.type, x.value])
+  );
+  return {
+    data: `${p.year}-${p.month}-${p.day}`,
+    minutos: Number(p.hour) * 60 + Number(p.minute),
+    fimDeSemana: p.weekday === 'Sat' || p.weekday === 'Sun'
+  };
+}
+
+function diarioStorage(chave, valor) {
+  try {
+    if (valor === undefined) return JSON.parse(localStorage.getItem(chave) || 'null');
+    localStorage.setItem(chave, JSON.stringify(valor));
+  } catch { /* storage bloqueado: segue sem memória */ }
+  return null;
+}
+
+// "Ciente" é por usuário: duas pessoas no mesmo computador recebem o aviso cada uma
+const diarioChaveVistos = () => `diario-semcas-vistos:${state.usuario?.id || 'anon'}`;
+
+const fmtDataBr = (iso) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '—');
+
+/** filtro: { data: 'YYYY-MM-DD' } */
+async function buscarDiarioSemcas(filtro) {
+  const { data: sess } = await sb.auth.getSession();
+  const token = sess?.session?.access_token;
+  if (!token) throw new Error('Sessão expirada.');
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/diario-semcas`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, apikey: SUPABASE_ANON },
+    body: JSON.stringify(filtro)
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || `Erro HTTP ${res.status}`);
+  return json;
+}
+
+/** forcar=true mostra mesmo atos já marcados como "Ciente" (teste manual). */
+async function verificarDiarioSemcas(filtro, { forcar = false } = {}) {
+  if (_diarioBuscando) return null;
+  _diarioBuscando = true;
+  try {
+    const r = await buscarDiarioSemcas(filtro);
+    const hoje = agoraSaoLuis().data;
+    if (r.edicoes?.some((e) => e.data === hoje)) diarioStorage('diario-semcas-concluido', hoje);
+    const vistos = new Set(diarioStorage(diarioChaveVistos()) || []);
+    const novos = (r.atos || []).filter((a) => forcar || !vistos.has(a.id));
+    if (novos.length) abrirModalDiarioSemcas(novos);
+    return r;
+  } finally {
+    _diarioBuscando = false;
+  }
+}
+
+function abrirModalDiarioSemcas(atos) {
+  // Popup já aberto (ex.: saiu edição nova às 17h): junta sem repetir
+  const ids = new Set(_diarioExibindo.map((a) => a.id));
+  _diarioExibindo = [..._diarioExibindo, ...atos.filter((a) => !ids.has(a.id))]
+    .sort((a, b) => b.data_publicacao.localeCompare(a.data_publicacao));
+  const lista = _diarioExibindo;
+  const nNom = lista.filter((a) => a.acao === 'nomeacao').length;
+  const nExo = lista.length - nNom;
+  const partes = [];
+  if (nNom) partes.push(`${nNom} ${nNom === 1 ? 'nomeação' : 'nomeações'}`);
+  if (nExo) partes.push(`${nExo} ${nExo === 1 ? 'exoneração' : 'exonerações'}`);
+  const edicoes = [...new Set(lista.map((a) => `${a.edicao} (${fmtDataBr(a.data_publicacao)})`))].join(', ');
+  $('diario-semcas-intro').textContent =
+    `Publicado no Diário Oficial: ${partes.join(' e ')} envolvendo a SEMCAS — ${edicoes}.`;
+  $('tbody-diario-semcas').innerHTML = lista.map((a) => {
+    const tipo = a.acao === 'nomeacao'
+      ? '<span class="badge badge-nomeacao"><i class="ti ti-user-plus"></i> Nomeação</span>'
+      : '<span class="badge badge-exoneracao"><i class="ti ti-user-minus"></i> Exoneração</span>';
+    const cargo = a.cargo
+      ? `${htmlEscape(a.cargo)}${a.simbologia ? ` <small style="color:var(--color-text-muted)">(${htmlEscape(a.simbologia)})</small>` : ''}`
+      : '<span style="color:var(--color-text-muted)">ver ato</span>';
+    return `<tr>
+      <td>${tipo}</td>
+      <td><strong>${htmlEscape(a.nome || 'Ver no ato')}</strong></td>
+      <td>${cargo}</td>
+      <td>${fmtDataBr(a.data_ato)}${a.data_ato !== a.data_publicacao ? `<br><small style="color:var(--color-text-muted)">publ. ${fmtDataBr(a.data_publicacao)}</small>` : ''}</td>
+      <td><a href="${htmlEscape(a.link)}" target="_blank" rel="noopener" title="${htmlEscape(a.titulo)}">Abrir</a></td>
+    </tr>`;
+  }).join('');
+  openModal('modal-diario-semcas');
+}
+
+// Só o "Ciente"/X marca como visto; fechar com Esc ou clicando fora mostra de novo no próximo login
+window.fecharModalDiarioSemcas = function fecharModalDiarioSemcas() {
+  const vistos = diarioStorage(diarioChaveVistos()) || [];
+  const novos = _diarioExibindo.map((a) => a.id).filter((id) => !vistos.includes(id));
+  diarioStorage(diarioChaveVistos(), [...vistos, ...novos].slice(-500));
+  _diarioExibindo = [];
+  closeModal('modal-diario-semcas');
+};
+
+function tickMonitorDiarioSemcas() {
+  const { data, minutos, fimDeSemana } = agoraSaoLuis();
+  if (fimDeSemana || minutos < DIARIO_INICIO_MIN || minutos > DIARIO_FIM_MIN) return;
+  if (diarioStorage('diario-semcas-concluido') === data) return;
+  verificarDiarioSemcas({ data }).catch((e) => console.warn('Diário Oficial SEMCAS:', e.message));
+}
+
+/** Chamado a cada login (bootApp). */
+function iniciarMonitorDiarioSemcas() {
+  _diarioExibindo = [];
+  const { data, minutos, fimDeSemana } = agoraSaoLuis();
+  // Sábado/domingo não há edição; antes das 17h a do dia ainda não saiu
+  if (!fimDeSemana && minutos >= DIARIO_INICIO_MIN) {
+    verificarDiarioSemcas({ data }).catch((e) => console.warn('Diário Oficial SEMCAS:', e.message));
+  }
+  if (!_diarioTimer) _diarioTimer = setInterval(tickMonitorDiarioSemcas, DIARIO_INTERVALO_MS);
+}
+
+// Teste manual no console: verificarDiarioSemcas('2026-10-07')
+window.verificarDiarioSemcas = (data = agoraSaoLuis().data) => verificarDiarioSemcas({ data }, { forcar: true });
 
 const TIPOS_LICENCA_OFICIAIS = [
   'Licença Prêmio',

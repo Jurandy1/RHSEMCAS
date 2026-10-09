@@ -1197,6 +1197,17 @@
       margin: 0 0 12px;
       line-height: 1.45;
     }
+
+    /* Modal Diário Oficial (nomeações/exonerações SEMCAS) */
+    .modal-diario-semcas { max-width: 860px; width: 95%; }
+    .modal-diario-semcas-intro {
+      font-size: 13px;
+      color: var(--color-text-muted);
+      margin: 0 0 12px;
+      line-height: 1.45;
+    }
+    .badge-nomeacao { background: #e3f5e5; color: var(--gov-green); }
+    .badge-exoneracao { background: #fde8e5; color: var(--gov-red); }
     .stat { position: relative; }
 
     /* ─── DASHBOARD MELHORADO ─── */

@@ -128,10 +128,6 @@
       <a href="#remuneracoes" class="nav-item" data-route="remuneracoes">
         <i class="ti ti-currency-real"></i> Remunerações
       </a>
-      <a href="#relatorio-api" class="nav-item hidden" data-route="relatorio-api" id="nav-relatorio-api">
-        <i class="ti ti-file-search"></i> Conferência GIAP
-        <span id="badge-giap-revisao" style="display:none;margin-left:auto;background:var(--gov-orange,#ed8936);color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;line-height:16px"></span>
-      </a>
       <a href="#logs" class="nav-item" data-route="logs">
         <i class="ti ti-history"></i> Histórico
       </a>
@@ -2160,7 +2156,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20260831c"></script>
+  <script type="module" src="js/app.js?v=20261009a"></script>
 
 
 
@@ -2510,6 +2506,36 @@
     <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
       <button type="button" class="btn-secondary" onclick="fecharModalLicencasVencidas()">Fechar</button>
       <button type="button" class="btn-primary" onclick="fecharModalLicencasVencidas(); abrirLicencasComAlerta('vencidas')">Ver todas na tabela</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · DIÁRIO OFICIAL (nomeações/exonerações SEMCAS, checado às 17h) -->
+<div class="modal-overlay" id="modal-diario-semcas">
+  <div class="modal-content modal-diario-semcas">
+    <div class="modal-header">
+      <div class="modal-title"><i class="ti ti-news"></i> Diário Oficial — nomeações e exonerações SEMCAS</div>
+      <button class="modal-close" onclick="fecharModalDiarioSemcas()" aria-label="Fechar"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-diario-semcas-intro" id="diario-semcas-intro"></p>
+      <div class="table-container">
+        <table class="gov-table">
+          <thead>
+            <tr>
+              <th style="width:120px">Tipo</th>
+              <th>Nome</th>
+              <th>Cargo</th>
+              <th style="width:110px">Data</th>
+              <th style="width:70px"></th>
+            </tr>
+          </thead>
+          <tbody id="tbody-diario-semcas"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+      <button type="button" class="btn-primary" onclick="fecharModalDiarioSemcas()">Ciente</button>
     </div>
   </div>
 </div>

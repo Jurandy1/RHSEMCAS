@@ -3,3 +3,6 @@ project_id = "isqslnnixdudhpunwnpx"
 
 [functions.criar-usuario]
 verify_jwt = true
+
+[functions.diario-semcas]
+verify_jwt = true
