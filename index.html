@@ -503,7 +503,7 @@
 
         <!-- Painel de Controles -->
         <div class="card fp-no-print" id="fp-controls" style="margin-bottom:16px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;margin-bottom:14px">
             <div>
               <div style="font-size:16px;font-weight:700;color:var(--gov-blue-dark)">
                 <i class="ti ti-clock"></i> Gerador de Folha de Ponto
@@ -524,7 +524,7 @@
 
           <!-- Tab: Individual -->
           <div class="fp-tab-pane active" id="fp-tab-individual">
-            <div style="display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:flex-end">
+            <div class="fp-ctrl-grid">
               <div>
                 <label class="form-label" style="font-size:12px">Servidor</label>
                 <select id="fp-servidor-select" class="form-control" style="font-size:13px"
@@ -534,12 +534,12 @@
               </div>
               <div>
                 <label class="form-label" style="font-size:12px">M&ecirc;s</label>
-                <select id="fp-mes" class="form-control" style="font-size:13px;width:130px"
+                <select id="fp-mes" class="form-control" style="font-size:13px"
                   onchange="fpPopularDias()"></select>
               </div>
               <div>
                 <label class="form-label" style="font-size:12px">Ano</label>
-                <select id="fp-ano" class="form-control" style="font-size:13px;width:90px"
+                <select id="fp-ano" class="form-control" style="font-size:13px"
                   onchange="fpPopularDias()"></select>
               </div>
             </div>
@@ -563,9 +563,9 @@
                   onchange="fpRenderFeriados()"></select>
               </div>
             </div>
-            <div style="display:flex;gap:8px;margin-bottom:10px">
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">
               <input type="date" id="fp-fer-data" class="form-control" style="width:160px">
-              <input type="text" id="fp-fer-nome" class="form-control" placeholder="Nome do feriado personalizado" style="flex:1">
+              <input type="text" id="fp-fer-nome" class="form-control" placeholder="Nome do feriado personalizado" style="flex:1;min-width:200px">
               <button onclick="fpAddFeriado()" class="btn-primary"><i class="ti ti-plus"></i> Adicionar</button>
             </div>
             <div id="fp-feriados-lista" style="max-height:200px;overflow-y:auto;border:1px solid var(--gov-border);border-radius:4px;padding:8px;background:var(--gov-bg-light)"></div>
@@ -578,7 +578,7 @@
               Gera e imprime a folha de ponto de <strong>todos os servidores</strong> da unidade selecionada em sequência (uma página por servidor).
               Apenas v&iacute;nculos: <strong>Efetivo, Comissionado e Servi&ccedil;o Prestado</strong>.
             </div>
-            <div style="display:grid;grid-template-columns:1fr auto auto auto;gap:12px;align-items:flex-end">
+            <div class="fp-ctrl-grid fp-ctrl-und">
               <div>
                 <label class="form-label" style="font-size:12px">Unidade Administrativa</label>
                 <select id="fp-unidade-select" class="form-control" style="font-size:13px">
@@ -587,14 +587,14 @@
               </div>
               <div>
                 <label class="form-label" style="font-size:12px">M&ecirc;s</label>
-                <select id="fp-und-mes" class="form-control" style="font-size:13px;width:130px"></select>
+                <select id="fp-und-mes" class="form-control" style="font-size:13px"></select>
               </div>
               <div>
                 <label class="form-label" style="font-size:12px">Ano</label>
-                <select id="fp-und-ano" class="form-control" style="font-size:13px;width:90px"></select>
+                <select id="fp-und-ano" class="form-control" style="font-size:13px"></select>
               </div>
               <div style="padding-bottom:2px">
-                <button onclick="fpImprimirUnidade()" class="btn-primary" style="height:38px">
+                <button onclick="fpImprimirUnidade()" class="btn-primary" style="height:38px;width:100%;justify-content:center">
                   <i class="ti ti-printer"></i> Imprimir Todas
                 </button>
               </div>
@@ -603,90 +603,119 @@
           </div>
         </div>
 
-        <!-- Papel A4 -->
+        <!-- Papel A4 — modelo NP-SEMAD/SRD-01/2012 (Registro Individual de Frequência) -->
         <div class="page-wrapper-fp">
           <div class="page-fp" id="fp-paper">
-            <!-- Cabeçalho -->
-            <table class="folha-table fp-cabecalho">
-              <tr>
-                <td class="fp-bg-gray" style="width:70%">REGISTRO INDIVIDUAL DE FREQU&Ecirc;NCIA</td>
-                <td class="fp-bg-head"><span id="fp-label-mesano">MES/ANO</span></td>
-              </tr>
-              <tr>
-                <td colspan="2" class="fp-bg-head fp-orgao">
-                  Secretaria Municipal da Crian&ccedil;a e Assist&ecirc;ncia Social / SEMCAS
-                </td>
-              </tr>
-              <tr>
-                <td style="background:#fff">Nome: <input id="fp-inp-nome" class="fp-inp"></td>
-                <td style="background:#fff">Matr&iacute;cula: <input id="fp-inp-mat" class="fp-inp" style="width:90px"></td>
-              </tr>
-              <tr>
-                <td style="background:#fff">Cargo/Fun&ccedil;&atilde;o: <input id="fp-inp-cargo" class="fp-inp"></td>
-                <td style="background:#fff">V&iacute;nculo: <input id="fp-inp-vinculo" class="fp-inp"></td>
-              </tr>
-              <tr>
-                <td colspan="2" style="background:#fff">
-                  Unidade Administrativa: <input id="fp-inp-unidade" class="fp-inp">
-                </td>
-              </tr>
-            </table>
+            <div class="fp-folha">
 
-            <!-- Grade de dias -->
-            <div class="fp-grade-wrap">
-            <table class="folha-table fp-grade">
-              <colgroup>
-                <col style="width:6%">
-                <col style="width:10%"><col style="width:10%">
-                <col style="width:10%"><col style="width:10%">
-                <col style="width:10%"><col style="width:10%">
-                <col style="width:10%"><col style="width:10%">
-                <col style="width:14%">
-              </colgroup>
-              <thead>
-                <tr class="fp-bg-head">
-                  <th rowspan="3">Dia</th>
-                  <th colspan="8">Hor&aacute;rio de Trabalho</th>
-                  <th rowspan="3">Ocorr&ecirc;ncia</th>
+              <table class="fp-bloco fp-b-cab">
+                <colgroup><col style="width:calc(364.5 * var(--u))"><col></colgroup>
+                <tr class="fp-cab-l1">
+                  <td colspan="2">
+                    <div class="fp-cab-topo">
+                      <img src="img/brasao-prefeitura-sao-luis.png" alt="Prefeitura de S&atilde;o Lu&iacute;s" class="fp-brasao">
+                      <div class="fp-cab-sec">SECRETARIA MUNICIPAL DA CRIAN&Ccedil;A E<br>ASSIST&Ecirc;NCIA SOCIAL - SEMCAS</div>
+                    </div>
+                  </td>
                 </tr>
-                <tr class="fp-bg-head">
-                  <th colspan="4">Manh&atilde;</th>
-                  <th colspan="4">Tarde</th>
+                <tr class="fp-cab-l2">
+                  <td class="fp-c">NORMA DE PROCEDIMENTOS</td>
+                  <td class="fp-c">NP-SEMAD/SRD-01/2012</td>
                 </tr>
-                <tr class="fp-bg-head">
-                  <th colspan="2" class="fp-hora-ref">Entrada: 08:00</th>
-                  <th colspan="2" class="fp-hora-ref">Saída: 12:00</th>
-                  <th colspan="2" class="fp-hora-ref">Entrada: 14:00</th>
-                  <th colspan="2" class="fp-hora-ref">Saída: 18:00</th>
+                <tr class="fp-cab-l3">
+                  <td colspan="2">Assunto: Controle de Frequ&ecirc;ncia</td>
                 </tr>
-                <tr class="fp-bg-gray">
-                  <th></th>
-                  <th class="fp-col-lbl">Hora</th><th class="fp-col-lbl">Rubrica</th>
-                  <th class="fp-col-lbl">Hora</th><th class="fp-col-lbl">Rubrica</th>
-                  <th class="fp-col-lbl">Hora</th><th class="fp-col-lbl">Rubrica</th>
-                  <th class="fp-col-lbl">Hora</th><th class="fp-col-lbl">Rubrica</th>
-                  <th class="fp-col-lbl">Obs</th>
+              </table>
+
+              <table class="fp-bloco fp-b-reg">
+                <colgroup>
+                  <col style="width:calc(326 * var(--u))"><col style="width:calc(74.875 * var(--u))"><col>
+                </colgroup>
+                <tr>
+                  <td class="fp-reg-titulo">REGISTRO INDIVIDUAL DE FREQU&Ecirc;NCIA</td>
+                  <td>M&ecirc;s / Ano:</td>
+                  <td class="fp-reg-val" data-campo="mesano"></td>
                 </tr>
-              </thead>
-              <tbody id="fp-days-body"></tbody>
-            </table>
+              </table>
+
+              <table class="fp-bloco fp-b-dados">
+                <colgroup>
+                  <col style="width:calc(140 * var(--u))"><col style="width:calc(13.625 * var(--u))">
+                  <col style="width:calc(123.625 * var(--u))"><col style="width:calc(123.625 * var(--u))"><col>
+                </colgroup>
+                <tr class="fp-l-orgao">
+                  <td class="fp-orgao-lbl">&Oacute;rg&atilde;o Municipal:</td>
+                  <td colspan="4">Secretaria Municipal da Crian&ccedil;a e Assist&ecirc;ncia Social - SEMCAS</td>
+                </tr>
+                <tr class="fp-l-campo">
+                  <td colspan="4"><div class="fp-rot">Nome:</div><div class="fp-val" contenteditable="true" data-campo="nome" data-larg="389.6"></div></td>
+                  <td><div class="fp-rot">Matr&iacute;cula:</div><div class="fp-val" contenteditable="true" data-campo="matricula" data-larg="112.4"></div></td>
+                </tr>
+                <tr class="fp-l-campo">
+                  <td colspan="3"><div class="fp-rot">Cargo:</div><div class="fp-val" contenteditable="true" data-campo="cargo" data-larg="266"></div></td>
+                  <td colspan="2"><div class="fp-rot">Fun&ccedil;&atilde;o:</div><div class="fp-val" contenteditable="true" data-campo="funcao" data-larg="236"></div></td>
+                </tr>
+                <tr class="fp-l-campo">
+                  <td colspan="5"><div class="fp-rot">Unidade Administrativa:</div><div class="fp-val" contenteditable="true" data-campo="unidade" data-larg="513.3"></div></td>
+                </tr>
+                <tr class="fp-l-titulo">
+                  <td colspan="5" class="fp-c">Hor&aacute;rio de Trabalho</td>
+                </tr>
+                <tr class="fp-l-titulo">
+                  <td colspan="3" class="fp-c fp-b">Manh&atilde;</td>
+                  <td colspan="2" class="fp-c fp-b">Tarde</td>
+                </tr>
+                <tr class="fp-l-campo">
+                  <td colspan="2"><div class="fp-rot">Entrada:</div><div class="fp-val" contenteditable="true">08:00</div></td>
+                  <td><div class="fp-rot">Sa&iacute;da:</div><div class="fp-val" contenteditable="true">12:00</div></td>
+                  <td><div class="fp-rot">Entrada:</div><div class="fp-val" contenteditable="true">14:00</div></td>
+                  <td><div class="fp-rot">Sa&iacute;da:</div><div class="fp-val" contenteditable="true">18:00</div></td>
+                </tr>
+              </table>
+
+              <table class="fp-bloco fp-b-grade">
+                <colgroup>
+                  <col style="width:calc(30 * var(--u))">
+                  <col style="width:calc(39 * var(--u))"><col style="width:calc(84.625 * var(--u))">
+                  <col style="width:calc(39 * var(--u))"><col style="width:calc(84.625 * var(--u))">
+                  <col style="width:calc(39 * var(--u))"><col style="width:calc(84.625 * var(--u))">
+                  <col style="width:calc(39 * var(--u))"><col>
+                </colgroup>
+                <thead>
+                  <tr class="fp-g-cab1">
+                    <th>Dia</th>
+                    <th colspan="4">Manh&atilde;</th>
+                    <th colspan="4">Tarde</th>
+                  </tr>
+                  <tr class="fp-g-cab2">
+                    <th class="fp-g-cinza"></th>
+                    <th>Hora</th><th>Rubrica</th><th>Hora</th><th>Rubrica</th>
+                    <th>Hora</th><th>Rubrica</th><th>Hora</th><th>Rubrica</th>
+                  </tr>
+                </thead>
+                <tbody id="fp-days-body"></tbody>
+              </table>
+
+              <table class="fp-bloco fp-b-ass">
+                <tr>
+                  <td>
+                    <div class="fp-ass">
+                      <div>Chefia Imediata:</div>
+                      <div class="fp-ass-data">S&atilde;o Lu&iacute;s,<span class="fp-ass-dt" contenteditable="true">    /    /     </span></div>
+                      <div class="fp-ass-linha"></div>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="fp-ass">
+                      <div>Visto (&Aacute;rea de Recursos Humanos):</div>
+                      <div class="fp-ass-data">S&atilde;o Lu&iacute;s,<span class="fp-ass-dt" contenteditable="true">    /    /     </span></div>
+                      <div class="fp-ass-linha"></div>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
             </div>
-
-            <!-- Assinaturas -->
-            <table class="fp-assinaturas">
-              <tr>
-                <td>
-                  <div class="fp-ass-titulo">Chefia Imediata:</div>
-                  <div class="fp-ass-linha"></div>
-                  <div class="fp-ass-data">S&atilde;o Lu&iacute;s, <span contenteditable="true" class="fp-ass-data-inp">__/__/____</span></div>
-                </td>
-                <td>
-                  <div class="fp-ass-titulo">Visto (Recursos Humanos):</div>
-                  <div class="fp-ass-linha"></div>
-                  <div class="fp-ass-data">S&atilde;o Lu&iacute;s, <span contenteditable="true" class="fp-ass-data-inp">__/__/____</span></div>
-                </td>
-              </tr>
-            </table>
           </div>
         </div>
       </section>

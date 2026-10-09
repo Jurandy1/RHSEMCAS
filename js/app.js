@@ -4052,6 +4052,7 @@ async function renderFolhaPonto() {
     if (chkN) chkN.onchange = () => { _fpHolCfg.nac = chkN.checked; fpRenderFeriados(); fpPopularDias(); };
     if (chkE) chkE.onchange = () => { _fpHolCfg.est = chkE.checked; fpRenderFeriados(); fpPopularDias(); };
     if (chkM) chkM.onchange = () => { _fpHolCfg.mun = chkM.checked; fpRenderFeriados(); fpPopularDias(); };
+    $('fp-paper')?.addEventListener('input', e => { if (e.target.dataset?.larg) fpAjustarFonte(e.target); });
     sb.from('feriados').select('*').eq('ativo', true).then(res => {
       if (res.data) {
         _fpHolCfg.custom = res.data.map(d => ({ id: d.id, date: d.data, nome: d.nome }));
@@ -4065,7 +4066,10 @@ async function renderFolhaPonto() {
   if (_fpServidores.length === 0) {
     const sel = $('fp-servidor-select');
     if (sel) sel.innerHTML = '<option value="">Carregando&#8230;</option>';
-    const { data, error } = await fetchTudo('v_funcionarios_atual', 'funcionario_id, nome, funcao, matricula, vinculo, lotacao_nome', 'nome');
+    const [{ data, error }, cargos] = await Promise.all([
+      fetchTudo('v_funcionarios_atual', 'funcionario_id, nome, funcao, matricula, vinculo, lotacao_nome', 'nome'),
+      fetchTudo('funcionarios', 'id, cargo', 'id'),
+    ]);
     if (!error && data && data.length > 0) {
       _fpServidores = data;
     } else {
@@ -4085,6 +4089,8 @@ async function renderFolhaPonto() {
              v.includes('prestado') || v.includes('ps ');
     };
     _fpServidores = _fpServidores.filter(vincPermitidos);
+    const cargoPorId = new Map((cargos.data || []).map(f => [Number(f.id), f.cargo]));
+    _fpServidores.forEach(s => { s.cargo = cargoPorId.get(Number(s.funcionario_id)) || s.cargo || ''; });
 
     const sel2 = $('fp-servidor-select');
     if (sel2) {
@@ -4123,116 +4129,78 @@ async function renderFolhaPonto() {
   fpPreencherServidor();
 }
 
-function fpPreencherServidor() {
-  const sel = $('fp-servidor-select');
-  const id  = sel ? Number(sel.value) : null;
-  const srv = _fpServidores.find(s =>
-    s.funcionario_id === id || s.funcionario_id == id
-  );
+// Regra de negócio: Jurandy → Função e Unidade específicas
+function fpDadosServidor(srv) {
+  const jurandy = (srv?.nome || '').toUpperCase().includes('JURANDY');
+  return {
+    nome:      srv?.nome      || '',
+    matricula: srv?.matricula || '',
+    cargo:     srv?.cargo     || '',
+    funcao:    jurandy ? 'Chefe de Serviço - Patrimônio' : (srv?.funcao || ''),
+    unidade:   jurandy ? 'Coordenação de Administração e Patrimônio' : (srv?.lotacao_nome || ''),
+  };
+}
 
-  if (srv) {
-    $('fp-inp-nome').value    = srv.nome      || '';
-    $('fp-inp-mat').value     = srv.matricula || '';
-    $('fp-inp-vinculo').value = srv.vinculo   || '';
+const _fpMedidor = document.createElement('canvas').getContext('2d');
 
-    // Regra de negócio: Jurandy → Cargo e Unidade específicos
-    const nomeUp = (srv.nome || '').toUpperCase();
-    if (nomeUp.includes('JURANDY')) {
-      $('fp-inp-cargo').value   = 'Chefe de Serviço - Patrimônio';
-      $('fp-inp-unidade').value = 'Coordenação de Administração e Patrimônio';
-    } else {
-      $('fp-inp-cargo').value   = srv.funcao      || '';
-      $('fp-inp-unidade').value = srv.lotacao_nome || '';
+// data-larg = largura útil do campo em pt; reduz a fonte (11pt → mín. 7pt) até o texto caber
+function fpAjustarFonte(el) {
+  // 3% de folga: em telas pequenas o hinting deixa o texto até ~0,5% mais largo que a medida
+  const larg = Number(el.dataset.larg) * 0.97;
+  if (!larg) return;
+  _fpMedidor.font = 'bold 11px Arial';
+  const w = _fpMedidor.measureText(el.textContent).width;
+  el.style.fontSize = w > larg
+    ? `calc(${Math.max(7, 11 * larg / w).toFixed(2)} * var(--u))`
+    : '';
+}
+
+function fpPreencherPagina(page, dados) {
+  Object.entries(dados).forEach(([campo, valor]) => {
+    const el = page.querySelector(`[data-campo="${campo}"]`);
+    if (!el) return;
+    el.textContent = valor;
+    fpAjustarFonte(el);
+  });
+}
+
+function fpLinhasDias(mm, aa) {
+  const diasNoMes = new Date(Number(aa), Number(mm), 0).getDate();
+  const ferMap = new Map(fpGetHolidays(parseInt(aa)).map(h => [h.date, h.nome]));
+  const vazias = '<td contenteditable="true"></td>'.repeat(8);
+  let html = '';
+  for (let i = 1; i <= 31; i++) {
+    if (i > diasNoMes) {
+      html += '<tr><td class="fp-g-dia">—</td><td colspan="8" class="fp-g-inexiste"></td></tr>';
+      continue;
     }
-  } else {
-    // Limpa campos se nada selecionado
-    ['fp-inp-nome','fp-inp-mat','fp-inp-cargo','fp-inp-vinculo','fp-inp-unidade']
-      .forEach(id => { const el = $(id); if (el) el.value = ''; });
+    const iso = `${aa}-${String(mm).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+    const dow = new Date(Number(aa), Number(mm)-1, i).getDay();
+    let resto = vazias;
+    if (ferMap.has(iso))  resto = `<td colspan="8" class="fp-g-feriado">FERIADO &#8226; ${htmlEscape(ferMap.get(iso))}</td>`;
+    else if (dow === 6)   resto = '<td colspan="8" class="fp-g-fds">SÁBADO</td>';
+    else if (dow === 0)   resto = '<td colspan="8" class="fp-g-fds">DOMINGO</td>';
+    html += `<tr><td class="fp-g-dia">${i}</td>${resto}</tr>`;
   }
+  return html;
+}
+
+function fpPreencherServidor() {
+  const id  = Number($('fp-servidor-select')?.value);
+  const srv = _fpServidores.find(s => Number(s.funcionario_id) === id);
+  const paper = $('fp-paper');
+  if (paper) fpPreencherPagina(paper, fpDadosServidor(srv));
   fpPopularDias();
 }
 
 function fpPopularDias() {
+  const paper = $('fp-paper');
   const tbody = $('fp-days-body');
-  if (!tbody) return;
-  tbody.innerHTML = '';
+  if (!paper || !tbody) return;
   const mm = $('fp-mes')?.value  || String(new Date().getMonth()+1).padStart(2,'0');
   const aa = $('fp-ano')?.value  || String(new Date().getFullYear());
-  const diasNoMes = new Date(Number(aa), Number(mm), 0).getDate();
-  const labelMes  = $('fp-label-mesano');
-  if (labelMes) labelMes.textContent = `${mm}/${aa}`;
-
-  const ferList = fpGetHolidays(parseInt(aa));
-  const ferMap  = new Map(ferList.map(h => [h.date, h.nome]));
-
-  for (let i = 1; i <= 31; i++) {
-    const tr = document.createElement('tr');
-    tr.className = 'fp-dia';
-
-    if (i <= diasNoMes) {
-      const dt  = new Date(Number(aa), Number(mm)-1, i);
-      const dow = dt.getDay();
-      const iso = `${aa}-${String(mm).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
-
-      if (ferMap.has(iso)) {
-        tr.innerHTML =
-          `<td style="text-align:center;font-weight:bold">${i}</td>` +
-          `<td colspan="9" style="text-align:center;background:#ffe4e6;color:#991b1b;font-weight:bold;font-size:9px">` +
-          `FERIADO &#8226; ${htmlEscape(ferMap.get(iso))}</td>`;
-      } else if (dow === 0 || dow === 6) {
-        const txt = dow === 6 ? 'SÁBADO' : 'DOMINGO';
-        tr.innerHTML =
-          `<td style="text-align:center;font-weight:bold">${i}</td>` +
-          `<td colspan="9" style="text-align:center;background:#e5e7eb;color:#374151;font-weight:bold;font-size:9px;letter-spacing:1px">${txt}</td>`;
-      } else {
-        tr.innerHTML =
-          `<td style="text-align:center;font-weight:bold">${i}</td>` +
-          `<td contenteditable="true"></td><td contenteditable="true"></td>` +
-          `<td contenteditable="true"></td><td contenteditable="true"></td>` +
-          `<td contenteditable="true"></td><td contenteditable="true"></td>` +
-          `<td contenteditable="true"></td><td contenteditable="true"></td>` +
-          `<td contenteditable="true" style="font-size:9px"></td>`;
-      }
-    } else {
-      tr.innerHTML =
-        `<td style="text-align:center;color:#bbb">—</td>` +
-        `<td colspan="9" style="background:#d1d5db"></td>`;
-    }
-    tbody.appendChild(tr);
-  }
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => fpAjustarAlturaDias());
-  });
-}
-
-/** Ajusta as 31 linhas para caber só na área da grade (assinaturas ficam intactas). */
-function fpAjustarAlturaDias(root = document) {
-  const pages = root.querySelectorAll ? root.querySelectorAll('.page-fp') : [];
-  const list = pages.length ? [...pages] : ($('fp-paper') ? [$('fp-paper')] : []);
-  list.forEach(page => {
-    const wrap = page.querySelector('.fp-grade-wrap');
-    const grade = page.querySelector('.fp-grade');
-    const tbody = grade?.querySelector('tbody');
-    const rows = tbody?.querySelectorAll('tr.fp-dia');
-    const thead = grade?.querySelector('thead');
-    if (!wrap || !grade || !tbody || !rows?.length) return;
-
-    // Limpa alturas anteriores para medir o espaço real do wrap
-    rows.forEach(tr => {
-      tr.style.height = '';
-      tr.querySelectorAll('td').forEach(td => { td.style.height = ''; });
-    });
-
-    const wrapH = wrap.clientHeight;
-    const theadH = thead?.offsetHeight || 0;
-    const disponivel = Math.max(0, wrapH - theadH - 1);
-    const h = Math.max(12, Math.floor(disponivel / rows.length));
-
-    rows.forEach(tr => {
-      tr.style.height = h + 'px';
-      tr.querySelectorAll('td').forEach(td => { td.style.height = h + 'px'; });
-    });
-  });
+  fpPreencherPagina(paper, { mesano: `${mm}/${aa}` });
+  tbody.innerHTML = fpLinhasDias(mm, aa);
 }
 
 function fpSwitchTab(tab, btn) {
@@ -4245,12 +4213,7 @@ function fpSwitchTab(tab, btn) {
 }
 
 function fpImprimir() {
-  fpPopularDias();
-  fpAjustarAlturaDias();
-  setTimeout(() => {
-    fpAjustarAlturaDias();
-    window.print();
-  }, 150);
+  window.print();
 }
 
 // --- Feriados ---
@@ -4409,99 +4372,25 @@ function fpImprimirUnidade() {
 
   showToast(`Gerando ${lista.length} folha(s) para impressão…`, 'info');
 
-  // Pega o template A4 atual, clona para cada servidor, imprime
+  // Clona a folha da tela (mantém horário/datas digitados) para cada servidor
+  const modelo = $('fp-paper');
+  const linhasDias = fpLinhasDias(mm, aa);
   const container = document.createElement('div');
   container.id = 'fp-print-lote';
 
-  const ferList = fpGetHolidays(parseInt(aa));
-  const ferMap  = new Map(ferList.map(h => [h.date, h.nome]));
-
   lista.forEach(srv => {
-    const wrap = document.createElement('div');
-    wrap.className = 'page-fp';
-    wrap.style.pageBreakAfter = 'always';
-
-    const nomeUp = (srv.nome || '').toUpperCase();
-    const cargo  = nomeUp.includes('JURANDY')
-      ? 'Chefe de Serviço - Patrimônio'
-      : (srv.funcao || '');
-    const unidadeTexto = nomeUp.includes('JURANDY')
-      ? 'Coordenação de Administração e Patrimônio'
-      : unidade;
-    const diasNoMes = new Date(Number(aa), Number(mm), 0).getDate();
-
-    // Monta os dias
-    let linhasDias = '';
-    for (let i = 1; i <= 31; i++) {
-      if (i <= diasNoMes) {
-        const dt  = new Date(Number(aa), Number(mm)-1, i);
-        const dow = dt.getDay();
-        const iso = `${aa}-${String(mm).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
-        if (ferMap.has(iso)) {
-          linhasDias += `<tr class="fp-dia"><td style="text-align:center;font-weight:bold">${i}</td><td colspan="9" style="text-align:center;background:#ffe4e6;color:#991b1b;font-weight:bold;font-size:9px">FERIADO &#8226; ${htmlEscape(ferMap.get(iso))}</td></tr>`;
-        } else if (dow === 0 || dow === 6) {
-          const txt = dow === 6 ? 'SÁBADO' : 'DOMINGO';
-          linhasDias += `<tr class="fp-dia"><td style="text-align:center;font-weight:bold">${i}</td><td colspan="9" style="text-align:center;background:#e5e7eb;color:#374151;font-weight:bold;font-size:9px">${txt}</td></tr>`;
-        } else {
-          linhasDias += `<tr class="fp-dia"><td style="text-align:center;font-weight:bold">${i}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
-        }
-      } else {
-        linhasDias += `<tr class="fp-dia"><td style="text-align:center;color:#bbb">—</td><td colspan="9" style="background:#d1d5db"></td></tr>`;
-      }
-    }
-
-    wrap.innerHTML = `
-      <table class="folha-table fp-cabecalho">
-        <tr><td class="fp-bg-gray" style="width:70%">REGISTRO INDIVIDUAL DE FREQUÊNCIA</td><td class="fp-bg-head">${mm}/${aa}</td></tr>
-        <tr><td colspan="2" class="fp-bg-head fp-orgao">Secretaria Municipal da Criança e Assistência Social / SEMCAS</td></tr>
-        <tr><td style="background:#fff">Nome: <strong>${htmlEscape(srv.nome)}</strong></td><td style="background:#fff">Matrícula: <strong>${htmlEscape(srv.matricula||'')}</strong></td></tr>
-        <tr><td style="background:#fff">Cargo/Função: <strong>${htmlEscape(cargo)}</strong></td><td style="background:#fff">Vínculo: <strong>${htmlEscape(srv.vinculo||'')}</strong></td></tr>
-        <tr><td colspan="2" style="background:#fff">Unidade Administrativa: <strong>${htmlEscape(unidadeTexto)}</strong></td></tr>
-      </table>
-      <div class="fp-grade-wrap">
-      <table class="folha-table fp-grade">
-        <colgroup><col style="width:6%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:14%"></colgroup>
-        <thead>
-          <tr class="fp-bg-head"><th rowspan="3">Dia</th><th colspan="8">Horário de Trabalho</th><th rowspan="3">Ocorrência</th></tr>
-          <tr class="fp-bg-head"><th colspan="4">Manhã</th><th colspan="4">Tarde</th></tr>
-          <tr class="fp-bg-head">
-            <th colspan="2" class="fp-hora-ref">Entrada: 08:00</th>
-            <th colspan="2" class="fp-hora-ref">Saída: 12:00</th>
-            <th colspan="2" class="fp-hora-ref">Entrada: 14:00</th>
-            <th colspan="2" class="fp-hora-ref">Saída: 18:00</th>
-          </tr>
-          <tr class="fp-bg-gray"><th></th><th class="fp-col-lbl">Hora</th><th class="fp-col-lbl">Rubrica</th><th class="fp-col-lbl">Hora</th><th class="fp-col-lbl">Rubrica</th><th class="fp-col-lbl">Hora</th><th class="fp-col-lbl">Rubrica</th><th class="fp-col-lbl">Hora</th><th class="fp-col-lbl">Rubrica</th><th class="fp-col-lbl">Obs</th></tr>
-        </thead>
-        <tbody>${linhasDias}</tbody>
-      </table>
-      </div>
-      <table class="fp-assinaturas">
-        <tr>
-          <td>
-            <div class="fp-ass-titulo">Chefia Imediata:</div>
-            <div class="fp-ass-linha"></div>
-            <div class="fp-ass-data">São Luís, __/__/____</div>
-          </td>
-          <td>
-            <div class="fp-ass-titulo">Visto (Recursos Humanos):</div>
-            <div class="fp-ass-linha"></div>
-            <div class="fp-ass-data">São Luís, __/__/____</div>
-          </td>
-        </tr>
-      </table>`;
-    container.appendChild(wrap);
+    const pg = modelo.cloneNode(true);
+    pg.removeAttribute('id');
+    pg.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+    fpPreencherPagina(pg, { ...fpDadosServidor(srv), mesano: `${mm}/${aa}` });
+    pg.querySelector('.fp-b-grade tbody').innerHTML = linhasDias;
+    container.appendChild(pg);
   });
 
   document.body.appendChild(container);
-  // Mede altura fora da tela (display:none zera clientHeight)
-  container.style.cssText = 'position:fixed;left:0;top:0;opacity:0;pointer-events:none;z-index:-1;display:block;';
-  fpAjustarAlturaDias(container);
-  container.style.cssText = '';
-
   document.body.classList.add('fp-lote-print');
 
   setTimeout(() => {
-    fpAjustarAlturaDias(container);
     window.print();
     setTimeout(() => {
       document.body.classList.remove('fp-lote-print');
