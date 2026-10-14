@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
   
-  <link rel="stylesheet" href="css/styles.css?v=20260821b">
+  <link rel="stylesheet" href="css/styles.css?v=20261014a">
 </head>
 <body>
 
@@ -573,18 +573,18 @@
           <div class="fp-tab-pane" id="fp-tab-unidade">
             <div style="background:#e8f4fd;border:1px solid #b3d9f7;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#1351b4">
               <i class="ti ti-info-circle"></i>
-              Gera a folha de ponto dos servidores da unidade escolhida (uma p&aacute;gina por servidor). Desmarque quem n&atilde;o deve receber folha.
+              Marque uma ou mais unidades na busca &mdash; a lista continua aberta para voc&ecirc; ir pesquisando e marcando. Gera uma p&aacute;gina por servidor; desmarque quem n&atilde;o deve receber folha.
               Entram s&oacute; servidores com matr&iacute;cula: <strong>Efetivo, Comissionado, Contrato e Servi&ccedil;o Prestado</strong> &mdash; terceirizados ficam de fora.
             </div>
             <div class="fp-ctrl-grid fp-ctrl-und">
               <div class="fp-busca">
-                <label class="form-label" style="font-size:12px" for="fp-und-busca">Unidade Administrativa</label>
+                <label class="form-label" style="font-size:12px" for="fp-und-busca">Unidades Administrativas</label>
                 <div class="fp-busca-campo">
                   <i class="ti ti-search"></i>
                   <input type="search" id="fp-und-busca" class="form-control" autocomplete="off"
-                    placeholder="Buscar unidade pelo nome ou pela coordena&ccedil;&atilde;o&#8230;" role="combobox" aria-expanded="false" aria-controls="fp-und-lista">
+                    placeholder="Buscar e marcar unidades pelo nome ou pela coordena&ccedil;&atilde;o&#8230;" role="combobox" aria-expanded="false" aria-controls="fp-und-lista">
                 </div>
-                <div class="fp-busca-lista" id="fp-und-lista" role="listbox" hidden></div>
+                <div class="fp-busca-lista" id="fp-und-lista" role="listbox" aria-multiselectable="true" hidden></div>
               </div>
               <div>
                 <label class="form-label" style="font-size:12px">M&ecirc;s</label>
@@ -601,11 +601,19 @@
               </div>
             </div>
 
+            <div class="fp-und-sel" id="fp-und-sel" hidden>
+              <div class="fp-und-sel-cab">
+                <span id="fp-und-sel-titulo"></span>
+                <button type="button" class="fp-link fp-link-perigo" onclick="fpLimparUnidades()"><i class="ti ti-trash"></i> Limpar sele&ccedil;&atilde;o</button>
+              </div>
+              <div class="fp-und-sel-chips" id="fp-und-sel-chips"></div>
+            </div>
+
             <div class="fp-und-painel" id="fp-und-painel" hidden>
               <div class="fp-und-cab">
                 <div style="min-width:0">
                   <div class="fp-und-nome" id="fp-und-nome"></div>
-                  <div class="fp-und-caminho" id="fp-und-caminho"></div>
+                  <div class="fp-und-caminho">Servidores agrupados por unidade &mdash; quem estiver em mais de uma sai s&oacute; uma vez</div>
                 </div>
                 <div class="fp-und-acoes">
                   <span id="fp-und-contagem"></span>
@@ -615,8 +623,9 @@
               </div>
               <div class="fp-busca-campo fp-und-filtro">
                 <i class="ti ti-search"></i>
-                <input type="search" id="fp-und-filtro" class="form-control" autocomplete="off" placeholder="Filtrar servidores desta unidade (nome, matr&iacute;cula, fun&ccedil;&atilde;o)&#8230;">
+                <input type="search" id="fp-und-filtro" class="form-control" autocomplete="off" placeholder="Filtrar servidores das unidades marcadas (nome, matr&iacute;cula, fun&ccedil;&atilde;o)&#8230;">
               </div>
+              <div class="fp-und-vazio" id="fp-und-sem-result" hidden>Nenhum servidor encontrado com esse filtro.</div>
               <div class="fp-und-servidores" id="fp-und-servidores"></div>
             </div>
           </div>
@@ -636,13 +645,6 @@
                       <div class="fp-cab-sec">SECRETARIA MUNICIPAL DA CRIAN&Ccedil;A E<br>ASSIST&Ecirc;NCIA SOCIAL - SEMCAS</div>
                     </div>
                   </td>
-                </tr>
-                <tr class="fp-cab-l2">
-                  <td class="fp-c">NORMA DE PROCEDIMENTOS</td>
-                  <td class="fp-c">NP-SEMAD/SRD-01/2012</td>
-                </tr>
-                <tr class="fp-cab-l3">
-                  <td colspan="2">Assunto: Controle de Frequ&ecirc;ncia</td>
                 </tr>
               </table>
 
@@ -688,7 +690,7 @@
                   <td colspan="2"><div class="fp-rot">Entrada:</div><div class="fp-val" contenteditable="true">08:00</div></td>
                   <td><div class="fp-rot">Sa&iacute;da:</div><div class="fp-val" contenteditable="true">12:00</div></td>
                   <td><div class="fp-rot">Entrada:</div><div class="fp-val" contenteditable="true">14:00</div></td>
-                  <td><div class="fp-rot">Sa&iacute;da:</div><div class="fp-val" contenteditable="true">18:00</div></td>
+                  <td><div class="fp-rot">Sa&iacute;da:</div><div class="fp-val" contenteditable="true">19:00</div></td>
                 </tr>
               </table>
 
@@ -2156,7 +2158,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20261009a"></script>
+  <script type="module" src="js/app.js?v=20261014c"></script>
 
 
 

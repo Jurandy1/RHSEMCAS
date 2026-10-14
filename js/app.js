@@ -4023,8 +4023,9 @@ let _fpInited = false;
 const _fpHolCfg = { nac: true, est: true, mun: true, custom: [] };
 let _fpSrvId = null;            // servidor da aba Individual
 let _fpUnidades = [];           // [{ chave, nome, caminho, servidores }]
-let _fpUnidadeAtual = null;     // unidade da aba Por Unidade
-const _fpExcluidos = new Set(); // funcionario_id desmarcados na unidade atual
+const _fpUnidadesSel = new Map(); // chave → unidade marcada na aba Por Unidade (ordem de seleção)
+const _fpExcluidos = new Set();   // funcionario_id desmarcados nas unidades marcadas
+let _fpComboUnidades = null;
 
 const fpNorm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
@@ -4061,8 +4062,10 @@ function fpMontarUnidades() {
   _fpUnidades = [...grupos.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 }
 
-/** Campo de busca com lista suspensa (setas, Enter, Esc). */
-function fpCombo({ input, lista, fonte, texto, html, aoEscolher, max = 80 }) {
+/** Campo de busca com lista suspensa (setas, Enter, Esc).
+ *  multi: a lista fica aberta e cada item vira um checkbox (selecionado(it) diz o estado);
+ *  aoEscolherVarios(lista) atende o "Marcar todos os resultados". */
+function fpCombo({ input, lista, fonte, texto, html, aoEscolher, max = 80, multi = false, selecionado, aoEscolherVarios }) {
   let atuais = [];
   let ativo = -1;
   const fechar = () => { lista.hidden = true; input.setAttribute('aria-expanded', 'false'); };
@@ -4072,13 +4075,33 @@ function fpCombo({ input, lista, fonte, texto, html, aoEscolher, max = 80 }) {
       if (i === ativo) el.scrollIntoView({ block: 'nearest' });
     });
   };
+  const textoTodos = () => atuais.every(selecionado)
+    ? `<i class="ti ti-square-minus"></i> Desmarcar os ${atuais.length} resultados`
+    : `<i class="ti ti-checks"></i> Marcar todos os ${atuais.length} resultados`;
+  // Reflete o estado atual de seleção sem redesenhar a lista (mantém rolagem e item ativo)
+  const sincronizar = () => {
+    if (!multi || lista.hidden) return;
+    lista.querySelectorAll('.fp-busca-item').forEach(el => {
+      const it = atuais[Number(el.dataset.i)];
+      const sel = !!(it && selecionado(it));
+      el.classList.toggle('sel', sel);
+      el.setAttribute('aria-selected', String(sel));
+    });
+    const todos = lista.querySelector('[data-acao="todos"]');
+    if (todos) todos.innerHTML = textoTodos();
+  };
   const abrir = (termo) => {
     const partes = fpNorm(termo).split(/\s+/).filter(Boolean);
     atuais = fonte().filter(it => { const t = fpNorm(texto(it)); return partes.every(p => t.includes(p)); });
     ativo = atuais.length ? 0 : -1;
+    const item = (it, i) => {
+      const sel = multi && selecionado(it);
+      return `<div class="fp-busca-item${multi ? ' multi' : ''}${sel ? ' sel' : ''}${i === ativo ? ' ativo' : ''}" role="option"` +
+        `${multi ? ` aria-selected="${sel}"` : ''} data-i="${i}">${multi ? '<span class="fp-chk" aria-hidden="true"></span>' : ''}${html(it)}</div>`;
+    };
     lista.innerHTML = atuais.length
-      ? atuais.slice(0, max).map((it, i) =>
-          `<div class="fp-busca-item${i === ativo ? ' ativo' : ''}" role="option" data-i="${i}">${html(it)}</div>`).join('') +
+      ? (multi && partes.length && atuais.length > 1 ? `<div class="fp-busca-todos" data-acao="todos">${textoTodos()}</div>` : '') +
+        atuais.slice(0, max).map(item).join('') +
         (atuais.length > max ? `<div class="fp-busca-mais">+${atuais.length - max} resultados — digite mais para refinar</div>` : '')
       : '<div class="fp-busca-vazio">Nada encontrado</div>';
     lista.hidden = false;
@@ -4087,11 +4110,16 @@ function fpCombo({ input, lista, fonte, texto, html, aoEscolher, max = 80 }) {
   const escolher = (i) => {
     const it = atuais[i];
     if (!it) return;
+    if (multi) { aoEscolher(it); sincronizar(); return; }
     fechar();
     aoEscolher(it);
     input.blur();
   };
-  input.addEventListener('focus', () => { input.select(); abrir(''); });
+  // No modo multi o texto é a busca em andamento: reabre com ele, sem trocar a lista sob o clique
+  input.addEventListener('focus', () => {
+    if (multi) { if (lista.hidden) abrir(input.value); return; }
+    input.select(); abrir('');
+  });
   input.addEventListener('input', () => abrir(input.value));
   input.addEventListener('blur', fechar);
   input.addEventListener('keydown', (e) => {
@@ -4106,15 +4134,28 @@ function fpCombo({ input, lista, fonte, texto, html, aoEscolher, max = 80 }) {
       e.preventDefault();
       escolher(ativo);
     } else if (e.key === 'Escape') {
+      // Esc só fecha a lista (sem isso o campo type=search apaga o texto e reabre)
+      if (!lista.hidden) e.preventDefault();
       fechar();
     }
   });
   // mousedown (não click) para escolher antes do blur fechar a lista
   lista.addEventListener('mousedown', (e) => {
     e.preventDefault();
+    if (e.button !== 0) return;
+    if (e.target.closest('[data-acao="todos"]')) {
+      aoEscolherVarios?.(atuais.every(selecionado) ? atuais : atuais.filter(it => !selecionado(it)));
+      sincronizar();
+      return;
+    }
     const el = e.target.closest('[data-i]');
-    if (el) escolher(Number(el.dataset.i));
+    if (el) {
+      ativo = Number(el.dataset.i);
+      escolher(ativo);
+      marcar();
+    }
   });
+  return { sincronizar };
 }
 
 function fpSelecionarServidor(srv) {
@@ -4164,20 +4205,48 @@ async function renderFolhaPonto() {
         [s.matricula ? `Mat. ${s.matricula}` : 'Sem matrícula', s.vinculo, s.funcao, s.lotacao_nome].filter(Boolean).join(' · '))}</small>`,
       aoEscolher: fpSelecionarServidor,
     });
-    fpCombo({
+    _fpComboUnidades = fpCombo({
       input: $('fp-und-busca'), lista: $('fp-und-lista'),
       fonte: () => _fpUnidades,
       texto: u => `${u.nome} ${u.caminho}`,
       html: u => `<span class="fp-qtd">${u.servidores.length}</span><strong>${htmlEscape(u.nome)}</strong>` +
         (u.caminho ? `<small>${htmlEscape(u.caminho)}</small>` : ''),
-      aoEscolher: fpSelecionarUnidade,
+      multi: true,
+      selecionado: u => _fpUnidadesSel.has(u.chave),
+      aoEscolher: u => fpAlternarUnidades([u]),
+      aoEscolherVarios: fpAlternarUnidades,
     });
     $('fp-und-servidores')?.addEventListener('change', (e) => {
       const id = Number(e.target.dataset?.id);
       if (!id) return;
-      if (e.target.checked) _fpExcluidos.delete(id); else _fpExcluidos.add(id);
-      e.target.closest('.fp-und-srv')?.classList.toggle('fora', !e.target.checked);
-      fpAtualizarContagemUnidade();
+      fpMarcarServidores([id], e.target.checked);
+    });
+    $('fp-und-servidores')?.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-grupo-acao]');
+      if (!btn) return;
+      const grupo = btn.closest('.fp-und-grupo');
+      if (btn.dataset.grupoAcao === 'remover') {
+        const u = _fpUnidadesSel.get(grupo.dataset.chave);
+        if (u) fpAlternarUnidades([u]);
+        return;
+      }
+      const ids = [...grupo.querySelectorAll('.fp-und-srv:not([hidden]) input')].map(c => Number(c.dataset.id));
+      fpMarcarServidores(ids, btn.dataset.grupoAcao === 'todos');
+    });
+    $('fp-und-sel-chips')?.addEventListener('click', (e) => {
+      const chip = e.target.closest('.fp-chip');
+      if (!chip) return;
+      const u = _fpUnidadesSel.get(chip.dataset.chave);
+      if (!u) return;
+      if (e.target.closest('.fp-chip-x')) { fpAlternarUnidades([u]); return; }
+      // Clique no nome leva ao grupo da unidade na lista de servidores
+      const grupo = [...$$('#fp-und-servidores .fp-und-grupo')].find(g => g.dataset.chave === u.chave);
+      if (grupo) {
+        const box = $('fp-und-servidores');
+        box.scrollBy({ top: grupo.getBoundingClientRect().top - box.getBoundingClientRect().top, behavior: 'smooth' });
+        box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        grupo.classList.remove('destaque'); void grupo.offsetWidth; grupo.classList.add('destaque');
+      }
     });
     $('fp-und-filtro')?.addEventListener('input', fpFiltrarListaUnidade);
     sb.from('feriados').select('*').eq('ativo', true).then(res => {
@@ -4418,6 +4487,7 @@ window.fpPopularDias       = fpPopularDias;
 window.fpRenderFeriados    = fpRenderFeriados;
 window.fpImprimirUnidade   = fpImprimirUnidade;
 window.fpMarcarTodos       = fpMarcarTodos;
+window.fpLimparUnidades    = fpLimparUnidades;
 
 // ── Aba Por Unidade ────────────────────────────────────────────────────────────
 function fpIniciarAbaUnidade() {
@@ -4443,51 +4513,136 @@ function fpIniciarAbaUnidade() {
   }
 }
 
-function fpSelecionarUnidade(u) {
-  _fpUnidadeAtual = u;
+// Marca/desmarca unidades (lista vem do combo: uma unidade ou "todos os resultados")
+function fpAlternarUnidades(unidades) {
+  unidades.forEach(u => {
+    if (_fpUnidadesSel.has(u.chave)) {
+      _fpUnidadesSel.delete(u.chave);
+      // Esquece desmarcações de quem não está mais em nenhuma unidade marcada
+      const restantes = new Set(fpServidoresMarcaveis().map(s => Number(s.funcionario_id)));
+      u.servidores.forEach(s => { if (!restantes.has(Number(s.funcionario_id))) _fpExcluidos.delete(Number(s.funcionario_id)); });
+    } else {
+      _fpUnidadesSel.set(u.chave, u);
+    }
+  });
+  fpRenderUnidadesSel();
+  _fpComboUnidades?.sincronizar();
+}
+
+function fpLimparUnidades() {
+  _fpUnidadesSel.clear();
   _fpExcluidos.clear();
-  $('fp-und-busca').value = u.nome;
-  $('fp-und-filtro').value = '';
-  $('fp-und-nome').textContent = u.nome;
-  $('fp-und-caminho').textContent = u.caminho;
-  $('fp-und-servidores').innerHTML = u.servidores.map(s => {
-    const meta = [s.matricula ? `Mat. ${s.matricula}` : 'Sem matrícula', s.vinculo, s.funcao].filter(Boolean).join(' · ');
-    const busca = fpNorm(`${s.nome} ${s.matricula || ''} ${s.funcao || ''} ${s.vinculo || ''}`);
-    return `<label class="fp-und-srv" data-busca="${htmlEscape(busca)}">
-      <input type="checkbox" data-id="${Number(s.funcionario_id)}" checked>
-      <span><span class="fp-und-srv-nome">${htmlEscape(s.nome)}</span><span class="fp-und-srv-meta">${htmlEscape(meta)}</span></span>
-    </label>`;
-  }).join('');
-  $('fp-und-painel').hidden = false;
-  fpAtualizarContagemUnidade();
+  fpRenderUnidadesSel();
+  _fpComboUnidades?.sincronizar();
+}
+
+function fpRenderUnidadesSel() {
+  const unidades = [..._fpUnidadesSel.values()];
+  const temAlguma = unidades.length > 0;
+
+  $('fp-und-sel').hidden = !temAlguma;
+  $('fp-und-sel-titulo').textContent = `${unidades.length} unidade${unidades.length > 1 ? 's' : ''} selecionada${unidades.length > 1 ? 's' : ''}`;
+  $('fp-und-sel-chips').innerHTML = unidades.map(u =>
+    `<span class="fp-chip" data-chave="${htmlEscape(u.chave)}" title="${htmlEscape(u.caminho ? `${u.caminho} › ${u.nome}` : u.nome)}">` +
+      `<span class="fp-chip-nome">${htmlEscape(u.nome)}</span><span class="fp-chip-qtd">${u.servidores.length}</span>` +
+      `<button type="button" class="fp-chip-x" aria-label="Remover ${htmlEscape(u.nome)}"><i class="ti ti-x"></i></button>` +
+    `</span>`).join('');
+
+  $('fp-und-painel').hidden = !temAlguma;
+  const box = $('fp-und-servidores');
+  const rolagem = box.scrollTop;
+  box.innerHTML = unidades.map(u => `
+    <div class="fp-und-grupo" data-chave="${htmlEscape(u.chave)}">
+      <div class="fp-und-grupo-cab">
+        <div style="min-width:0">
+          <div class="fp-und-grupo-nome">${htmlEscape(u.nome)} <span class="fp-und-grupo-cont"></span></div>
+          ${u.caminho ? `<div class="fp-und-caminho">${htmlEscape(u.caminho)}</div>` : ''}
+        </div>
+        <div class="fp-und-acoes">
+          <button type="button" class="fp-link" data-grupo-acao="todos">Marcar</button>
+          <button type="button" class="fp-link" data-grupo-acao="nenhum">Desmarcar</button>
+          <button type="button" class="fp-link fp-link-perigo" data-grupo-acao="remover" title="Tirar esta unidade da seleção"><i class="ti ti-x"></i> Remover</button>
+        </div>
+      </div>
+      <div class="fp-und-grupo-lista">${u.servidores.map(s => {
+        const id = Number(s.funcionario_id);
+        const marcado = !_fpExcluidos.has(id);
+        const meta = [s.matricula ? `Mat. ${s.matricula}` : 'Sem matrícula', s.vinculo, s.funcao].filter(Boolean).join(' · ');
+        const busca = fpNorm(`${s.nome} ${s.matricula || ''} ${s.funcao || ''} ${s.vinculo || ''}`);
+        return `<label class="fp-und-srv${marcado ? '' : ' fora'}" data-busca="${htmlEscape(busca)}">
+          <input type="checkbox" data-id="${id}"${marcado ? ' checked' : ''}>
+          <span><span class="fp-und-srv-nome">${htmlEscape(s.nome)}</span><span class="fp-und-srv-meta">${htmlEscape(meta)}</span></span>
+        </label>`;
+      }).join('') || '<div class="fp-und-vazio">Nenhum servidor nesta unidade.</div>'}</div>
+    </div>`).join('');
+  box.scrollTop = rolagem;
+  fpFiltrarListaUnidade();
 }
 
 function fpFiltrarListaUnidade() {
   const partes = fpNorm($('fp-und-filtro')?.value).split(/\s+/).filter(Boolean);
-  $$('#fp-und-servidores .fp-und-srv').forEach(el => {
-    el.hidden = !partes.every(p => el.dataset.busca.includes(p));
+  let visiveis = 0;
+  $$('#fp-und-servidores .fp-und-grupo').forEach(grupo => {
+    let noGrupo = 0;
+    grupo.querySelectorAll('.fp-und-srv').forEach(el => {
+      el.hidden = !partes.every(p => el.dataset.busca.includes(p));
+      if (!el.hidden) noGrupo++;
+    });
+    // Com filtro, esconde a unidade que não tem nenhum servidor correspondente
+    grupo.hidden = partes.length > 0 && noGrupo === 0;
+    visiveis += noGrupo;
   });
+  const aviso = $('fp-und-sem-result');
+  if (aviso) aviso.hidden = !(partes.length && visiveis === 0 && _fpUnidadesSel.size);
+  fpAtualizarContagemUnidade();
 }
 
-// Marca/desmarca só os servidores visíveis (respeita o filtro da lista)
-function fpMarcarTodos(marcar) {
-  $$('#fp-und-servidores .fp-und-srv:not([hidden]) input').forEach(chk => {
+// Aplica a marcação a todos os checkboxes do servidor (pode aparecer em mais de uma unidade)
+function fpMarcarServidores(ids, marcar) {
+  const alvo = new Set(ids);
+  alvo.forEach(id => { if (marcar) _fpExcluidos.delete(id); else _fpExcluidos.add(id); });
+  $$('#fp-und-servidores .fp-und-srv input').forEach(chk => {
+    if (!alvo.has(Number(chk.dataset.id))) return;
     chk.checked = marcar;
-    const id = Number(chk.dataset.id);
-    if (marcar) _fpExcluidos.delete(id); else _fpExcluidos.add(id);
     chk.closest('.fp-und-srv').classList.toggle('fora', !marcar);
   });
   fpAtualizarContagemUnidade();
 }
 
+// Marca/desmarca só os servidores visíveis (respeita o filtro da lista)
+function fpMarcarTodos(marcar) {
+  const ids = [...$$('#fp-und-servidores .fp-und-grupo:not([hidden]) .fp-und-srv:not([hidden]) input')].map(c => Number(c.dataset.id));
+  fpMarcarServidores(ids, marcar);
+}
+
+// Servidores das unidades marcadas, sem repetir, na ordem em que as unidades foram escolhidas
+function fpServidoresMarcaveis() {
+  const vistos = new Set();
+  const out = [];
+  _fpUnidadesSel.forEach(u => u.servidores.forEach(s => {
+    const id = Number(s.funcionario_id);
+    if (vistos.has(id)) return;
+    vistos.add(id);
+    out.push(s);
+  }));
+  return out;
+}
+
 function fpServidoresDaUnidade() {
-  return (_fpUnidadeAtual?.servidores || []).filter(s => !_fpExcluidos.has(Number(s.funcionario_id)));
+  return fpServidoresMarcaveis().filter(s => !_fpExcluidos.has(Number(s.funcionario_id)));
 }
 
 function fpAtualizarContagemUnidade() {
-  const total = _fpUnidadeAtual?.servidores.length || 0;
+  const total = fpServidoresMarcaveis().length;
   const n = fpServidoresDaUnidade().length;
+  const u = _fpUnidadesSel.size;
+  $('fp-und-nome').textContent = `${u} unidade${u > 1 ? 's' : ''} · ${total} servidor${total === 1 ? '' : 'es'}`;
   $('fp-und-contagem').innerHTML = `<strong>${n}</strong> de ${total} selecionado(s)`;
+  $$('#fp-und-servidores .fp-und-grupo').forEach(grupo => {
+    const chks = grupo.querySelectorAll('.fp-und-srv input');
+    const marcados = [...chks].filter(c => c.checked).length;
+    grupo.querySelector('.fp-und-grupo-cont').textContent = `· ${marcados} de ${chks.length}`;
+  });
   $('fp-btn-lote-txt').textContent = n ? `Gerar ${n} folha${n > 1 ? 's' : ''}` : 'Gerar folhas';
   $('fp-btn-lote').disabled = n === 0;
 }
@@ -4496,7 +4651,7 @@ function fpImprimirUnidade() {
   const mm = $('fp-und-mes')?.value || String(new Date().getMonth()+1).padStart(2,'0');
   const aa = $('fp-und-ano')?.value || String(new Date().getFullYear());
 
-  if (!_fpUnidadeAtual) { showToast('Busque e selecione a Unidade Administrativa', 'warning'); return; }
+  if (!_fpUnidadesSel.size) { showToast('Busque e marque pelo menos uma Unidade Administrativa', 'warning'); return; }
   const lista = fpServidoresDaUnidade();
   if (lista.length === 0) { showToast('Marque pelo menos um servidor', 'warning'); return; }
 
