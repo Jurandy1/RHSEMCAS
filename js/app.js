@@ -1895,7 +1895,7 @@ function usuarioEhCoordenador() {
 async function renderUsuarios() {
   if (!usuarioEhCoordenador()) return;
   const tbody = $('tbody-usuarios');
-  if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
+  if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>';
 
   let data = null;
   let error = null;
@@ -1912,22 +1912,83 @@ async function renderUsuarios() {
   }
 
   if (error) {
-    if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Erro ao carregar usuários: ${htmlEscape(error.message)}</td></tr>`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Erro ao carregar usuários: ${htmlEscape(error.message)}</td></tr>`;
     return;
   }
 
-  if (!data?.length) {
-    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Nenhum usuário cadastrado.</td></tr>';
+  window._usuariosCache = data || [];
+  renderUsuariosTabela();
+}
+
+// Tempo relativo do último login ("há 3 dias") + cor de alerta conforme a inatividade.
+function descreverUltimoLogin(iso) {
+  if (!iso) return { texto: 'Nunca acessou', cor: 'var(--gov-red)', titulo: '' };
+  const data = new Date(iso);
+  const min = Math.floor((Date.now() - data.getTime()) / 60000);
+  const dias = Math.floor(min / 1440);
+  let texto;
+  if (min < 1) texto = 'agora mesmo';
+  else if (min < 60) texto = `há ${min} min`;
+  else if (min < 1440) texto = `há ${Math.floor(min / 60)} h`;
+  else if (dias === 1) texto = 'ontem';
+  else if (dias < 30) texto = `há ${dias} dias`;
+  else if (dias < 365) texto = `há ${Math.floor(dias / 30)} ${Math.floor(dias / 30) === 1 ? 'mês' : 'meses'}`;
+  else texto = `há ${Math.floor(dias / 365)} ano(s)`;
+  const cor = dias >= 30 ? 'var(--gov-red)' : dias >= 7 ? 'var(--gov-orange, #d97706)' : 'var(--gov-green)';
+  return { texto, cor, titulo: data.toLocaleString('pt-BR') };
+}
+
+function renderUsuariosTabela() {
+  const tbody = $('tbody-usuarios');
+  if (!tbody) return;
+  const todos = window._usuariosCache || [];
+  const temLogin = todos.some(u => 'ultimo_login' in u);
+  const filtro = $('usr-filtro-login')?.value || 'todos';
+  const ordem = $('usr-ordem')?.value || 'nome';
+  const agora = Date.now();
+  const diasDesde = (u) => u.ultimo_login ? (agora - new Date(u.ultimo_login).getTime()) / 86400000 : Infinity;
+  const hoje = new Date().toDateString();
+
+  const resumo = $('usr-resumo-login');
+  if (resumo) {
+    resumo.textContent = !temLogin
+      ? 'Último login indisponível: execute sql/usuarios_ultimo_login.sql no Supabase.'
+      : `${todos.filter(u => u.ultimo_login && new Date(u.ultimo_login).toDateString() === hoje).length} acessaram hoje · `
+        + `${todos.filter(u => diasDesde(u) >= 30 && u.ultimo_login).length} sem acesso há 30+ dias · `
+        + `${todos.filter(u => !u.ultimo_login).length} nunca acessaram`;
+  }
+
+  if (!todos.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Nenhum usuário cadastrado.</td></tr>';
     return;
   }
 
-  window._usuariosCache = data;
-  tbody.innerHTML = data.map(u => `
+  let lista = todos.filter(u => {
+    if (!temLogin || filtro === 'todos') return true;
+    if (filtro === 'hoje') return u.ultimo_login && new Date(u.ultimo_login).toDateString() === hoje;
+    if (filtro === '7d') return diasDesde(u) <= 7;
+    if (filtro === '30d+') return u.ultimo_login && diasDesde(u) >= 30;
+    if (filtro === 'nunca') return !u.ultimo_login;
+    return true;
+  });
+  if (ordem === 'login') lista = [...lista].sort((a, b) => diasDesde(a) - diasDesde(b));
+
+  if (!lista.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Nenhum usuário neste filtro.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = lista.map(u => {
+    const login = temLogin ? descreverUltimoLogin(u.ultimo_login) : null;
+    return `
     <tr>
       <td><strong>${htmlEscape(u.nome || '—')}</strong></td>
       <td>${htmlEscape(u.email || '—')}</td>
       <td><span class="badge">${u.perfil === 'coordenador' ? 'Coordenadora' : 'Usuário'}</span></td>
       <td><span style="color:${u.ativo === false ? 'var(--gov-red)' : 'var(--gov-green)'};font-weight:700;font-size:12px">${u.ativo === false ? 'Inativo' : 'Ativo'}</span></td>
+      <td style="font-size:12px">${login
+        ? `<span title="${htmlEscape(login.titulo)}" style="color:${login.cor};font-weight:700">${login.texto}</span>${login.titulo ? `<br><small style="color:var(--color-text-muted)">${login.titulo}</small>` : ''}`
+        : '—'}</td>
       <td style="font-size:12px">${u.created_at ? new Date(u.created_at).toLocaleString('pt-BR') : '—'}</td>
       <td style="text-align:center">
         <button class="btn-icon" title="Editar nome" onclick="abrirEditarUsuario('${u.user_id}')">
@@ -1935,8 +1996,10 @@ async function renderUsuarios() {
         </button>
       </td>
     </tr>
-  `).join('');
+  `;}).join('');
 }
+window.renderUsuarios = renderUsuarios;
+window.renderUsuariosTabela = renderUsuariosTabela;
 
 window.abrirEditarUsuario = (userId) => {
   if (!usuarioEhCoordenador()) {

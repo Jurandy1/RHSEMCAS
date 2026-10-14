@@ -1545,6 +1545,23 @@
           </button>
         </div>
         <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <select id="usr-filtro-login" class="form-control" style="max-width:240px" onchange="renderUsuariosTabela()">
+                <option value="todos">Todos os usuários</option>
+                <option value="hoje">Acessaram hoje</option>
+                <option value="7d">Acessaram nos últimos 7 dias</option>
+                <option value="30d+">Sem acesso há 30+ dias</option>
+                <option value="nunca">Nunca acessaram</option>
+              </select>
+              <select id="usr-ordem" class="form-control" style="max-width:200px" onchange="renderUsuariosTabela()">
+                <option value="nome">Ordenar por nome</option>
+                <option value="login">Último login (recente)</option>
+              </select>
+              <button class="btn-icon" title="Atualizar" onclick="renderUsuarios()"><i class="ti ti-refresh"></i></button>
+            </div>
+            <small id="usr-resumo-login" style="color:var(--color-text-muted)"></small>
+          </div>
           <div class="table-container">
             <table class="gov-table">
               <thead>
@@ -1553,12 +1570,13 @@
                   <th>E-mail</th>
                   <th>Perfil</th>
                   <th>Status</th>
+                  <th>Último login</th>
                   <th>Cadastrado em</th>
                   <th style="text-align:center">Ações</th>
                 </tr>
               </thead>
               <tbody id="tbody-usuarios">
-                <tr><td colspan="6" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>
+                <tr><td colspan="7" class="empty-state"><span class="spinner"></span> Carregando…</td></tr>
               </tbody>
             </table>
           </div>
