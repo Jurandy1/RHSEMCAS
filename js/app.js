@@ -4106,7 +4106,7 @@ function fpTemFolha(srv) {
 // Horários na ordem da folha: entrada manhã, saída manhã, entrada tarde, saída tarde
 const FP_HORARIOS = {
   padrao:   { nome: 'Padrão',   h: ['08:00', '14:00', '13:00', '19:00'] },
-  dia_todo: { nome: 'Dia todo', h: ['08:00', '14:00', '14:00', '18:00'] },
+  dia_todo: { nome: 'Dia todo', h: ['08:00', '12:00', '14:00', '18:00'] },
 };
 const FP_SEM_VINCULO = 'Sem vínculo';
 const FP_SEM_FUNCAO = 'SEM FUNÇÃO';
