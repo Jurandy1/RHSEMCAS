@@ -2240,6 +2240,57 @@
     .fp-und-srv-meta { display: block; font-size: 11px; color: var(--color-text-sec); margin-top: 1px; }
     .fp-und-srv.fora .fp-und-srv-nome { color: var(--color-text-muted); text-decoration: line-through; }
     .fp-und-srv.fora .fp-und-srv-meta { color: var(--color-text-muted); }
+    .fp-hor-tag {
+      display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 8px; vertical-align: 1px;
+      font-size: 10px; font-weight: 700; background: #fff4e5; color: #8a4b00; border: 1px solid #f5c37a;
+    }
+
+    /* Funções e Horários */
+    .fp-hor-legenda { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 8px; color: var(--color-text-main); }
+    .fp-hor-op-tag { display: inline-block; padding: 1px 8px; border-radius: 10px; font-weight: 700; font-size: 11px; }
+    .fp-hor-aviso {
+      margin-bottom: 14px; padding: 10px 14px; border-radius: 6px; font-size: 12px;
+      background: #fff4e5; border: 1px solid #f5c37a; color: #8a4b00;
+    }
+    .fp-hor-filtros { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 14px 6px; }
+    .fp-hor-lista { max-height: 520px; overflow-y: auto; padding: 0 8px 8px; }
+    .fp-hor-cargo { padding: 6px 8px; border-bottom: 1px solid var(--gov-border); border-left: 3px solid transparent; }
+    .fp-hor-cargo-linha { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; }
+    button.fp-hor-cargo-info {
+      display: flex; align-items: flex-start; gap: 6px; text-align: left; cursor: pointer;
+      background: none; border: none; padding: 2px 4px; border-radius: 4px; font: inherit; color: inherit;
+    }
+    button.fp-hor-cargo-info:hover .fp-hor-cargo-nome { color: var(--gov-blue-primary); text-decoration: underline; }
+    .fp-hor-seta { margin-top: 2px; font-size: 14px; color: var(--color-text-muted); transition: transform .15s; }
+    .fp-hor-cargo.aberto .fp-hor-seta { transform: rotate(90deg); color: var(--gov-blue-primary); }
+    .fp-hor-cargo-nome, .fp-hor-cargo-meta { display: block; }
+    .fp-hor-vinc { font-weight: 500; color: var(--gov-blue-dark); }
+    .fp-hor-fixo {
+      display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border-radius: 18px;
+      font-size: 12px; font-weight: 600; color: var(--color-text-sec); background: var(--gov-bg-light); border: 1px dashed var(--gov-border);
+    }
+    .fp-hor-srvs { margin: 8px 0 4px 24px; }
+    .fp-hor-srvs[hidden] { display: none; }
+    .fp-hor-srvs-cab { display: flex; flex-wrap: wrap; gap: 6px; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 12px; font-weight: 700; color: var(--gov-blue-dark); }
+    .fp-hor-tabela { font-size: 12px; }
+    .fp-hor-tabela small { display: block; font-size: 11px; color: var(--color-text-sec); }
+    .fp-hor-cargo[hidden] { display: none; }
+    .fp-hor-cargo:last-child { border-bottom: none; }
+    .fp-hor-cargo.alterado { border-left-color: #f0a020; background: #fffaf0; }
+    .fp-hor-cargo-info { min-width: 0; flex: 1 1 260px; }
+    .fp-hor-cargo-nome { font-size: 13px; font-weight: 600; color: var(--color-text-main); }
+    .fp-hor-cargo-meta { font-size: 11px; color: var(--color-text-sec); margin-top: 1px; }
+    .fp-hor-opcoes { display: inline-flex; flex: none; border: 1px solid var(--gov-border); border-radius: 18px; overflow: hidden; }
+    .fp-hor-op { position: relative; cursor: pointer; }
+    .fp-hor-op input { position: absolute; opacity: 0; pointer-events: none; }
+    .fp-hor-op span { display: block; padding: 5px 14px; font-size: 12px; font-weight: 600; color: var(--color-text-sec); }
+    .fp-hor-op + .fp-hor-op span { border-left: 1px solid var(--gov-border); }
+    .fp-hor-op:hover span { background: var(--gov-bg-light); }
+    .fp-hor-op input:focus-visible + span { outline: 2px solid var(--gov-blue-primary); outline-offset: -2px; }
+    .fp-hor-op-padrao input:checked + span, .fp-hor-op-tag.fp-hor-op-padrao { background: var(--gov-blue-primary); color: #fff; }
+    .fp-hor-op-dia_todo input:checked + span, .fp-hor-op-tag.fp-hor-op-dia_todo { background: #c26a00; color: #fff; }
+    #fp-hor-descartar[hidden], #fp-paper-wrap[hidden] { display: none; }
+    #fp-hor-salvar:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
 
     @media print {
       @page {

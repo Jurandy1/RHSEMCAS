@@ -4092,11 +4092,44 @@ let _fpComboUnidades = null;
 
 const fpNorm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
-// Só quem tem matrícula: efetivo, comissionado, contrato e serviço prestado
-function fpVinculoPermitido(vinculo) {
-  const v = fpNorm(vinculo);
+// Entra na folha quem tem matrícula (inclui recebidos/cedidos sem vínculo cadastrado) ou vínculo
+// efetivo, comissionado, contrato ou serviço prestado. Terceirizado sem matrícula fica de fora —
+// o filtro é por registro, então quem é servidor e também tem um registro de terceirizado continua.
+function fpTemFolha(srv) {
+  if (String(srv?.matricula || '').trim()) return true;
+  const v = fpNorm(srv?.vinculo);
   if (v.includes('terceiriz')) return false;
   return v.includes('efetivo') || v.includes('comission') || v.includes('contrat') || v.includes('prestado');
+}
+
+// --- Funções e Horários ---
+// Horários na ordem da folha: entrada manhã, saída manhã, entrada tarde, saída tarde
+const FP_HORARIOS = {
+  padrao:   { nome: 'Padrão',   h: ['08:00', '14:00', '14:00', '19:00'] },
+  dia_todo: { nome: 'Dia todo', h: ['08:00', '14:00', '14:00', '18:00'] },
+};
+const FP_SEM_VINCULO = 'Sem vínculo';
+const FP_SEM_FUNCAO = 'SEM FUNÇÃO';
+const _fpCargoHor = new Map();         // "função|vínculo" → 'padrao' | 'dia_todo', como está salvo no banco
+const _fpCargoHorRascunho = new Map(); // escolhas ainda não salvas
+const _fpHorAbertos = new Set();       // grupos com a lista de servidores aberta
+let _fpCargoHorTabelaOk = true;
+
+const fpVinculoNome = (srv) => String(srv?.vinculo || '').trim() || FP_SEM_VINCULO;
+const fpFuncaoNome = (srv) => String(srv?.funcao || '').trim().toUpperCase() || FP_SEM_FUNCAO;
+const fpChaveHor = (funcao, vinculo) => `${fpNorm(funcao).trim()}|${fpNorm(vinculo).trim()}`;
+const fpChaveCargo = (srv) => fpChaveHor(fpFuncaoNome(srv), fpVinculoNome(srv));
+const fpEhPrestado = (vinculo) => fpNorm(vinculo).includes('prestado');
+// Serviço Prestado é sempre Padrão
+const fpTipoHorario = (srv) => (fpEhPrestado(srv?.vinculo) ? 'padrao' : _fpCargoHor.get(fpChaveCargo(srv)) || 'padrao');
+const fpHorarioServidor = (srv) => FP_HORARIOS[fpTipoHorario(srv)].h;
+
+async function fpCarregarCargoHorarios() {
+  const { data, error } = await sb.from('folha_ponto_funcao_horario').select('funcao, vinculo, horario');
+  _fpCargoHorTabelaOk = !error;
+  if (error) { console.warn('folha_ponto_funcao_horario:', error.message); return; }
+  _fpCargoHor.clear();
+  data.forEach(r => _fpCargoHor.set(fpChaveHor(r.funcao, r.vinculo), r.horario));
 }
 
 function fpMontarUnidades() {
@@ -4326,6 +4359,7 @@ async function renderFolhaPonto() {
     const [{ data, error }, cargos] = await Promise.all([
       fetchTudo('v_funcionarios_atual', 'funcionario_id, nome, funcao, matricula, vinculo, lotacao_id, lotacao_nome', 'nome'),
       fetchTudo('funcionarios', 'id, cargo', 'id'),
+      fpCarregarCargoHorarios(),
     ]);
     if (!error && data && data.length > 0) {
       _fpServidores = data;
@@ -4338,12 +4372,13 @@ async function renderFolhaPonto() {
       });
       _fpServidores = r.data || [];
     }
-    _fpServidores = _fpServidores.filter(s => fpVinculoPermitido(s.vinculo));
+    _fpServidores = _fpServidores.filter(fpTemFolha);
     const cargoPorId = new Map((cargos.data || []).map(f => [Number(f.id), f.cargo]));
     _fpServidores.forEach(s => { s.cargo = cargoPorId.get(Number(s.funcionario_id)) || s.cargo || ''; });
     fpMontarUnidades();
     const inp = $('fp-srv-busca');
     if (inp) inp.placeholder = `Buscar entre ${_fpServidores.length} servidores por nome, matrícula, função ou unidade…`;
+    if ($('fp-tab-horarios')?.classList.contains('active')) fpRenderHorarios();
   }
 
   fpRenderFeriados();
@@ -4369,7 +4404,9 @@ async function renderFolhaPonto() {
 // Regra de negócio: Jurandy → Função e Unidade específicas
 function fpDadosServidor(srv) {
   const jurandy = (srv?.nome || '').toUpperCase().includes('JURANDY');
+  const [h0, h1, h2, h3] = fpHorarioServidor(srv);
   return {
+    h0, h1, h2, h3,
     nome:      srv?.nome      || '',
     matricula: srv?.matricula || '',
     cargo:     srv?.cargo     || '',
@@ -4444,8 +4481,200 @@ function fpSwitchTab(tab, btn) {
   $$('.fp-tab-btn').forEach(el  => el.classList.remove('active'));
   $(`fp-tab-${tab}`)?.classList.add('active');
   btn.classList.add('active');
+  // A aba Funções e Horários é só configuração: esconde a folha
+  $('fp-paper-wrap').hidden = tab === 'horarios';
   if (tab === 'feriados') fpRenderFeriados();
   if (tab === 'unidade')  fpIniciarAbaUnidade();
+  if (tab === 'horarios') fpRenderHorarios();
+}
+
+// Grupos "Função – Vínculo" dos servidores com folha
+function fpCargosDoSistema() {
+  const grupos = new Map();
+  _fpServidores.forEach(s => {
+    const chave = fpChaveCargo(s);
+    if (!grupos.has(chave)) {
+      grupos.set(chave, { chave, funcao: fpFuncaoNome(s), vinculo: fpVinculoNome(s),
+        prestado: fpEhPrestado(s.vinculo), funcoesOriginais: new Set(), servidores: [] });
+    }
+    const g = grupos.get(chave);
+    if (String(s.funcao || '').trim()) g.funcoesOriginais.add(String(s.funcao).trim());
+    g.servidores.push(s);
+  });
+  return [...grupos.values()].sort((a, b) =>
+    a.funcao.localeCompare(b.funcao, 'pt-BR') || a.vinculo.localeCompare(b.vinculo, 'pt-BR'));
+}
+
+const fpTipoRascunho = (g) => (g.prestado ? 'padrao'
+  : _fpCargoHorRascunho.get(g.chave) || _fpCargoHor.get(g.chave) || 'padrao');
+
+let _fpHorGrupos = [];
+
+function fpRenderHorarios() {
+  const aba = $('fp-tab-horarios');
+  if (!aba) return;
+  if (!aba._fpOk) {
+    aba._fpOk = true;
+    const lista = $('fp-hor-lista');
+    lista.addEventListener('change', (e) => {
+      const linha = e.target.closest('.fp-hor-cargo');
+      if (!linha || e.target.type !== 'radio') return;
+      const chave = linha.dataset.chave;
+      if (e.target.value === (_fpCargoHor.get(chave) || 'padrao')) _fpCargoHorRascunho.delete(chave);
+      else _fpCargoHorRascunho.set(chave, e.target.value);
+      linha.classList.toggle('alterado', _fpCargoHorRascunho.has(chave));
+      fpAtualizarResumoHorarios();
+    });
+    lista.addEventListener('click', (e) => {
+      const linha = e.target.closest('.fp-hor-cargo');
+      if (!linha) return;
+      const g = _fpHorGrupos[Number(linha.dataset.i)];
+      if (e.target.closest('[data-acao="funcionarios"]')) { fpVerGrupoEmFuncionarios(g); return; }
+      if (!e.target.closest('.fp-hor-cargo-info')) return;
+      if (_fpHorAbertos.has(g.chave)) _fpHorAbertos.delete(g.chave); else _fpHorAbertos.add(g.chave);
+      fpPintarServidoresGrupo(linha, g);
+    });
+    $('fp-hor-busca').addEventListener('input', fpFiltrarHorarios);
+    $('fp-hor-filtro').addEventListener('change', fpFiltrarHorarios);
+    $('fp-hor-vinculo').addEventListener('change', fpFiltrarHorarios);
+  }
+  $('fp-hor-padrao-txt').textContent = FP_HORARIOS.padrao.h.join(' · ');
+  $('fp-hor-diatodo-txt').textContent = FP_HORARIOS.dia_todo.h.join(' · ');
+  $('fp-hor-aviso').hidden = _fpCargoHorTabelaOk;
+
+  _fpHorGrupos = fpCargosDoSistema();
+
+  // Filtro de vínculo com a contagem de servidores de cada um
+  const selV = $('fp-hor-vinculo');
+  const vSel = selV.value;
+  const porVinculo = new Map();
+  _fpServidores.forEach(s => porVinculo.set(fpVinculoNome(s), (porVinculo.get(fpVinculoNome(s)) || 0) + 1));
+  selV.innerHTML = `<option value="">Todos os vínculos (${_fpServidores.length})</option>` +
+    [...porVinculo].sort((a, b) => b[1] - a[1])
+      .map(([v, n]) => `<option value="${htmlEscape(v)}"${v === vSel ? ' selected' : ''}>${htmlEscape(v)} (${n})</option>`).join('');
+
+  $('fp-hor-lista').innerHTML = _fpHorGrupos.map((g, i) => {
+    const tipo = fpTipoRascunho(g);
+    const n = g.servidores.length;
+    const aberto = _fpHorAbertos.has(g.chave);
+    const opcoes = g.prestado
+      ? '<span class="fp-hor-fixo" title="Serviço Prestado tem sempre o horário Padrão"><i class="ti ti-lock"></i> Sempre Padrão</span>'
+      : `<div class="fp-hor-opcoes" role="radiogroup" aria-label="Horário de ${htmlEscape(`${g.funcao} – ${g.vinculo}`)}">
+        ${Object.entries(FP_HORARIOS).map(([v, h]) => `<label class="fp-hor-op fp-hor-op-${v}">
+          <input type="radio" name="fp-hor-${i}" value="${v}"${tipo === v ? ' checked' : ''}><span>${h.nome}</span></label>`).join('')}
+      </div>`;
+    return `<div class="fp-hor-cargo${_fpCargoHorRascunho.has(g.chave) ? ' alterado' : ''}${aberto ? ' aberto' : ''}" data-i="${i}" data-chave="${htmlEscape(g.chave)}"
+        data-busca="${htmlEscape(fpNorm(`${g.funcao} ${g.vinculo} ${g.servidores.map(s => s.nome).join(' ')}`))}">
+      <div class="fp-hor-cargo-linha">
+        <button type="button" class="fp-hor-cargo-info" aria-expanded="${aberto}">
+          <i class="ti ti-chevron-right fp-hor-seta" aria-hidden="true"></i>
+          <span style="min-width:0">
+            <span class="fp-hor-cargo-nome">${htmlEscape(g.funcao)} <span class="fp-hor-vinc">– ${htmlEscape(g.vinculo)}</span></span>
+            <span class="fp-hor-cargo-meta">${n} servidor${n === 1 ? '' : 'es'} · clique para ver a lista</span>
+          </span>
+        </button>
+        ${opcoes}
+      </div>
+      <div class="fp-hor-srvs"${aberto ? '' : ' hidden'}></div>
+    </div>`;
+  }).join('') || '<div class="fp-und-vazio">Carregando funções…</div>';
+  $$('#fp-hor-lista .fp-hor-cargo.aberto').forEach(el => fpPintarServidoresGrupo(el, _fpHorGrupos[Number(el.dataset.i)]));
+  fpFiltrarHorarios();
+}
+
+// Abre/fecha a lista de servidores do grupo (nome, vínculo, função e unidade)
+function fpPintarServidoresGrupo(linha, g) {
+  const aberto = _fpHorAbertos.has(g.chave);
+  linha.classList.toggle('aberto', aberto);
+  linha.querySelector('.fp-hor-cargo-info').setAttribute('aria-expanded', String(aberto));
+  const box = linha.querySelector('.fp-hor-srvs');
+  box.hidden = !aberto;
+  if (!aberto) return;
+  const srvs = [...g.servidores].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  box.innerHTML = `
+    <div class="fp-hor-srvs-cab">
+      <span>${srvs.length} servidor${srvs.length === 1 ? '' : 'es'}</span>
+      <button type="button" class="btn btn-outline fp-btn-xs" data-acao="funcionarios"><i class="ti ti-users"></i> Ver em Funcionários</button>
+    </div>
+    <div class="table-container"><table class="gov-table fp-hor-tabela">
+      <thead><tr><th>Nome</th><th>Vínculo</th><th>Função</th><th>Unidade</th></tr></thead>
+      <tbody>${srvs.map(s => `<tr>
+        <td><strong>${htmlEscape(s.nome)}</strong>${s.matricula ? `<small>Mat. ${htmlEscape(s.matricula)}</small>` : ''}</td>
+        <td>${htmlEscape(fpVinculoNome(s))}</td>
+        <td>${htmlEscape(s.funcao || '—')}</td>
+        <td>${htmlEscape(s.lotacao_nome || '—')}</td></tr>`).join('')}</tbody>
+    </table></div>`;
+}
+
+// Abre a tela Funcionários já filtrada pela função e pelo vínculo do grupo
+function fpVerGrupoEmFuncionarios(g) {
+  const vinc = (state.vinculos || []).find(v => fpNorm(v.categoria) === fpNorm(g.vinculo));
+  state.filtros = filtrosBase({ vinculo_id: vinc ? vinc.id : null, funcoes: [...g.funcoesOriginais] });
+  state.page = 1;
+  if (location.hash === '#funcionarios') renderFuncionarios();
+  else location.hash = '#funcionarios';
+}
+
+function fpFiltrarHorarios() {
+  const partes = fpNorm($('fp-hor-busca')?.value).split(/\s+/).filter(Boolean);
+  const filtro = $('fp-hor-filtro')?.value || '';
+  const vinc = $('fp-hor-vinculo')?.value || '';
+  let visiveis = 0;
+  $$('#fp-hor-lista .fp-hor-cargo').forEach(el => {
+    const g = _fpHorGrupos[Number(el.dataset.i)];
+    el.hidden = !partes.every(p => el.dataset.busca.includes(p))
+      || (filtro && fpTipoRascunho(g) !== filtro)
+      || (vinc && g.vinculo !== vinc);
+    if (!el.hidden) visiveis++;
+  });
+  $('fp-hor-sem-result').hidden = visiveis > 0 || !_fpHorGrupos.length;
+  fpAtualizarResumoHorarios();
+}
+
+function fpAtualizarResumoHorarios() {
+  const grupos = _fpHorGrupos;
+  const total = grupos.reduce((n, g) => n + g.servidores.length, 0);
+  const dia = grupos.filter(g => fpTipoRascunho(g) === 'dia_todo');
+  const srvDia = dia.reduce((n, g) => n + g.servidores.length, 0);
+  $('fp-hor-resumo').innerHTML = `<strong>${total}</strong> servidores em <strong>${grupos.length}</strong> função/vínculo · ` +
+    `Dia todo: <strong>${srvDia}</strong> servidores · Padrão: <strong>${total - srvDia}</strong> servidores`;
+  const n = _fpCargoHorRascunho.size;
+  $('fp-hor-salvar-txt').textContent = n ? `Salvar ${n} alteraç${n > 1 ? 'ões' : 'ão'}` : 'Salvar';
+  $('fp-hor-salvar').disabled = n === 0;
+  $('fp-hor-descartar').hidden = n === 0;
+}
+
+async function fpSalvarHorarios() {
+  if (!_fpCargoHorRascunho.size) return;
+  const porChave = new Map(_fpHorGrupos.map(g => [g.chave, g]));
+  const linhas = [..._fpCargoHorRascunho]
+    .filter(([chave]) => porChave.has(chave))
+    .map(([chave, horario]) => ({ funcao: porChave.get(chave).funcao, vinculo: porChave.get(chave).vinculo, horario, updated_at: new Date().toISOString() }));
+  const btn = $('fp-hor-salvar');
+  btn.disabled = true;
+  const { error } = await sb.from('folha_ponto_funcao_horario').upsert(linhas, { onConflict: 'funcao,vinculo' });
+  if (error) {
+    btn.disabled = false;
+    console.error(error);
+    showToast(['42P01', 'PGRST205', '42703', '42P10', 'PGRST204'].includes(error.code)
+      ? 'Atualize a tabela de horários — rode sql/folha_ponto_funcao_horario.sql no Supabase'
+      : 'Erro ao salvar os horários', 'error');
+    return;
+  }
+  _fpCargoHorTabelaOk = true;
+  linhas.forEach(l => _fpCargoHor.set(fpChaveHor(l.funcao, l.vinculo), l.horario));
+  _fpCargoHorRascunho.clear();
+  fpRenderHorarios();
+  fpPreencherServidor();
+  if (_fpUnidadesSel.size) fpRenderUnidadesSel();
+  await registrarLog('HORÁRIO DA FOLHA DE PONTO', null, `${linhas.length} função(ões)`,
+    { alteracoes: linhas.map(l => `${l.funcao} – ${l.vinculo}: ${FP_HORARIOS[l.horario].nome}`) });
+  showToast('Horários salvos — já valem para as folhas Individual e Por Unidade', 'success');
+}
+
+function fpDescartarHorarios() {
+  _fpCargoHorRascunho.clear();
+  fpRenderHorarios();
 }
 
 function fpImprimir() {
@@ -4551,6 +4780,8 @@ window.fpRenderFeriados    = fpRenderFeriados;
 window.fpImprimirUnidade   = fpImprimirUnidade;
 window.fpMarcarTodos       = fpMarcarTodos;
 window.fpLimparUnidades    = fpLimparUnidades;
+window.fpSalvarHorarios    = fpSalvarHorarios;
+window.fpDescartarHorarios = fpDescartarHorarios;
 
 // ── Aba Por Unidade ────────────────────────────────────────────────────────────
 function fpIniciarAbaUnidade() {
@@ -4634,7 +4865,7 @@ function fpRenderUnidadesSel() {
         const busca = fpNorm(`${s.nome} ${s.matricula || ''} ${s.funcao || ''} ${s.vinculo || ''}`);
         return `<label class="fp-und-srv${marcado ? '' : ' fora'}" data-busca="${htmlEscape(busca)}">
           <input type="checkbox" data-id="${id}"${marcado ? ' checked' : ''}>
-          <span><span class="fp-und-srv-nome">${htmlEscape(s.nome)}</span><span class="fp-und-srv-meta">${htmlEscape(meta)}</span></span>
+          <span><span class="fp-und-srv-nome">${htmlEscape(s.nome)}${fpTipoHorario(s) === 'dia_todo' ? '<span class="fp-hor-tag">Dia todo</span>' : ''}</span><span class="fp-und-srv-meta">${htmlEscape(meta)}</span></span>
         </label>`;
       }).join('') || '<div class="fp-und-vazio">Nenhum servidor nesta unidade.</div>'}</div>
     </div>`).join('');
