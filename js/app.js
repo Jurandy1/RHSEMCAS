@@ -1670,14 +1670,17 @@ async function carregarResumoDiaPainel() {
 async function renderPainel() {
   atualizarAlertasLicenca(); // fire-and-forget no topo do painel
   carregarResumoDiaPainel(); // fire-and-forget
-  const [kpiRes, vincsRes, locaisRes, cedKpiRes, totalRes, semLotRes] = await Promise.all([
+  const [kpiRes, vincsRes, locaisRes, cedKpiRes, totalRes, semLotRes, atuacaoTercRes] = await Promise.all([
     sb.from('v_dashboard_kpis').select('*').single(),
     sb.from('v_dashboard_vinculos').select('*'),
     sb.from('v_locais_resumo').select('*'),
     sb.from('v_cedencias_kpis').select('*').single().then(r=>r).catch(()=>({data:null, error:true})),
     // total real de ativos: a view de KPIs só conta quem tem lotação ativa
     sb.from('v_funcionarios_atual').select('funcionario_id', { count: 'exact', head: true }),
-    sb.from('v_servidores_sem_lotacao').select('funcionario_id', { count: 'exact', head: true }).then(r => r).catch(() => ({ count: 0, error: true }))
+    sb.from('v_servidores_sem_lotacao').select('funcionario_id', { count: 'exact', head: true }).then(r => r).catch(() => ({ count: 0, error: true })),
+    // servidores com outro vínculo que também atuam como terceirizados: contam nos dois
+    sb.from('funcionarios').select('id', { count: 'exact', head: true })
+      .eq('atuacao_terceirizada', true).eq('ativo', true).then(r => r).catch(() => ({ count: 0, error: true }))
   ]);
 
   const kpi    = kpiRes.data    || null;
@@ -1686,6 +1689,13 @@ async function renderPainel() {
     const nome = (v.vinculo || '').trim().toLowerCase();
     return nome !== 'contrato' && nome !== 'contrato/semus' && nome !== 'procad' && nome !== 'jovem aprendiz';
   });
+  const qtdAtuacaoTerc = atuacaoTercRes?.count || 0;
+  if (qtdAtuacaoTerc) {
+    const vTerc = vincs.find(v => (v.vinculo || '').trim().toLowerCase() === 'terceirizado');
+    if (vTerc) vTerc.total = (vTerc.total || 0) + qtdAtuacaoTerc;
+    else vincs.push({ vinculo: 'Terceirizado', total: qtdAtuacaoTerc });
+    (vTerc || vincs[vincs.length - 1]).atuacao_terc = qtdAtuacaoTerc;
+  }
   const locais = locaisRes.data || [];
   const cedKpi = cedKpiRes.data || null;
   const totalAtivos = totalRes.count ?? null;
@@ -1721,7 +1731,10 @@ async function renderPainel() {
       ...vincs.map(v => {
         const vinculoId = v.vinculo_id ?? state.vinculos.find(x => x.categoria === v.vinculo)?.id ?? null;
         return {
-          lbl: v.vinculo, val: v.total, sub: `${Math.round((v.total/totalServ)*100)||0}% do total`,
+          lbl: v.vinculo, val: v.total,
+          sub: v.atuacao_terc
+            ? `inclui ${v.atuacao_terc} com outro vínculo SEMCAS`
+            : `${Math.round((v.total/totalServ)*100)||0}% do total`,
           cor: corVinc[v.vinculo] || '#888',
           click: () => irParaFuncionarios(filtrosBase({ vinculo_id: vinculoId }))
         };
@@ -2316,8 +2329,11 @@ async function buscarFuncionariosRpc({ paginar = true } = {}) {
     }
   }
 
-  // Filtro por unidade traz também quem atua como terceirizado nela (lista inteira para mesclar)
-  const comAtuacaoTerc = !!state.filtros.lotacao_id && !state.filtros.vinculo_id &&
+  // Filtro por unidade (sem vínculo) ou pelo vínculo Terceirizado traz também quem atua como
+  // terceirizado tendo outro vínculo SEMCAS (lista inteira para mesclar)
+  const vincFiltro = state.vinculos.find(v => String(v.id) === String(state.filtros.vinculo_id));
+  const filtroVincTerc = (vincFiltro?.categoria || '').trim().toLowerCase() === 'terceirizado';
+  const comAtuacaoTerc = (filtroVincTerc || (!!state.filtros.lotacao_id && !state.filtros.vinculo_id)) &&
     !state.filtros.turno_id && funcoesSel.length === 0;
 
   if (!multiFunc && paginar && !comAtuacaoTerc) {
@@ -2391,7 +2407,7 @@ async function buscarFuncionariosRpc({ paginar = true } = {}) {
   const mesclado = await mesclarCedidos(filtrados, filtrados.length);
   filtrados = mesclado.rows;
   if (comAtuacaoTerc) {
-    filtrados = await mesclarAtuacoesTerceirizadas(filtrados, state.filtros.lotacao_id, {
+    filtrados = await mesclarAtuacoesTerceirizadas(filtrados, state.filtros.lotacao_id || null, {
       termo, ordenarPorNome: state.sort.col === 'nome' && state.sort.dir !== 'desc',
     });
   }
@@ -3109,52 +3125,61 @@ function popularSelectTurnoTerceirizada(prefix, valorAtual = '') {
   }
 }
 
+/** Selects de empresa terceirizada: lista fixa; um valor antigo fora dela continua aparecendo para corrigir. */
+function definirEmpresaSelect(selectId, valor) {
+  const sel = $(selectId);
+  if (!sel) return;
+  const v = String(valor || '').trim();
+  if (v && ![...sel.options].some(o => o.value === v)) {
+    sel.insertAdjacentHTML('beforeend', `<option value="${htmlEscape(v)}">${htmlEscape(v)} (verificar)</option>`);
+  }
+  sel.value = v;
+}
+
 function popularSelectLotacaoTerceirizada(prefix, valorAtual = '') {
   popularSelectDirigindoPara(`${prefix}-lotacao-terceirizada`, valorAtual || '');
 }
 
-/** Servidores que também atuam como terceirizados nesta unidade (segunda lotação).
- *  Linhas no formato do fn_buscar_funcionarios; quem já é lotado oficialmente na unidade fica de fora. */
-async function buscarAtuacoesTerceirizadasNaUnidade(lotacaoId) {
-  const lot = (state.lotacoes || []).find(l => Number(l.id) === Number(lotacaoId));
-  if (!lot?.nome) return [];
+/** Servidores que também atuam como terceirizados (vínculo SEMCAS + empresa).
+ *  Com lotacaoId, só os que atuam nessa unidade (2ª lotação), sem quem já é lotado oficialmente nela.
+ *  Linhas no formato do fn_buscar_funcionarios. */
+async function buscarAtuacoesTerceirizadas(lotacaoId = null) {
+  const lot = lotacaoId ? (state.lotacoes || []).find(l => Number(l.id) === Number(lotacaoId)) : null;
+  if (lotacaoId && !lot?.nome) return [];
   try {
-    const { data, error } = await sb.from('funcionarios')
-      .select('id, nome, matricula, empresa, funcao_terceirizada, turno_terceirizada')
+    let q = sb.from('funcionarios')
+      .select('id, nome, matricula, empresa, funcao_terceirizada, turno_terceirizada, lotacao_terceirizada')
       .eq('atuacao_terceirizada', true)
       .eq('ativo', true)
-      .eq('lotacao_terceirizada', lot.nome)
       .order('nome');
+    if (lot) q = q.eq('lotacao_terceirizada', lot.nome);
+    const { data, error } = await q;
     if (error) throw error;
     if (!data?.length) return [];
-    const { data: atuais } = await sb.from('v_funcionarios_atual')
-      .select('funcionario_id, lotacao_id')
-      .in('funcionario_id', data.map(f => f.id));
-    const jaNaUnidade = new Set((atuais || [])
-      .filter(a => Number(a.lotacao_id) === Number(lot.id))
-      .map(a => Number(a.funcionario_id)));
+    const atuais = await fetchInChunks('v_funcionarios_atual', 'funcionario_id, lotacao_id, lotacao_nome', 'funcionario_id', data.map(f => f.id));
+    const atualPorId = new Map(atuais.map(a => [Number(a.funcionario_id), a]));
     return data
-      .filter(f => !jaNaUnidade.has(Number(f.id)))
+      .filter(f => !lot || Number(atualPorId.get(Number(f.id))?.lotacao_id) !== Number(lot.id))
       .map(f => ({
         funcionario_id: f.id,
         nome: f.nome,
         matricula: f.matricula,
         vinculo: f.empresa ? `TERCEIRIZADO (${f.empresa})` : 'TERCEIRIZADO',
         funcao: f.funcao_terceirizada,
-        lotacao_nome: lot.nome,
+        lotacao_nome: f.lotacao_terceirizada || atualPorId.get(Number(f.id))?.lotacao_nome || null,
         caminho_lotacao: null,
         turno: f.turno_terceirizada,
         atuacao_terceirizada: true,
       }));
   } catch (e) {
-    console.warn('atuações terceirizadas na unidade:', e?.message || e);
+    console.warn('atuações terceirizadas:', e?.message || e);
     return [];
   }
 }
 
-/** Junta as atuações terceirizadas da unidade à lista, sem repetir quem já está nela. */
+/** Junta as atuações terceirizadas (da unidade, ou todas sem lotacaoId) à lista, sem repetir quem já está nela. */
 async function mesclarAtuacoesTerceirizadas(rows, lotacaoId, { termo = '', ordenarPorNome = true } = {}) {
-  const extras = await buscarAtuacoesTerceirizadasNaUnidade(lotacaoId);
+  const extras = await buscarAtuacoesTerceirizadas(lotacaoId);
   const ids = new Set(rows.filter(r => r.atuacao_terceirizada).map(r => Number(r.funcionario_id)));
   const tokens = normalizarPesquisaFuncionario(termo.replace(/%/g, ' ')).split(/\s+/).filter(Boolean);
   const novos = extras.filter(e => !ids.has(Number(e.funcionario_id)) && tokens.every(t =>
@@ -3201,7 +3226,7 @@ function lerDadosEmpresaTerceirizada(prefix) {
     };
   }
   return {
-    empresa: ($(`${prefix}-empresa-atuacao`)?.value || '').trim() || null,
+    empresa: ($(`${prefix}-empresa-atuacao`)?.value || '').trim().toUpperCase() || null,
     atuacao_terceirizada: true,
     funcao_terceirizada: ($(`${prefix}-funcao-terceirizada`)?.value || '').trim() || null,
     lotacao_terceirizada: ($(`${prefix}-lotacao-terceirizada`)?.value || '').trim() || null,
@@ -3294,7 +3319,7 @@ window.onVinculoChangeTerceirizado = function onVinculoChangeTerceirizado(prefix
     // Ao virar Terceirizado puro, migra empresa da atuação extra se houver
     const empAtu = ($(`${prefix}-empresa-atuacao`)?.value || '').trim();
     if (empAtu && $(`${prefix}-empresa`) && !$(`${prefix}-empresa`).value) {
-      $(`${prefix}-empresa`).value = empAtu;
+      definirEmpresaSelect(`${prefix}-empresa`, empAtu);
     }
     if ($(`${prefix}-atuacao-terceirizada`)) $(`${prefix}-atuacao-terceirizada`).checked = false;
     toggleAtuacaoTerceirizada(prefix);
@@ -3509,10 +3534,10 @@ window.abrirEdicao = async (id) => {
   const vCheck = state.vinculos.find(x => x.categoria === data.vinculo);
   const isTercVinculo = !!vCheck && (vCheck.categoria || '').trim().toLowerCase() === 'terceirizado';
   if (isTercVinculo) {
-    if ($('edit-empresa')) $('edit-empresa').value = ext?.empresa || '';
+    definirEmpresaSelect('edit-empresa', ext?.empresa);
   } else if (ext?.atuacao_terceirizada || (ext?.empresa && !isTercVinculo)) {
     if ($('edit-atuacao-terceirizada')) $('edit-atuacao-terceirizada').checked = true;
-    if ($('edit-empresa-atuacao')) $('edit-empresa-atuacao').value = ext?.empresa || '';
+    definirEmpresaSelect('edit-empresa-atuacao', ext?.empresa);
     if ($('edit-funcao-terceirizada')) $('edit-funcao-terceirizada').value = ext?.funcao_terceirizada || '';
     popularSelectLotacaoTerceirizada('edit', ext?.lotacao_terceirizada || '');
     popularSelectTurnoTerceirizada('edit', ext?.turno_terceirizada || '');
@@ -12359,7 +12384,7 @@ async function carregarTerceirizados(cargoBusca) {
     const { data, error: errFuncs } = await sb
       .from('funcionarios')
       .select(colsFunc)
-      .eq('empresa', empresaAlvo)
+      .ilike('empresa', `%${empresaAlvo}%`)
       .eq('ativo', true)
       .order('nome')
       .order('id')
