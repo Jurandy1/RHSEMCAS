@@ -2316,7 +2316,11 @@ async function buscarFuncionariosRpc({ paginar = true } = {}) {
     }
   }
 
-  if (!multiFunc && paginar) {
+  // Filtro por unidade traz também quem atua como terceirizado nela (lista inteira para mesclar)
+  const comAtuacaoTerc = !!state.filtros.lotacao_id && !state.filtros.vinculo_id &&
+    !state.filtros.turno_id && funcoesSel.length === 0;
+
+  if (!multiFunc && paginar && !comAtuacaoTerc) {
     const params = {
       p_termo:      termo ? termo.split(/\s+/).join('%') : null,
       p_vinculo_id: state.filtros.vinculo_id ? Number(state.filtros.vinculo_id) : null,
@@ -2386,6 +2390,11 @@ async function buscarFuncionariosRpc({ paginar = true } = {}) {
   }
   const mesclado = await mesclarCedidos(filtrados, filtrados.length);
   filtrados = mesclado.rows;
+  if (comAtuacaoTerc) {
+    filtrados = await mesclarAtuacoesTerceirizadas(filtrados, state.filtros.lotacao_id, {
+      termo, ordenarPorNome: state.sort.col === 'nome' && state.sort.dir !== 'desc',
+    });
+  }
   const total = filtrados.length;
   if (!paginar) return { rows: filtrados, total };
   const ini = (state.page - 1) * state.pageSize;
@@ -2700,7 +2709,7 @@ async function renderLocais(resto) {
       <div class="card">
         <h3 style="color:var(--gov-blue-dark);margin-bottom:6px">${htmlEscape(lot.nome)}</h3>
         <div style="color:var(--color-text-muted);font-size:13px;margin-bottom:16px">
-          ${lot.funcionarios_direto} servidor(es)
+          <span id="unidade-qtd">${lot.funcionarios_direto} servidor(es)</span>
           <button class="btn-link" onclick="verServidoresPorLotacao(${lot.id})">Ver na lista completa</button>
         </div>
         <div class="table-container">
@@ -2711,26 +2720,30 @@ async function renderLocais(resto) {
         </div>
       </div>`;
 
-    const data = await handleErr(await sb.rpc('fn_buscar_funcionarios', {
+    const base = await handleErr(await sb.rpc('fn_buscar_funcionarios', {
       p_termo: null, p_vinculo_id: null, p_lotacao_id: Number(lotacaoId),
       p_limite: 500, p_offset: 0,
     }), 'unidade');
+    const data = await mesclarAtuacoesTerceirizadas(base || [], lotacaoId);
 
-    if (!data || data.length === 0) {
+    if (data.length === 0) {
       $('unidade-tbody').innerHTML = `<tr><td colspan="5" class="empty-state">Sem servidores nessa unidade</td></tr>`;
     } else {
+      const nTerc = data.filter(f => f.atuacao_terceirizada).length;
+      if (nTerc) $('unidade-qtd').textContent = `${data.length} servidor(es), sendo ${nTerc} na atuação terceirizada`;
       $('unidade-tbody').innerHTML = data.map(f => `
         <tr>
-          <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(f.nome)}</td>
+          <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(f.nome)}${f.atuacao_terceirizada
+            ? '<div style="font-size:11px;font-weight:400;color:var(--color-text-muted)">Também terceirizado — lotação oficial em outra unidade</div>' : ''}</td>
           <td>${htmlEscape(f.vinculo || '-')}</td>
           <td>${htmlEscape(f.funcao || '—')}</td>
           <td>${htmlEscape(f.turno || '—')}</td>
           <td style="text-align:center">
             <div class="table-actions">
               <button class="btn-icon" title="Editar" onclick="abrirEdicao(${f.funcionario_id})">Editar</button>
-              <button class="btn-icon" title="Transferir" onclick="abrirTransferencia(${f.funcionario_id})">Transferir</button>
+              ${f.atuacao_terceirizada ? '' : `<button class="btn-icon" title="Transferir" onclick="abrirTransferencia(${f.funcionario_id})">Transferir</button>`}
               <button class="btn-icon" title="Histórico" onclick="verHistorico(${f.funcionario_id})">Histórico</button>
-              <button class="btn-icon" style="color:var(--gov-red)" title="Remover" onclick="abrirRemoverServidor(${f.funcionario_id})">Remover</button>
+              ${f.atuacao_terceirizada ? '' : `<button class="btn-icon" style="color:var(--gov-red)" title="Remover" onclick="abrirRemoverServidor(${f.funcionario_id})">Remover</button>`}
             </div>
           </td>
         </tr>`).join('');
@@ -3098,6 +3111,56 @@ function popularSelectTurnoTerceirizada(prefix, valorAtual = '') {
 
 function popularSelectLotacaoTerceirizada(prefix, valorAtual = '') {
   popularSelectDirigindoPara(`${prefix}-lotacao-terceirizada`, valorAtual || '');
+}
+
+/** Servidores que também atuam como terceirizados nesta unidade (segunda lotação).
+ *  Linhas no formato do fn_buscar_funcionarios; quem já é lotado oficialmente na unidade fica de fora. */
+async function buscarAtuacoesTerceirizadasNaUnidade(lotacaoId) {
+  const lot = (state.lotacoes || []).find(l => Number(l.id) === Number(lotacaoId));
+  if (!lot?.nome) return [];
+  try {
+    const { data, error } = await sb.from('funcionarios')
+      .select('id, nome, matricula, empresa, funcao_terceirizada, turno_terceirizada')
+      .eq('atuacao_terceirizada', true)
+      .eq('ativo', true)
+      .eq('lotacao_terceirizada', lot.nome)
+      .order('nome');
+    if (error) throw error;
+    if (!data?.length) return [];
+    const { data: atuais } = await sb.from('v_funcionarios_atual')
+      .select('funcionario_id, lotacao_id')
+      .in('funcionario_id', data.map(f => f.id));
+    const jaNaUnidade = new Set((atuais || [])
+      .filter(a => Number(a.lotacao_id) === Number(lot.id))
+      .map(a => Number(a.funcionario_id)));
+    return data
+      .filter(f => !jaNaUnidade.has(Number(f.id)))
+      .map(f => ({
+        funcionario_id: f.id,
+        nome: f.nome,
+        matricula: f.matricula,
+        vinculo: f.empresa ? `TERCEIRIZADO (${f.empresa})` : 'TERCEIRIZADO',
+        funcao: f.funcao_terceirizada,
+        lotacao_nome: lot.nome,
+        caminho_lotacao: null,
+        turno: f.turno_terceirizada,
+        atuacao_terceirizada: true,
+      }));
+  } catch (e) {
+    console.warn('atuações terceirizadas na unidade:', e?.message || e);
+    return [];
+  }
+}
+
+/** Junta as atuações terceirizadas da unidade à lista, sem repetir quem já está nela. */
+async function mesclarAtuacoesTerceirizadas(rows, lotacaoId, { termo = '', ordenarPorNome = true } = {}) {
+  const extras = await buscarAtuacoesTerceirizadasNaUnidade(lotacaoId);
+  const ids = new Set(rows.filter(r => r.atuacao_terceirizada).map(r => Number(r.funcionario_id)));
+  const tokens = normalizarPesquisaFuncionario(termo.replace(/%/g, ' ')).split(/\s+/).filter(Boolean);
+  const novos = extras.filter(e => !ids.has(Number(e.funcionario_id)) && tokens.every(t =>
+    normalizarPesquisaFuncionario(e.nome).includes(t) || normalizarPesquisaFuncionario(e.matricula).includes(t)));
+  const todos = [...rows, ...novos];
+  return ordenarPorNome ? todos.sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR')) : todos;
 }
 
 window.toggleAtuacaoTerceirizada = function toggleAtuacaoTerceirizada(prefix) {
