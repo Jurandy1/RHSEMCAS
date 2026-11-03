@@ -4495,7 +4495,7 @@ function fpDadosServidor(srv) {
   const [h0, h1, h2, h3] = fpHorarioServidor(srv);
   return {
     h0, h1, h2, h3,
-    nome:      srv?.nome      || '',
+    nome:      giapNomeTitulo(srv?.nome),
     matricula: srv?.matricula || '',
     cargo:     srv?.cargo     || '',
     funcao:    jurandy ? 'Chefe de Serviço - Patrimônio' : (srv?.funcao || ''),
@@ -5029,7 +5029,7 @@ function fpAtualizarContagemUnidade() {
   $('fp-btn-lote').disabled = n === 0;
 }
 
-function fpImprimirUnidade() {
+async function fpImprimirUnidade() {
   const mm = $('fp-und-mes')?.value || String(new Date().getMonth()+1).padStart(2,'0');
   const aa = $('fp-und-ano')?.value || String(new Date().getFullYear());
 
@@ -5057,13 +5057,13 @@ function fpImprimirUnidade() {
   document.body.appendChild(container);
   document.body.classList.add('fp-lote-print');
 
+  // As cópias ficam ocultas na tela; sem decodificar antes, o Chrome imprime o brasão em branco
+  await Promise.all([...container.querySelectorAll('img')].map(img => img.decode().catch(() => {})));
+  window.print();
   setTimeout(() => {
-    window.print();
-    setTimeout(() => {
-      document.body.classList.remove('fp-lote-print');
-      container.remove();
-    }, 800);
-  }, 200);
+    document.body.classList.remove('fp-lote-print');
+    container.remove();
+  }, 800);
 }
 
 // ╔══════════════════════════════════════════════════════════════╗
