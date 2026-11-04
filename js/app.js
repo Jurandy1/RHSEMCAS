@@ -4525,9 +4525,10 @@ function fpLinhasDias(mm, aa) {
     const iso = `${aa}-${String(mm).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
     const dow = new Date(Number(aa), Number(mm)-1, i).getDay();
     let resto = vazias;
-    if (ferMap.has(iso))  resto = `<td colspan="8" class="fp-g-feriado">FERIADO &#8226; ${htmlEscape(ferMap.get(iso))}</td>`;
-    else if (dow === 6)   resto = '<td colspan="8" class="fp-g-fds">SÁBADO</td>';
-    else if (dow === 0)   resto = '<td colspan="8" class="fp-g-fds">DOMINGO</td>';
+    // Fim de semana tem prioridade: feriado no sábado/domingo sai só como SÁBADO/DOMINGO
+    if (dow === 6)            resto = '<td colspan="8" class="fp-g-fds">SÁBADO</td>';
+    else if (dow === 0)       resto = '<td colspan="8" class="fp-g-fds">DOMINGO</td>';
+    else if (ferMap.has(iso)) resto = `<td colspan="8" class="fp-g-feriado">FERIADO &#8226; ${htmlEscape(ferMap.get(iso))}</td>`;
     html += `<tr><td class="fp-g-dia">${i}</td>${resto}</tr>`;
   }
   return html;
