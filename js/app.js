@@ -4898,7 +4898,8 @@ function fpRenderFeriados() {
   // KPIs do ano (contam só feriados; ponto facultativo fica fora)
   const fer = todos.filter(o => o.f.tipo === 'feriado');
   $('fer-kpi-total').textContent = fer.length;
-  $('fer-kpi-ano').textContent = `Ano de ${ano}`;
+  const pf = todos.length - fer.length;
+  $('fer-kpi-ano').textContent = `Ano de ${ano}` + (pf ? ` · ${pf} ponto${pf > 1 ? 's' : ''} facultativo${pf > 1 ? 's' : ''}` : '');
   $('fer-kpi-nac').textContent = fer.filter(o => o.f.abrangencia === 'nacional').length;
   $('fer-kpi-est').textContent = fer.filter(o => o.f.abrangencia === 'estadual').length;
   $('fer-kpi-mun').textContent = fer.filter(o => o.f.abrangencia === 'municipal').length;

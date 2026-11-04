@@ -2703,28 +2703,6 @@
 }
 .fer-btn-novo:hover { background: var(--gov-blue-90); }
 
-.fer-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
-.fer-kpi {
-  position: relative; overflow: hidden; display: flex; align-items: flex-start; gap: 14px;
-  padding: 14px 16px; border-radius: var(--br-md); border: 1px solid;
-}
-.fer-kpi-ico { width: 52px; height: 46px; border-radius: var(--br-md); flex: none; display: grid; place-items: center; font-size: 26px; }
-.fer-kpi-rot { font-size: 13px; color: var(--color-text-main); }
-.fer-kpi-num { font-size: 24px; font-weight: 800; line-height: 1.25; color: var(--gov-blue-dark); }
-.fer-kpi-sub { font-size: 12px; color: var(--color-text-sec); }
-.fer-kpi-bg { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 46px; opacity: .35; pointer-events: none; }
-.fer-kpi-total { background: #f3f7fe; border-color: #c9daf6; }
-.fer-kpi-total .fer-kpi-ico { background: #cfe0fb; color: var(--gov-blue-primary); }
-.fer-kpi-total .fer-kpi-bg  { color: var(--gov-blue-primary); }
-.fer-kpi-nac { background: #f2faf4; border-color: #c8e8d0; }
-.fer-kpi-nac .fer-kpi-ico { background: #cdeed6; color: #168821; }
-.fer-kpi-nac .fer-kpi-bg  { color: #8cc79a; }
-.fer-kpi-est { background: #fffaea; border-color: #f6e2a4; }
-.fer-kpi-est .fer-kpi-ico { background: #ffe9a8; color: #c98a00; }
-.fer-kpi-est .fer-kpi-bg  { color: #e8b93b; }
-.fer-kpi-mun { background: #f7f5fe; border-color: #ddd5f6; }
-.fer-kpi-mun .fer-kpi-ico { background: #e3dbfb; color: #6a3fc8; }
-.fer-kpi-mun .fer-kpi-bg  { color: #a990e6; }
 
 .fer-filtros { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-bottom: 18px; }
 .fer-filtros .form-control { font-size: 14px; padding: 9px 12px; width: auto; }
@@ -2792,9 +2770,8 @@
 .fer-m-check small { font-weight: 400; color: var(--color-text-muted); }
 .fer-m-nota { display: block; margin: 6px 0 0; font-size: 12px; color: var(--color-text-sec); }
 
-@media (max-width: 1100px) { .fer-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) {
-  .fer-kpis, .fer-m-linha { grid-template-columns: 1fr; }
+  .fer-m-linha { grid-template-columns: 1fr; }
   .fer-filtros .form-control, .fer-busca { flex: 1 1 100%; max-width: none; }
   .fer-btn-limpar { margin-left: 0; }
 }
@@ -2804,3 +2781,27 @@
   font: 700 14px var(--font-sans);
 }
 .fer-btn-previa:hover, .fer-btn-previa.ativo { background: var(--gov-blue-light); }
+
+/* Feriados: resumo do ano (faixa única, sóbria) */
+.fer-kpis {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  background: var(--gov-surface); border: 1px solid var(--gov-border); border-radius: var(--br-md);
+  margin-bottom: 18px;
+}
+.fer-kpi { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; min-width: 0; }
+.fer-kpi + .fer-kpi { border-left: 1px solid var(--gov-border); }
+.fer-kpi-txt { min-width: 0; }
+.fer-kpi-rot { font-size: 12px; font-weight: 600; color: var(--color-text-sec); white-space: nowrap; }
+.fer-kpi-num { font-size: 28px; font-weight: 700; line-height: 1.15; margin: 2px 0; color: var(--color-text-main); font-variant-numeric: tabular-nums; }
+.fer-kpi-sub { font-size: 12px; color: var(--color-text-muted); }
+.fer-kpi-total .fer-kpi-num { color: var(--gov-blue-primary); }
+.fer-kpi-brasao { height: 44px; width: 44px; object-fit: contain; flex: none; }
+@media (max-width: 1100px) {
+  .fer-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fer-kpi:nth-child(3) { border-left: none; }
+  .fer-kpi:nth-child(n+3) { border-top: 1px solid var(--gov-border); }
+}
+@media (max-width: 640px) {
+  .fer-kpis { grid-template-columns: 1fr; }
+  .fer-kpi + .fer-kpi { border-left: none; border-top: 1px solid var(--gov-border); }
+}
