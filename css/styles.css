@@ -2687,3 +2687,120 @@
   color: var(--color-text-muted);
   word-break: break-word;
 }
+
+/* ── Folha de Ponto › Feriados ─────────────────────────────── */
+.fer-cab { display: flex; align-items: center; gap: 14px; margin: 4px 0 18px; flex-wrap: wrap; }
+.fer-cab-ico {
+  width: 48px; height: 48px; border-radius: 50%; flex: none; display: grid; place-items: center;
+  background: var(--gov-blue-light); color: var(--gov-blue-primary); font-size: 24px;
+}
+.fer-cab-txt { flex: 1; min-width: 220px; }
+.fer-cab-txt h3 { margin: 0; font-size: 22px; font-weight: 700; color: var(--gov-blue-dark); }
+.fer-cab-txt p { margin: 2px 0 0; font-size: 13px; color: var(--color-text-sec); }
+.fer-btn-novo {
+  display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border: none; border-radius: var(--br-md);
+  background: var(--gov-blue-primary); color: #fff; font: 700 15px var(--font-sans); cursor: pointer;
+}
+.fer-btn-novo:hover { background: var(--gov-blue-90); }
+
+.fer-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+.fer-kpi {
+  position: relative; overflow: hidden; display: flex; align-items: flex-start; gap: 14px;
+  padding: 14px 16px; border-radius: var(--br-md); border: 1px solid;
+}
+.fer-kpi-ico { width: 52px; height: 46px; border-radius: var(--br-md); flex: none; display: grid; place-items: center; font-size: 26px; }
+.fer-kpi-rot { font-size: 13px; color: var(--color-text-main); }
+.fer-kpi-num { font-size: 24px; font-weight: 800; line-height: 1.25; color: var(--gov-blue-dark); }
+.fer-kpi-sub { font-size: 12px; color: var(--color-text-sec); }
+.fer-kpi-bg { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 46px; opacity: .35; pointer-events: none; }
+.fer-kpi-total { background: #f3f7fe; border-color: #c9daf6; }
+.fer-kpi-total .fer-kpi-ico { background: #cfe0fb; color: var(--gov-blue-primary); }
+.fer-kpi-total .fer-kpi-bg  { color: var(--gov-blue-primary); }
+.fer-kpi-nac { background: #f2faf4; border-color: #c8e8d0; }
+.fer-kpi-nac .fer-kpi-ico { background: #cdeed6; color: #168821; }
+.fer-kpi-nac .fer-kpi-bg  { color: #8cc79a; }
+.fer-kpi-est { background: #fffaea; border-color: #f6e2a4; }
+.fer-kpi-est .fer-kpi-ico { background: #ffe9a8; color: #c98a00; }
+.fer-kpi-est .fer-kpi-bg  { color: #e8b93b; }
+.fer-kpi-mun { background: #f7f5fe; border-color: #ddd5f6; }
+.fer-kpi-mun .fer-kpi-ico { background: #e3dbfb; color: #6a3fc8; }
+.fer-kpi-mun .fer-kpi-bg  { color: #a990e6; }
+
+.fer-filtros { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-bottom: 18px; }
+.fer-filtros .form-control { font-size: 14px; padding: 9px 12px; width: auto; }
+.fer-busca { position: relative; flex: 1 1 220px; max-width: 400px; }
+.fer-busca i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--color-text-muted); }
+.fer-busca .form-control { width: 100%; padding-left: 36px; }
+.fer-f-rot { font-size: 14px; color: var(--color-text-main); margin-left: 6px; }
+.fer-f-ano { min-width: 100px; }
+#fer-f-mes { min-width: 160px; }
+#fer-f-abr { min-width: 170px; }
+.fer-btn-limpar {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; cursor: pointer;
+  border: 1px solid var(--gov-border-strong); border-radius: 999px; background: var(--gov-surface);
+  font: 600 13px var(--font-sans); color: var(--color-text-main);
+}
+.fer-btn-limpar:hover { background: var(--gov-bg-light); }
+
+.fer-tabela-wrap { border: 1px solid var(--gov-border); border-radius: var(--br-md); overflow-x: auto; }
+.fer-tabela { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 680px; }
+.fer-tabela thead th {
+  background: #e9edf4; text-align: left; padding: 9px 16px; font-weight: 700; font-size: 13px; color: var(--gov-blue-dark);
+}
+.fer-tabela tbody td { padding: 7px 16px; border-top: 1px solid var(--gov-border); vertical-align: middle; }
+.fer-tabela tbody tr:hover { background: #f8fafd; }
+.fer-ord { background: none; border: none; padding: 0; font: inherit; color: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.fer-data { display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; }
+.fer-data i { font-size: 18px; color: var(--color-text-sec); }
+.fer-nome { color: var(--color-text-main); }
+.fer-rec { font-size: 13px; color: var(--color-text-muted); vertical-align: -1px; }
+.fer-oficial {
+  margin-left: 6px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+  color: var(--color-text-muted); border: 1px solid var(--gov-border-strong); border-radius: 4px; padding: 0 5px;
+}
+.fer-tag { display: inline-block; padding: 3px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.fer-tag-nacional, .fer-tag-feriado { background: #dbe8fb; color: #0c326f; }
+.fer-tag-estadual  { background: #fff1c2; color: #8a5a00; }
+.fer-tag-municipal { background: #e9e2fb; color: #4b2a9a; }
+.fer-tag-ponto_facultativo { background: #f1defa; color: #7a1e9e; font-weight: 600; }
+.fer-col-acoes { text-align: center !important; white-space: nowrap; width: 140px; }
+.fer-acao {
+  width: 40px; height: 30px; margin: 0 4px; border-radius: 6px; background: var(--gov-surface); cursor: pointer;
+  display: inline-grid; place-items: center; font-size: 16px; border: 1.5px solid;
+}
+.fer-acao-edit { border-color: var(--gov-blue-primary); color: var(--gov-blue-primary); }
+.fer-acao-edit:hover { background: var(--gov-blue-light); }
+.fer-acao-del  { border-color: var(--gov-red); color: var(--gov-red); }
+.fer-acao-del:hover { background: #fdecea; }
+.fer-bloq { color: var(--color-text-muted); }
+.fer-vazio { text-align: center; padding: 28px 16px !important; color: var(--color-text-muted); }
+
+.fer-rodape { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 18px; }
+#fer-contagem { font-size: 14px; color: var(--color-text-sec); }
+.fer-pag { display: flex; gap: 6px; flex-wrap: wrap; }
+.fer-pag-btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: var(--br-md); cursor: pointer;
+  border: 1px solid var(--gov-border); background: var(--gov-surface); font: 14px var(--font-sans); color: var(--color-text-main);
+}
+.fer-pag-btn:disabled { color: var(--color-text-muted); cursor: default; }
+.fer-pag-num { min-width: 36px; justify-content: center; padding: 7px 10px; }
+.fer-pag-num.ativo { background: var(--gov-blue-primary); border-color: var(--gov-blue-primary); color: #fff; font-weight: 700; }
+
+.fer-m-linha { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.fer-m-check { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-weight: 600; font-size: 14px; margin: 4px 0 12px; }
+.fer-m-check input { margin-top: 3px; }
+.fer-m-check small { font-weight: 400; color: var(--color-text-muted); }
+.fer-m-nota { display: block; margin: 6px 0 0; font-size: 12px; color: var(--color-text-sec); }
+
+@media (max-width: 1100px) { .fer-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) {
+  .fer-kpis, .fer-m-linha { grid-template-columns: 1fr; }
+  .fer-filtros .form-control, .fer-busca { flex: 1 1 100%; max-width: none; }
+  .fer-btn-limpar { margin-left: 0; }
+}
+.fer-btn-previa {
+  display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; border-radius: var(--br-md); cursor: pointer;
+  border: 1.5px solid var(--gov-blue-primary); background: var(--gov-surface); color: var(--gov-blue-primary);
+  font: 700 14px var(--font-sans);
+}
+.fer-btn-previa:hover, .fer-btn-previa.ativo { background: var(--gov-blue-light); }

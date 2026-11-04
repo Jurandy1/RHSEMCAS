@@ -546,28 +546,86 @@
 
           <!-- Tab: Feriados -->
           <div class="fp-tab-pane" id="fp-tab-feriados">
-            <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-bottom:12px">
-              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
-                <input type="checkbox" id="fp-chk-nac" checked> Nacionais
-              </label>
-              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
-                <input type="checkbox" id="fp-chk-est" checked> Estaduais (MA)
-              </label>
-              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
-                <input type="checkbox" id="fp-chk-mun" checked> Municipais (S&atilde;o Lu&iacute;s)
-              </label>
-              <div style="display:flex;align-items:center;gap:6px">
-                <label style="font-size:12px;font-weight:600">Ano:</label>
-                <select id="fp-fer-ano" class="form-control" style="width:90px;font-size:13px"
-                  onchange="fpRenderFeriados()"></select>
+            <div class="fer-cab">
+              <div class="fer-cab-ico"><i class="ti ti-calendar"></i></div>
+              <div class="fer-cab-txt">
+                <h3>Gerenciamento de Feriados</h3>
+                <p>Cadastre, edite e gerencie os feriados utilizados na gera&ccedil;&atilde;o da folha de ponto.</p>
+              </div>
+              <button type="button" class="fer-btn-previa" id="fer-btn-previa" onclick="fpFerPrevia()" title="Mostra a folha de ponto do m&ecirc;s escolhido nos filtros"><i class="ti ti-file-text"></i> <span id="fer-previa-txt">Ver folha de exemplo</span></button>
+              <button type="button" class="fer-btn-novo" onclick="fpFerNovo()"><i class="ti ti-plus"></i> Novo Feriado</button>
+            </div>
+
+            <div class="fp-hor-aviso" id="fp-fer-aviso" hidden>
+              <i class="ti ti-alert-triangle"></i> A tabela de feriados precisa ser atualizada &mdash; rode <code>sql/feriados_gerenciamento.sql</code> no SQL Editor do Supabase. At&eacute; l&aacute; os feriados oficiais s&atilde;o fixos e s&oacute; os personalizados podem ser cadastrados.
+            </div>
+
+            <div class="fer-kpis">
+              <div class="fer-kpi fer-kpi-total">
+                <div class="fer-kpi-ico"><i class="ti ti-calendar"></i></div>
+                <div><div class="fer-kpi-rot">Total de feriados</div><div class="fer-kpi-num" id="fer-kpi-total">0</div><div class="fer-kpi-sub" id="fer-kpi-ano">Ano de &mdash;</div></div>
+                <i class="ti ti-calendar-month fer-kpi-bg"></i>
+              </div>
+              <div class="fer-kpi fer-kpi-nac">
+                <div class="fer-kpi-ico"><i class="ti ti-flag"></i></div>
+                <div><div class="fer-kpi-rot">Nacionais</div><div class="fer-kpi-num" id="fer-kpi-nac">0</div><div class="fer-kpi-sub">Feriados federais</div></div>
+                <i class="ti ti-flag-filled fer-kpi-bg"></i>
+              </div>
+              <div class="fer-kpi fer-kpi-est">
+                <div class="fer-kpi-ico"><i class="ti ti-map"></i></div>
+                <div><div class="fer-kpi-rot">Estaduais (MA)</div><div class="fer-kpi-num" id="fer-kpi-est">0</div><div class="fer-kpi-sub">Feriados do Maranh&atilde;o</div></div>
+                <i class="ti ti-map-2 fer-kpi-bg"></i>
+              </div>
+              <div class="fer-kpi fer-kpi-mun">
+                <div class="fer-kpi-ico"><i class="ti ti-building-bank"></i></div>
+                <div><div class="fer-kpi-rot">Municipais (S&atilde;o Lu&iacute;s)</div><div class="fer-kpi-num" id="fer-kpi-mun">0</div><div class="fer-kpi-sub">Feriados da cidade</div></div>
+                <i class="ti ti-building-community fer-kpi-bg"></i>
               </div>
             </div>
-            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">
-              <input type="date" id="fp-fer-data" class="form-control" style="width:160px">
-              <input type="text" id="fp-fer-nome" class="form-control" placeholder="Nome do feriado personalizado" style="flex:1;min-width:200px">
-              <button onclick="fpAddFeriado()" class="btn-primary"><i class="ti ti-plus"></i> Adicionar</button>
+
+            <div class="fer-filtros">
+              <div class="fer-busca"><i class="ti ti-search"></i>
+                <input type="search" id="fer-f-nome" class="form-control" placeholder="Pesquisar feriado por nome..." oninput="fpFerFiltrar()">
+              </div>
+              <label class="fer-f-rot" for="fp-fer-ano">Ano:</label>
+              <select id="fp-fer-ano" class="form-control fer-f-ano" onchange="fpFerFiltrar()"></select>
+              <label class="fer-f-rot" for="fer-f-mes">M&ecirc;s:</label>
+              <select id="fer-f-mes" class="form-control" onchange="fpFerFiltrar()">
+                <option value="">Todos os meses</option>
+                <option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Mar&ccedil;o</option>
+                <option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option>
+                <option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option>
+                <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+              </select>
+              <label class="fer-f-rot" for="fer-f-abr">Abrang&ecirc;ncia:</label>
+              <select id="fer-f-abr" class="form-control" onchange="fpFerFiltrar()">
+                <option value="">Todos</option>
+                <option value="nacional">Nacional</option>
+                <option value="estadual">Estadual (MA)</option>
+                <option value="municipal">Municipal (S&atilde;o Lu&iacute;s)</option>
+                <option value="ponto_facultativo">S&oacute; pontos facultativos</option>
+              </select>
+              <button type="button" class="fer-btn-limpar" onclick="fpFerLimparFiltros()"><i class="ti ti-filter"></i> Limpar filtros</button>
             </div>
-            <div id="fp-feriados-lista" style="max-height:200px;overflow-y:auto;border:1px solid var(--gov-border);border-radius:4px;padding:8px;background:var(--gov-bg-light)"></div>
+
+            <div class="fer-tabela-wrap">
+              <table class="fer-tabela">
+                <thead>
+                  <tr>
+                    <th><button type="button" class="fer-ord" onclick="fpFerOrdenar()" title="Inverter ordem">Data <i class="ti ti-arrows-sort"></i></button></th>
+                    <th>Descri&ccedil;&atilde;o do Feriado</th>
+                    <th>Abrang&ecirc;ncia</th>
+                    <th>Tipo</th>
+                    <th class="fer-col-acoes">A&ccedil;&otilde;es</th>
+                  </tr>
+                </thead>
+                <tbody id="fp-feriados-lista"></tbody>
+              </table>
+            </div>
+            <div class="fer-rodape">
+              <span id="fer-contagem">Mostrando 0 registros</span>
+              <div class="fer-pag" id="fer-pag"></div>
+            </div>
           </div>
 
           <!-- Tab: Funções e Horários -->
@@ -1884,6 +1942,75 @@
       <button type="button" class="btn-primary" id="btn-confirmar-remover" style="background:var(--gov-red)">
         Confirmar
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · FERIADO (novo / editar) -->
+<div class="modal-overlay" id="modal-feriado">
+  <div class="modal-content" style="max-width:520px">
+    <div class="modal-header">
+      <div class="modal-title" id="fer-m-titulo"><i class="ti ti-calendar-plus"></i> Novo feriado</div>
+      <button class="modal-close" onclick="closeModal('modal-feriado')" aria-label="Fechar"></button>
+    </div>
+    <form class="modal-body" id="fer-m-form" onsubmit="event.preventDefault(); fpFerSalvar()">
+      <input type="hidden" id="fer-m-id">
+      <div class="form-group full-width">
+        <label class="form-label" for="fer-m-data">Data *</label>
+        <input type="date" id="fer-m-data" class="form-control" required>
+        <small class="fer-m-nota" id="fer-m-movel" hidden><i class="ti ti-info-circle"></i> Data m&oacute;vel: calculada todo ano a partir da P&aacute;scoa.</small>
+      </div>
+      <div class="form-group full-width">
+        <label class="form-label" for="fer-m-nome">Descri&ccedil;&atilde;o *</label>
+        <input type="text" id="fer-m-nome" class="form-control" maxlength="120" required placeholder="Ex.: Dia de S&atilde;o Jo&atilde;o">
+      </div>
+      <div class="fer-m-linha">
+        <div class="form-group">
+          <label class="form-label" for="fer-m-abr">Abrang&ecirc;ncia *</label>
+          <select id="fer-m-abr" class="form-control">
+            <option value="nacional">Nacional</option>
+            <option value="estadual">Estadual (MA)</option>
+            <option value="municipal" selected>Municipal (S&atilde;o Lu&iacute;s)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="fer-m-tipo">Tipo *</label>
+          <select id="fer-m-tipo" class="form-control">
+            <option value="feriado">Feriado</option>
+            <option value="ponto_facultativo">Ponto Facultativo</option>
+          </select>
+        </div>
+      </div>
+      <label class="fer-m-check">
+        <input type="checkbox" id="fer-m-rec">
+        <span>Repetir todo ano<br><small>Mesmo dia e m&ecirc;s em todos os anos</small></span>
+      </label>
+      <p class="fer-m-nota"><i class="ti ti-info-circle"></i> Ponto facultativo n&atilde;o bloqueia o dia na folha de ponto &mdash; s&oacute; feriados saem marcados.</p>
+    </form>
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary" onclick="closeModal('modal-feriado')">Cancelar</button>
+      <button type="submit" form="fer-m-form" class="btn-primary" id="fer-m-salvar"><i class="ti ti-device-floppy"></i> Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · EXCLUIR FERIADO -->
+<div class="modal-overlay" id="modal-feriado-excluir">
+  <div class="modal-content" style="max-width:460px">
+    <div class="modal-header">
+      <div class="modal-title"><i class="ti ti-trash"></i> Excluir feriado</div>
+      <button class="modal-close" onclick="closeModal('modal-feriado-excluir')" aria-label="Fechar"></button>
+    </div>
+    <div class="modal-body">
+      <p style="margin:0 0 10px;font-size:14px">Excluir <strong id="fer-x-nome"></strong> (<span id="fer-x-data"></span>)?</p>
+      <div class="fp-hor-aviso" id="fer-x-oficial" hidden style="margin:0">
+        <i class="ti ti-alert-triangle"></i> Este &eacute; um feriado oficial. Ele deixa de valer em todos os anos e sai da folha de ponto. Se for s&oacute; para um ano, prefira editar.
+      </div>
+      <p id="fer-x-rec" hidden style="margin:0;font-size:13px;color:var(--color-text-sec)">Este feriado se repete todo ano &mdash; ser&aacute; removido de todos os anos.</p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary" onclick="closeModal('modal-feriado-excluir')">Cancelar</button>
+      <button type="button" class="btn-primary" id="fer-x-confirmar" style="background:var(--gov-red)" onclick="fpFerExcluirConfirmado()">Excluir</button>
     </div>
   </div>
 </div>

@@ -4171,7 +4171,6 @@ window.verHistorico = async (id) => {
 // ╚══════════════════════════════════════════════════════════════╝
 let _fpServidores = [];
 let _fpInited = false;
-const _fpHolCfg = { nac: true, est: true, mun: true, custom: [] };
 let _fpSrvId = null;            // servidor da aba Individual
 let _fpUnidades = [];           // [{ chave, nome, caminho, servidores }]
 const _fpUnidadesSel = new Map(); // chave → unidade marcada na aba Por Unidade (ordem de seleção)
@@ -4375,10 +4374,6 @@ async function renderFolhaPonto() {
   // Registra checkboxes de feriado (uma vez)
   if (!_fpInited) {
     _fpInited = true;
-    const chkN = $('fp-chk-nac'), chkE = $('fp-chk-est'), chkM = $('fp-chk-mun');
-    if (chkN) chkN.onchange = () => { _fpHolCfg.nac = chkN.checked; fpRenderFeriados(); fpPopularDias(); };
-    if (chkE) chkE.onchange = () => { _fpHolCfg.est = chkE.checked; fpRenderFeriados(); fpPopularDias(); };
-    if (chkM) chkM.onchange = () => { _fpHolCfg.mun = chkM.checked; fpRenderFeriados(); fpPopularDias(); };
     $('fp-paper')?.addEventListener('input', e => { if (e.target.dataset?.larg) fpAjustarFonte(e.target); });
 
     fpCombo({
@@ -4433,13 +4428,7 @@ async function renderFolhaPonto() {
       }
     });
     $('fp-und-filtro')?.addEventListener('input', fpFiltrarListaUnidade);
-    sb.from('feriados').select('*').eq('ativo', true).then(res => {
-      if (res.data) {
-        _fpHolCfg.custom = res.data.map(d => ({ id: d.id, date: d.data, nome: d.nome }));
-        fpRenderFeriados();
-        fpPopularDias();
-      }
-    });
+    fpFerCarregar();
   }
 
   // Carrega servidores do Supabase (uma vez)
@@ -4476,9 +4465,6 @@ async function renderFolhaPonto() {
   if (selM && !selM._fpListenerOk) { selM._fpListenerOk = true; selM.addEventListener('change', fpPopularDias); }
   if (selA && !selA._fpListenerOk) { selA._fpListenerOk = true; selA.addEventListener('change', fpPopularDias); }
 
-  // Listener feriados ano
-  const ferA = $('fp-fer-ano');
-  if (ferA && !ferA._fpListenerOk) { ferA._fpListenerOk = true; ferA.addEventListener('change', fpRenderFeriados); }
 
   // Pré-seleciona Jurandy na primeira abertura
   if (_fpSrvId == null) {
@@ -4569,8 +4555,8 @@ function fpSwitchTab(tab, btn) {
   $$('.fp-tab-btn').forEach(el  => el.classList.remove('active'));
   $(`fp-tab-${tab}`)?.classList.add('active');
   btn.classList.add('active');
-  // A aba Funções e Horários é só configuração: esconde a folha
-  $('fp-paper-wrap').hidden = tab === 'horarios';
+  // Funções e Horários é só configuração; em Feriados a folha só aparece pelo botão de prévia
+  $('fp-paper-wrap').hidden = tab === 'horarios' || (tab === 'feriados' && !_fpFerUi.previa);
   if (tab === 'feriados') fpRenderFeriados();
   if (tab === 'unidade')  fpIniciarAbaUnidade();
   if (tab === 'horarios') fpRenderHorarios();
@@ -4770,38 +4756,85 @@ function fpImprimir() {
 }
 
 // --- Feriados ---
-function fpGetHolidays(year) {
-  const out = [];
-  if (_fpHolCfg.nac) out.push(...fpFerNacionais(year));
-  if (_fpHolCfg.est) out.push(...fpFerEstaduais(year));
-  if (_fpHolCfg.mun) out.push(...fpFerMunicipais(year));
-  (_fpHolCfg.custom || []).forEach(c => out.push({ id: c.id, date: c.date, nome: c.nome, tipo: 'Personalizado' }));
-  return out;
-}
+// Tudo vem da tabela public.feriados (sql/feriados_gerenciamento.sql). Cada linha:
+// { id, data, nome, abrangencia, tipo, recorrente, regra, oficial }. Só tipo 'feriado' bloqueia o dia na folha;
+// ponto facultativo aparece na lista mas a folha sai normal.
+const FER_ABR = { nacional: 'Nacional', estadual: 'Estadual (MA)', municipal: 'Municipal' };
+const FER_TIPO = { feriado: 'Feriado', ponto_facultativo: 'Ponto Facultativo' };
+const FER_POR_PAG = 10;
+let _fpFeriados = [];          // linhas da tabela (ou fallback embutido)
+let _fpFerTabelaOk = true;     // false = migração ainda não rodou
+const _fpFerUi = { pag: 1, desc: false, excluir: null, previa: false };
 
-function fpFerNacionais(year) {
-  const fixed = [
-    ['01-01','Confraternização Universal'],['04-21','Tiradentes'],
-    ['05-01','Dia do Trabalhador'],['09-07','Independência do Brasil'],
-    ['10-12','N. Sra. Aparecida'],['11-02','Finados'],
-    ['11-15','Proclamação da República'],['12-25','Natal']
-  ].map(([md,n]) => ({ date: `${year}-${md}`, nome: n, tipo: 'Nacional' }));
-  const E = fpEaster(year);
-  const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  const add = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x; };
-  return [...fixed,
-    { date: iso(add(E,-47)), nome: 'Carnaval',          tipo: 'Nacional' },
-    { date: iso(add(E,-2)),  nome: 'Sexta-feira Santa', tipo: 'Nacional' },
-    { date: iso(E),          nome: 'Páscoa',             tipo: 'Nacional' },
-    { date: iso(add(E,60)),  nome: 'Corpus Christi',     tipo: 'Nacional' },
+// Fallback enquanto a migração não roda: oficiais fixos + personalizados antigos
+function fpFerOficiaisEmbutidos() {
+  const base = (nome, md, abrangencia, tipo = 'feriado', regra = null) =>
+    ({ id: null, data: `2026-${md}`, nome, abrangencia, tipo, recorrente: true, regra, oficial: true });
+  return [
+    base('Confraternização Universal', '01-01', 'nacional'),
+    base('Carnaval', '02-17', 'nacional', 'ponto_facultativo', 'pascoa-47'),
+    base('Sexta-feira Santa', '04-03', 'nacional', 'feriado', 'pascoa-2'),
+    base('Páscoa', '04-05', 'nacional', 'feriado', 'pascoa+0'),
+    base('Tiradentes', '04-21', 'nacional'),
+    base('Dia do Trabalhador', '05-01', 'nacional'),
+    base('Corpus Christi', '06-04', 'nacional', 'ponto_facultativo', 'pascoa+60'),
+    base('Independência do Brasil', '09-07', 'nacional'),
+    base('Nossa Senhora Aparecida', '10-12', 'nacional'),
+    base('Finados', '11-02', 'nacional'),
+    base('Proclamação da República', '11-15', 'nacional'),
+    base('Dia Nacional de Zumbi e da Consciência Negra', '11-20', 'nacional'),
+    base('Natal', '12-25', 'nacional'),
+    base('Adesão do Maranhão à Independência', '07-28', 'estadual'),
+    base('Aniversário de São Luís', '09-08', 'municipal'),
   ];
 }
-function fpFerEstaduais(year) {
-  return [{ date:`${year}-07-28`, nome:'Adesão do MA à Independência', tipo:'Estadual (MA)' }];
+
+async function fpFerCarregar() {
+  const [{ data, error }, sonda] = await Promise.all([
+    sb.from('feriados').select('*').eq('ativo', true),
+    sb.from('feriados').select('abrangencia, regra, oficial').limit(1),
+  ]);
+  if (error) { console.error('Erro ao carregar feriados:', error); showToast('Erro ao carregar feriados', 'error'); return; }
+  _fpFerTabelaOk = !sonda.error;
+  if (_fpFerTabelaOk) {
+    _fpFeriados = data.map(d => ({ ...d, recorrente: !!d.recorrente, oficial: !!d.oficial }));
+  } else {
+    _fpFeriados = [...fpFerOficiaisEmbutidos(),
+      ...(data || []).map(d => ({ id: d.id, data: d.data, nome: d.nome, abrangencia: 'municipal', tipo: 'feriado', recorrente: false, regra: null, oficial: false }))];
+  }
+  const aviso = $('fp-fer-aviso');
+  if (aviso) aviso.hidden = _fpFerTabelaOk;
+  fpRenderFeriados();
+  fpPopularDias();
 }
-function fpFerMunicipais(year) {
-  return [{ date:`${year}-09-08`, nome:'Aniversário de São Luís', tipo:'Municipal' }];
+
+const fpIsoData = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+// Data de um feriado num ano (null = não ocorre nesse ano)
+function fpFerDataNoAno(f, ano) {
+  const m = /^pascoa([+-]\d+)$/.exec(f.regra || '');
+  if (m) { const d = fpEaster(ano); d.setDate(d.getDate() + Number(m[1])); return fpIsoData(d); }
+  if (f.recorrente) {
+    const md = f.data.slice(5, 10);
+    if (md === '02-29' && new Date(ano, 1, 29).getMonth() !== 1) return null;
+    return `${ano}-${md}`;
+  }
+  return f.data.startsWith(`${ano}-`) ? f.data : null;
 }
+
+function fpFerOcorrencias(ano) {
+  return _fpFeriados
+    .map(f => ({ f, date: fpFerDataNoAno(f, ano) }))
+    .filter(o => o.date);
+}
+
+// Usado pela folha: só feriados (ponto facultativo não bloqueia o dia)
+function fpGetHolidays(year) {
+  return fpFerOcorrencias(year)
+    .filter(o => o.f.tipo === 'feriado')
+    .map(o => ({ date: o.date, nome: o.f.nome }));
+}
+
 function fpEaster(Y) {
   const a=Y%19,b=Math.floor(Y/100),c=Y%100,d=Math.floor(b/4),e=b%4;
   const f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3);
@@ -4810,59 +4843,219 @@ function fpEaster(Y) {
   return new Date(Y,Math.floor((h+L-7*m+114)/31)-1,((h+L-7*m+114)%31)+1);
 }
 
+const fpFerBr = iso => iso.split('-').reverse().join('/');
+const fpFerNorm = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+function fpFerFiltrar() { _fpFerUi.pag = 1; fpRenderFeriados(); if (_fpFerUi.previa) fpFerSincronizarPrevia(); }
+
+// Prévia da folha na aba Feriados: usa o ano/mês dos filtros (sem mês → mês atual, ou janeiro em outro ano)
+function fpFerSincronizarPrevia() {
+  const ano = $('fp-fer-ano')?.value || String(new Date().getFullYear());
+  const hoje = new Date();
+  const mes = $('fer-f-mes')?.value
+    || (Number(ano) === hoje.getFullYear() ? String(hoje.getMonth() + 1).padStart(2, '0') : '01');
+  const selM = $('fp-mes'), selA = $('fp-ano');
+  if (selM) selM.value = mes;
+  if (selA) {
+    if (![...selA.options].some(o => o.value === ano)) selA.add(new Option(ano, ano));
+    selA.value = ano;
+  }
+  fpPopularDias();
+  const nomeMes = new Date(Number(ano), Number(mes) - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  $('fer-previa-txt').textContent = `Ocultar folha (${nomeMes})`;
+}
+
+function fpFerPrevia() {
+  _fpFerUi.previa = !_fpFerUi.previa;
+  const btn = $('fer-btn-previa');
+  btn.classList.toggle('ativo', _fpFerUi.previa);
+  btn.querySelector('i').className = _fpFerUi.previa ? 'ti ti-eye-off' : 'ti ti-file-text';
+  $('fp-paper-wrap').hidden = !_fpFerUi.previa;
+  if (_fpFerUi.previa) {
+    fpFerSincronizarPrevia();
+    $('fp-paper-wrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else {
+    $('fer-previa-txt').textContent = 'Ver folha de exemplo';
+  }
+}
+function fpFerLimparFiltros() {
+  $('fer-f-nome').value = '';
+  $('fer-f-mes').value = '';
+  $('fer-f-abr').value = '';
+  $('fp-fer-ano').value = String(new Date().getFullYear());
+  fpFerFiltrar();
+}
+function fpFerOrdenar() { _fpFerUi.desc = !_fpFerUi.desc; fpRenderFeriados(); }
+function fpFerPagina(p) { _fpFerUi.pag = p; fpRenderFeriados(); }
+
 function fpRenderFeriados() {
-  const ano  = parseInt($('fp-fer-ano')?.value || new Date().getFullYear());
-  const list = fpGetHolidays(ano);
   const cont = $('fp-feriados-lista');
   if (!cont) return;
-  if (!list.length) {
-    cont.innerHTML = '<div style="color:var(--color-text-muted);font-size:13px;padding:8px">Nenhum feriado ativo.</div>';
-    return;
-  }
-  cont.innerHTML = list
-    .sort((a,b) => a.date.localeCompare(b.date))
-    .map(h => `
-      <div style="display:flex;gap:8px;padding:5px 4px;border-bottom:1px solid var(--gov-border);font-size:12px;align-items:center">
-        <span style="min-width:72px;color:var(--color-text-muted)">${new Date(h.date+'T00:00:00').toLocaleDateString('pt-BR')}</span>
-        <span style="flex:1;font-weight:600">${htmlEscape(h.nome)}</span>
-        <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:#f1f3f5;color:#555">${h.tipo}</span>
-        ${h.id ? `<button onclick="fpDelFeriado(${h.id})" style="color:var(--gov-red);background:none;border:none;cursor:pointer"><i class="ti ti-trash"></i></button>` : ''}
-      </div>`
-    ).join('');
+  const ano = parseInt($('fp-fer-ano')?.value || new Date().getFullYear());
+  const todos = fpFerOcorrencias(ano);
+
+  // KPIs do ano (contam só feriados; ponto facultativo fica fora)
+  const fer = todos.filter(o => o.f.tipo === 'feriado');
+  $('fer-kpi-total').textContent = fer.length;
+  $('fer-kpi-ano').textContent = `Ano de ${ano}`;
+  $('fer-kpi-nac').textContent = fer.filter(o => o.f.abrangencia === 'nacional').length;
+  $('fer-kpi-est').textContent = fer.filter(o => o.f.abrangencia === 'estadual').length;
+  $('fer-kpi-mun').textContent = fer.filter(o => o.f.abrangencia === 'municipal').length;
+
+  const busca = fpFerNorm($('fer-f-nome')?.value.trim());
+  const mes = $('fer-f-mes')?.value || '';
+  const abr = $('fer-f-abr')?.value || '';
+  const lista = todos
+    .filter(o => !busca || fpFerNorm(o.f.nome).includes(busca))
+    .filter(o => !mes || o.date.slice(5, 7) === mes)
+    .filter(o => !abr || (abr === 'ponto_facultativo' ? o.f.tipo === abr : o.f.abrangencia === abr))
+    .sort((a, b) => (_fpFerUi.desc ? -1 : 1) * a.date.localeCompare(b.date) || a.f.nome.localeCompare(b.f.nome));
+
+  const total = lista.length;
+  const paginas = Math.max(1, Math.ceil(total / FER_POR_PAG));
+  _fpFerUi.pag = Math.min(_fpFerUi.pag, paginas);
+  const ini = (_fpFerUi.pag - 1) * FER_POR_PAG;
+  const pagina = lista.slice(ini, ini + FER_POR_PAG);
+
+  cont.innerHTML = pagina.length ? pagina.map(({ f, date }) => {
+    const idx = _fpFeriados.indexOf(f);
+    const editavel = _fpFerTabelaOk || f.id;
+    const extra = f.regra ? '<i class="ti ti-refresh fer-rec" title="Data móvel (Páscoa), repete todo ano"></i>'
+      : f.recorrente ? '<i class="ti ti-repeat fer-rec" title="Repete todo ano"></i>' : '';
+    return `<tr>
+      <td><span class="fer-data"><i class="ti ti-calendar"></i>${fpFerBr(date)}</span></td>
+      <td class="fer-nome">${htmlEscape(f.nome)} ${extra}${f.oficial ? '<span class="fer-oficial" title="Feriado oficial">Oficial</span>' : ''}</td>
+      <td><span class="fer-tag fer-tag-${f.abrangencia}">${FER_ABR[f.abrangencia] || f.abrangencia}</span></td>
+      <td><span class="fer-tag fer-tag-${f.tipo}">${FER_TIPO[f.tipo] || f.tipo}</span></td>
+      <td class="fer-col-acoes">${editavel ? `
+        <button type="button" class="fer-acao fer-acao-edit" onclick="fpFerEditar(${idx})" title="Editar" aria-label="Editar ${htmlEscape(f.nome)}"><i class="ti ti-pencil"></i></button>
+        <button type="button" class="fer-acao fer-acao-del" onclick="fpFerExcluir(${idx}, '${date}')" title="Excluir" aria-label="Excluir ${htmlEscape(f.nome)}"><i class="ti ti-trash"></i></button>`
+        : '<span class="fer-bloq" title="Rode a migração para editar os oficiais"><i class="ti ti-lock"></i></span>'}</td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="5" class="fer-vazio">Nenhum feriado encontrado para os filtros escolhidos.</td></tr>`;
+
+  $('fer-contagem').textContent = total
+    ? `Mostrando ${ini + 1} a ${ini + pagina.length} de ${total} registro${total === 1 ? '' : 's'}`
+    : 'Mostrando 0 registros';
+  const p = _fpFerUi.pag;
+  let pag = `<button type="button" class="fer-pag-btn" ${p <= 1 ? 'disabled' : ''} onclick="fpFerPagina(${p - 1})"><i class="ti ti-chevron-left"></i> Anterior</button>`;
+  for (let i = 1; i <= paginas; i++)
+    pag += `<button type="button" class="fer-pag-btn fer-pag-num ${i === p ? 'ativo' : ''}" onclick="fpFerPagina(${i})">${i}</button>`;
+  pag += `<button type="button" class="fer-pag-btn" ${p >= paginas ? 'disabled' : ''} onclick="fpFerPagina(${p + 1})">Próxima <i class="ti ti-chevron-right"></i></button>`;
+  $('fer-pag').innerHTML = pag;
 }
 
-async function fpAddFeriado() {
-  const dt   = $('fp-fer-data')?.value;
-  const nome = $('fp-fer-nome')?.value?.trim();
-  if (!dt || !nome) { showToast('Informe data e nome do feriado', 'warning'); return; }
-  const { data, error } = await sb.from('feriados').insert([{ data: dt, nome, tipo: 'Personalizado' }]).select().single();
-  if (error) { showToast('Erro ao salvar feriado', 'error'); return; }
-  _fpHolCfg.custom = _fpHolCfg.custom || [];
-  _fpHolCfg.custom.push({ id: data.id, date: data.data, nome: data.nome });
-  $('fp-fer-data').value = '';
-  $('fp-fer-nome').value = '';
-  fpRenderFeriados();
-  fpPopularDias();
-  await registrarLog('CADASTRO DE FERIADO', null, nome, { data: dt });
-  showToast('Feriado personalizado adicionado!', 'success');
+function fpFerAbrirForm(f, dataAno) {
+  $('fer-m-titulo').innerHTML = f ? '<i class="ti ti-edit"></i> Editar feriado' : '<i class="ti ti-calendar-plus"></i> Novo feriado';
+  $('fer-m-id').value = f ? _fpFeriados.indexOf(f) : '';
+  $('fer-m-data').value = dataAno || '';
+  $('fer-m-data').disabled = !!f?.regra;
+  $('fer-m-movel').hidden = !f?.regra;
+  $('fer-m-nome').value = f?.nome || '';
+  $('fer-m-abr').value = f?.abrangencia || 'municipal';
+  $('fer-m-tipo').value = f?.tipo || 'feriado';
+  $('fer-m-rec').checked = !!(f ? (f.recorrente || f.regra) : false);
+  $('fer-m-rec').disabled = !!f?.regra;
+  // Sem a migração só existe data/nome: o resto fica travado
+  ['fer-m-abr', 'fer-m-tipo', 'fer-m-rec'].forEach(id => { if (!_fpFerTabelaOk) $(id).disabled = true; });
+  openModal('modal-feriado');
 }
 
-window.fpDelFeriado = async (id) => {
-  const feriado = (_fpHolCfg.custom || []).find(c => c.id === id);
-  const { error } = await sb.from('feriados').delete().eq('id', id);
-  if (error) { showToast('Erro ao remover feriado', 'error'); return; }
-  _fpHolCfg.custom = _fpHolCfg.custom.filter(c => c.id !== id);
-  fpRenderFeriados();
-  fpPopularDias();
-  await registrarLog('EXCLUSÃO DE FERIADO', null, feriado?.nome || `Feriado ID ${id}`, { feriado_id: id });
-  showToast('Feriado removido', 'info');
-};
+function fpFerNovo() {
+  const ano = $('fp-fer-ano')?.value;
+  const mes = $('fer-f-mes')?.value;
+  fpFerAbrirForm(null, ano && mes ? `${ano}-${mes}-01` : '');
+}
+
+function fpFerEditar(idx) {
+  const f = _fpFeriados[idx];
+  if (!f) return;
+  const ano = parseInt($('fp-fer-ano')?.value || new Date().getFullYear());
+  fpFerAbrirForm(f, fpFerDataNoAno(f, ano) || f.data);
+}
+
+async function fpFerSalvar() {
+  const idxTxt = $('fer-m-id').value;
+  const atual = idxTxt === '' ? null : _fpFeriados[Number(idxTxt)];
+  const data = $('fer-m-data').value;
+  const nome = $('fer-m-nome').value.trim();
+  if (!data || !nome) { showToast('Informe a data e a descrição do feriado', 'warning'); return; }
+  const campos = _fpFerTabelaOk ? {
+    nome,
+    abrangencia: $('fer-m-abr').value,
+    tipo: $('fer-m-tipo').value,
+    recorrente: atual?.regra ? true : $('fer-m-rec').checked,
+  } : { nome, tipo: 'Personalizado' };
+  if (!atual?.regra) campos.data = data;
+
+  // Evita duplicar: mesma data no mesmo ano já cadastrada com o mesmo nome
+  const ano = Number(data.slice(0, 4));
+  const dup = fpFerOcorrencias(ano).find(o => o.f !== atual && o.date === data && fpFerNorm(o.f.nome) === fpFerNorm(nome));
+  if (dup) { showToast('Já existe esse feriado nessa data', 'warning'); return; }
+
+  const btn = $('fer-m-salvar');
+  btn.disabled = true;
+  const q = atual
+    ? sb.from('feriados').update(campos).eq('id', atual.id).select().single()
+    : sb.from('feriados').insert([campos]).select().single();
+  const { data: linha, error } = await q;
+  btn.disabled = false;
+  if (error) { console.error(error); showToast('Erro ao salvar feriado: ' + error.message, 'error'); return; }
+
+  closeModal('modal-feriado');
+  await registrarLog(atual ? 'EDIÇÃO DE FERIADO' : 'CADASTRO DE FERIADO', null, nome, atual
+    ? { feriado_id: atual.id, antes: { data: atual.data, nome: atual.nome, abrangencia: atual.abrangencia, tipo: atual.tipo, recorrente: atual.recorrente }, depois: campos }
+    : { feriado_id: linha?.id, ...campos });
+  showToast(atual ? 'Feriado atualizado!' : 'Feriado cadastrado!', 'success');
+  // Mostra o ano do feriado salvo
+  const selAno = $('fp-fer-ano');
+  if (selAno && !campos.recorrente && [...selAno.options].some(o => o.value === String(ano))) selAno.value = String(ano);
+  await fpFerCarregar();
+}
+
+function fpFerExcluir(idx, date) {
+  const f = _fpFeriados[idx];
+  if (!f?.id) return;
+  _fpFerUi.excluir = f;
+  $('fer-x-nome').textContent = f.nome;
+  $('fer-x-data').textContent = fpFerBr(date);
+  $('fer-x-oficial').hidden = !f.oficial;
+  $('fer-x-rec').hidden = f.oficial || !(f.recorrente || f.regra);
+  openModal('modal-feriado-excluir');
+}
+
+async function fpFerExcluirConfirmado() {
+  const f = _fpFerUi.excluir;
+  if (!f) return;
+  const btn = $('fer-x-confirmar');
+  btn.disabled = true;
+  // Oficial só é desativado (pode ser reativado no banco); personalizado é apagado
+  const { error } = f.oficial
+    ? await sb.from('feriados').update({ ativo: false }).eq('id', f.id)
+    : await sb.from('feriados').delete().eq('id', f.id);
+  btn.disabled = false;
+  if (error) { console.error(error); showToast('Erro ao excluir feriado: ' + error.message, 'error'); return; }
+  closeModal('modal-feriado-excluir');
+  _fpFerUi.excluir = null;
+  await registrarLog('EXCLUSÃO DE FERIADO', null, f.nome, { feriado_id: f.id, data: f.data, oficial: f.oficial, modo: f.oficial ? 'desativado' : 'apagado' });
+  showToast('Feriado excluído', 'info');
+  await fpFerCarregar();
+}
 
 // ── Expor funções ao window (necessário pois o script é um ES module) ──────────
 // Inline handlers (onclick/onchange no HTML) não enxergam escopo de módulo.
 window.fpSwitchTab         = fpSwitchTab;
 window.fpImprimir          = fpImprimir;
-window.fpAddFeriado        = fpAddFeriado;
+window.fpFerNovo           = fpFerNovo;
+window.fpFerEditar         = fpFerEditar;
+window.fpFerSalvar         = fpFerSalvar;
+window.fpFerExcluir        = fpFerExcluir;
+window.fpFerExcluirConfirmado = fpFerExcluirConfirmado;
+window.fpFerFiltrar        = fpFerFiltrar;
+window.fpFerLimparFiltros  = fpFerLimparFiltros;
+window.fpFerOrdenar        = fpFerOrdenar;
+window.fpFerPagina         = fpFerPagina;
+window.fpFerPrevia         = fpFerPrevia;
 window.fpPopularDias       = fpPopularDias;
 window.fpRenderFeriados    = fpRenderFeriados;
 window.fpImprimirUnidade   = fpImprimirUnidade;
