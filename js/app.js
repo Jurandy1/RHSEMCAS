@@ -4209,7 +4209,18 @@ const fpChaveCargo = (srv) => fpChaveHor(fpFuncaoNome(srv), fpVinculoNome(srv));
 const fpEhPrestado = (vinculo) => fpNorm(vinculo).includes('prestado');
 // Serviço Prestado é sempre Padrão
 const fpTipoHorario = (srv) => (fpEhPrestado(srv?.vinculo) ? 'padrao' : _fpCargoHor.get(fpChaveCargo(srv)) || 'padrao');
-const fpHorarioServidor = (srv) => FP_HORARIOS[fpTipoHorario(srv)].h;
+// Horário individual (aba Horário Individual): funcionario_id → [e1, s1, e2, s2]; vale mais que o da função
+const _fpSrvHor = new Map();
+let _fpSrvHorTabelaOk = true;
+const fpHorarioServidor = (srv) => _fpSrvHor.get(Number(srv?.funcionario_id)) || FP_HORARIOS[fpTipoHorario(srv)].h;
+
+async function fpCarregarSrvHorarios() {
+  const { data, error } = await sb.from('folha_ponto_servidor_horario').select('funcionario_id, entrada1, saida1, entrada2, saida2');
+  _fpSrvHorTabelaOk = !error;
+  if (error) { console.warn('folha_ponto_servidor_horario:', error.message); return; }
+  _fpSrvHor.clear();
+  data.forEach(r => _fpSrvHor.set(Number(r.funcionario_id), [r.entrada1, r.saida1, r.entrada2 || '', r.saida2 || '']));
+}
 
 async function fpCarregarCargoHorarios() {
   const { data, error } = await sb.from('folha_ponto_funcao_horario').select('funcao, vinculo, horario');
@@ -4437,6 +4448,7 @@ async function renderFolhaPonto() {
       fetchTudo('v_funcionarios_atual', 'funcionario_id, nome, funcao, matricula, vinculo, lotacao_id, lotacao_nome', 'nome'),
       fetchTudo('funcionarios', 'id, cargo', 'id'),
       fpCarregarCargoHorarios(),
+      fpCarregarSrvHorarios(),
     ]);
     if (!error && data && data.length > 0) {
       _fpServidores = data;
@@ -4456,6 +4468,7 @@ async function renderFolhaPonto() {
     const inp = $('fp-srv-busca');
     if (inp) inp.placeholder = `Buscar entre ${_fpServidores.length} servidores por nome, matrícula, função ou unidade…`;
     if ($('fp-tab-horarios')?.classList.contains('active')) fpRenderHorarios();
+    if ($('fp-tab-srvhor')?.classList.contains('active')) fpRenderSrvHor();
   }
 
   fpRenderFeriados();
@@ -4561,6 +4574,160 @@ function fpSwitchTab(tab, btn) {
   if (tab === 'feriados') fpRenderFeriados();
   if (tab === 'unidade')  fpIniciarAbaUnidade();
   if (tab === 'horarios') fpRenderHorarios();
+  if (tab === 'srvhor')   fpRenderSrvHor();
+}
+
+// --- Horário Individual ---
+let _fpShId = null; // servidor escolhido na aba Horário Individual
+const fpShCampos = () => ['fp-sh-e1', 'fp-sh-s1', 'fp-sh-e2', 'fp-sh-s2'].map(id => $(id));
+const fpShTexto = (e, s) => (e && s ? `${e} às ${s}` : '—');
+
+function fpRenderSrvHor() {
+  const aba = $('fp-tab-srvhor');
+  if (!aba) return;
+  if (!aba._fpOk) {
+    aba._fpOk = true;
+    fpCombo({
+      input: $('fp-sh-busca'), lista: $('fp-sh-lista'),
+      fonte: () => _fpServidores,
+      texto: s => `${s.nome} ${s.matricula || ''} ${s.funcao || ''} ${s.lotacao_nome || ''} ${s.vinculo || ''}`,
+      html: s => `<strong>${htmlEscape(s.nome)}</strong>${_fpSrvHor.has(Number(s.funcionario_id)) ? '<span class="fp-hor-tag">Individual</span>' : ''}<small>${htmlEscape(
+        [s.matricula ? `Mat. ${s.matricula}` : 'Sem matrícula', s.vinculo, s.funcao, s.lotacao_nome].filter(Boolean).join(' · '))}</small>`,
+      aoEscolher: s => fpShEscolher(Number(s.funcionario_id)),
+    });
+    fpShCampos().forEach(el => el.addEventListener('input', fpShAtualizarBotoes));
+    $('fp-sh-tbody').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-sh-acao]');
+      if (!btn) return;
+      const id = Number(btn.closest('tr').dataset.id);
+      if (btn.dataset.shAcao === 'editar') {
+        fpShEscolher(id);
+        $('fp-tab-srvhor').scrollIntoView({ block: 'start', behavior: 'smooth' });
+      } else {
+        fpShRemover(id);
+      }
+    });
+  }
+  $('fp-sh-aviso').hidden = _fpSrvHorTabelaOk;
+  // Abre já com o servidor que está na aba Individual
+  if (_fpShId == null && _fpSrvId != null) fpShEscolher(_fpSrvId);
+  else fpShPintarForm();
+  fpShPintarLista();
+}
+
+function fpShEscolher(id) {
+  _fpShId = id;
+  const srv = _fpServidores.find(s => Number(s.funcionario_id) === id);
+  $('fp-sh-busca').value = srv?.nome || '';
+  const [e1, s1, e2, s2] = fpHorarioServidor(srv);
+  fpShCampos().forEach((el, i) => { el.value = [e1, s1, e2, s2][i] || ''; });
+  fpShPintarForm();
+  // A folha ao lado mostra o mesmo servidor (prévia)
+  if (srv) fpSelecionarServidor(srv);
+}
+
+function fpShPintarForm() {
+  const srv = _fpServidores.find(s => Number(s.funcionario_id) === _fpShId);
+  const atual = $('fp-sh-atual');
+  if (!srv) {
+    atual.textContent = 'Nenhum servidor escolhido.';
+  } else {
+    const ind = _fpSrvHor.get(_fpShId);
+    const tipo = FP_HORARIOS[fpTipoHorario(srv)];
+    const pelaFuncao = `${fpFuncaoNome(srv)} – ${fpVinculoNome(srv)}: ${tipo.nome} (${tipo.h.join(' · ')})`;
+    atual.innerHTML = ind
+      ? `<span class="fp-hor-tag">Individual</span> Já tem horário individual: <strong>${htmlEscape(fpShTexto(ind[0], ind[1]))}</strong>` +
+        (ind[2] ? ` e <strong>${htmlEscape(fpShTexto(ind[2], ind[3]))}</strong>` : '') +
+        `<small>Sem ele, sairia pelo horário da função — ${htmlEscape(pelaFuncao)}</small>`
+      : `Hoje sai pelo horário da função — <strong>${htmlEscape(pelaFuncao)}</strong><small>Ajuste os campos abaixo e salve para dar um horário só dele.</small>`;
+  }
+  $('fp-sh-remover').hidden = !srv || !_fpSrvHor.has(_fpShId);
+  fpShCampos().forEach(el => { el.disabled = !srv; });
+  fpShAtualizarBotoes();
+}
+
+function fpShAtualizarBotoes() {
+  const [e1, s1, e2, s2] = fpShCampos().map(el => el.value);
+  const ok = _fpShId != null && e1 && s1 && (!e2 === !s2);
+  $('fp-sh-salvar').disabled = !ok;
+}
+
+function fpShPreencher(tipo) {
+  const campos = fpShCampos();
+  if (tipo === 'limpar2') { campos[2].value = ''; campos[3].value = ''; }
+  else FP_HORARIOS[tipo].h.forEach((h, i) => { campos[i].value = h; });
+  fpShAtualizarBotoes();
+}
+
+function fpShErroTabela(error) {
+  console.error(error);
+  showToast(['42P01', 'PGRST205', '42703', 'PGRST204'].includes(error.code)
+    ? 'Crie a tabela de horário individual — rode sql/folha_ponto_servidor_horario.sql no Supabase'
+    : 'Erro ao salvar o horário individual', 'error');
+}
+
+function fpShDepoisDeMudar() {
+  fpShPintarForm();
+  fpShPintarLista();
+  fpPreencherServidor();
+  if (_fpUnidadesSel.size) fpRenderUnidadesSel();
+}
+
+async function fpShSalvar() {
+  const srv = _fpServidores.find(s => Number(s.funcionario_id) === _fpShId);
+  if (!srv) return;
+  const [e1, s1, e2, s2] = fpShCampos().map(el => el.value);
+  if (!e1 || !s1) { showToast('Informe a entrada e a saída do 1º período', 'error'); return; }
+  if (!e2 !== !s2) { showToast('No 2º período, informe entrada e saída — ou deixe os dois em branco', 'error'); return; }
+  if (s1 <= e1 || (e2 && s2 <= e2)) { showToast('A saída precisa ser depois da entrada', 'error'); return; }
+  if (e2 && e2 < s1) { showToast('O 2º período precisa começar depois da saída do 1º', 'error'); return; }
+  const btn = $('fp-sh-salvar');
+  btn.disabled = true;
+  const linha = { funcionario_id: _fpShId, entrada1: e1, saida1: s1, entrada2: e2 || null, saida2: s2 || null, updated_at: new Date().toISOString() };
+  const { error } = await sb.from('folha_ponto_servidor_horario').upsert(linha, { onConflict: 'funcionario_id' });
+  if (error) { btn.disabled = false; fpShErroTabela(error); return; }
+  _fpSrvHorTabelaOk = true;
+  $('fp-sh-aviso').hidden = true;
+  _fpSrvHor.set(_fpShId, [e1, s1, e2 || '', s2 || '']);
+  fpShDepoisDeMudar();
+  await registrarLog('HORÁRIO INDIVIDUAL DA FOLHA DE PONTO', _fpShId, srv.nome,
+    { horario: [fpShTexto(e1, s1), e2 ? fpShTexto(e2, s2) : null].filter(Boolean).join(' e ') });
+  showToast(`Horário de ${giapNomeTitulo(srv.nome)} salvo`, 'success');
+}
+
+async function fpShRemover(id = _fpShId) {
+  const srv = _fpServidores.find(s => Number(s.funcionario_id) === id);
+  if (id == null || !_fpSrvHor.has(id)) return;
+  if (!confirm(`Tirar o horário individual de ${srv?.nome || 'este servidor'}? Ele volta a sair pelo horário da função.`)) return;
+  const { error } = await sb.from('folha_ponto_servidor_horario').delete().eq('funcionario_id', id);
+  if (error) { fpShErroTabela(error); return; }
+  _fpSrvHor.delete(id);
+  if (id === _fpShId && srv) {
+    const h = fpHorarioServidor(srv);
+    fpShCampos().forEach((el, i) => { el.value = h[i] || ''; });
+  }
+  fpShDepoisDeMudar();
+  await registrarLog('HORÁRIO INDIVIDUAL DA FOLHA DE PONTO', id, srv?.nome || String(id), { horario: 'removido (volta ao da função)' });
+  showToast('Horário individual removido', 'success');
+}
+
+function fpShPintarLista() {
+  const porId = new Map(_fpServidores.map(s => [Number(s.funcionario_id), s]));
+  const linhas = [..._fpSrvHor].map(([id, h]) => ({ id, h, s: porId.get(id) }))
+    .sort((a, b) => (a.s?.nome || '').localeCompare(b.s?.nome || '', 'pt-BR'));
+  const n = linhas.length;
+  $('fp-sh-resumo').innerHTML = n
+    ? `<strong>${n}</strong> servidor${n === 1 ? '' : 'es'} com horário próprio`
+    : 'Nenhum servidor com horário individual ainda — todos saem pelo horário da função.';
+  $('fp-sh-tbody').innerHTML = linhas.map(({ id, h, s }) => `<tr data-id="${id}"${id === _fpShId ? ' class="fp-sh-sel"' : ''}>
+      <td><strong>${htmlEscape(s?.nome || `Servidor #${id} (sem folha)`)}</strong>${s?.matricula ? `<small>Mat. ${htmlEscape(s.matricula)}</small>` : ''}</td>
+      <td>${htmlEscape(s?.funcao || '—')}<small>${htmlEscape(s?.lotacao_nome || '')}</small></td>
+      <td>${htmlEscape(fpShTexto(h[0], h[1]))}</td>
+      <td>${htmlEscape(fpShTexto(h[2], h[3]))}</td>
+      <td class="fp-sh-acoes-linha">
+        ${s ? '<button type="button" class="btn btn-outline fp-btn-xs" data-sh-acao="editar"><i class="ti ti-pencil"></i> Editar</button>' : ''}
+        <button type="button" class="btn btn-outline fp-btn-xs" data-sh-acao="remover" title="Voltar ao horário da função"><i class="ti ti-trash"></i></button>
+      </td></tr>`).join('');
 }
 
 // Grupos "Função – Vínculo" dos servidores com folha
@@ -5065,6 +5232,9 @@ window.fpMarcarTodos       = fpMarcarTodos;
 window.fpLimparUnidades    = fpLimparUnidades;
 window.fpSalvarHorarios    = fpSalvarHorarios;
 window.fpDescartarHorarios = fpDescartarHorarios;
+window.fpShPreencher       = fpShPreencher;
+window.fpShSalvar          = fpShSalvar;
+window.fpShRemover         = () => fpShRemover();
 
 // ── Aba Por Unidade ────────────────────────────────────────────────────────────
 function fpIniciarAbaUnidade() {
@@ -5148,7 +5318,7 @@ function fpRenderUnidadesSel() {
         const busca = fpNorm(`${s.nome} ${s.matricula || ''} ${s.funcao || ''} ${s.vinculo || ''}`);
         return `<label class="fp-und-srv${marcado ? '' : ' fora'}" data-busca="${htmlEscape(busca)}">
           <input type="checkbox" data-id="${id}"${marcado ? ' checked' : ''}>
-          <span><span class="fp-und-srv-nome">${htmlEscape(s.nome)}${fpTipoHorario(s) === 'dia_todo' ? '<span class="fp-hor-tag">Dia todo</span>' : ''}</span><span class="fp-und-srv-meta">${htmlEscape(meta)}</span></span>
+          <span><span class="fp-und-srv-nome">${htmlEscape(s.nome)}${_fpSrvHor.has(id) ? '<span class="fp-hor-tag">Individual</span>' : fpTipoHorario(s) === 'dia_todo' ? '<span class="fp-hor-tag">Dia todo</span>' : ''}</span><span class="fp-und-srv-meta">${htmlEscape(meta)}</span></span>
         </label>`;
       }).join('') || '<div class="fp-und-vazio">Nenhum servidor nesta unidade.</div>'}</div>
     </div>`).join('');

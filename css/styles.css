@@ -2290,6 +2290,29 @@
     .fp-hor-op-padrao input:checked + span, .fp-hor-op-tag.fp-hor-op-padrao { background: var(--gov-blue-primary); color: #fff; }
     .fp-hor-op-dia_todo input:checked + span, .fp-hor-op-tag.fp-hor-op-dia_todo { background: #c26a00; color: #fff; }
     #fp-hor-descartar[hidden], #fp-paper-wrap[hidden] { display: none; }
+
+    /* Horário Individual */
+    .fp-sh-form { padding: 14px; border-bottom: 1px solid var(--gov-border); display: grid; gap: 12px; }
+    .fp-sh-atual { font-size: 13px; color: var(--color-text-main); background: var(--gov-bg-light); border-radius: 6px; padding: 8px 12px; }
+    .fp-sh-atual small { display: block; font-size: 11px; color: var(--color-text-sec); margin-top: 2px; }
+    .fp-sh-atual .fp-hor-tag { margin-left: 0; margin-right: 4px; }
+    .fp-sh-periodos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .fp-sh-periodo { border: 1px solid var(--gov-border); border-radius: 6px; padding: 8px 12px 12px; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; min-width: 0; }
+    .fp-sh-periodo legend { font-size: 12px; font-weight: 700; color: var(--gov-blue-dark); padding: 0 4px; }
+    .fp-sh-periodo legend small { font-weight: 500; color: var(--color-text-sec); }
+    .fp-sh-periodo label { display: grid; gap: 4px; font-size: 12px; color: var(--color-text-sec); min-width: 0; }
+    .fp-sh-periodo input { font-size: 14px; }
+    .fp-sh-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    .fp-sh-rot { font-size: 12px; color: var(--color-text-sec); }
+    #fp-sh-remover[hidden] { display: none; }
+    #fp-sh-salvar:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
+    .fp-sh-tabela-wrap { max-height: 420px; overflow-y: auto; }
+    .fp-sh-tabela-wrap small { display: block; }
+    .fp-sh-tabela-wrap tr.fp-sh-sel td { background: #fffaf0; }
+    .fp-sh-acoes-linha { white-space: nowrap; text-align: right; }
+    @media (max-width: 640px) {
+      .fp-sh-periodos { grid-template-columns: 1fr; }
+    }
     #fp-hor-salvar:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
 
     @media print {
