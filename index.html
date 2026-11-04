@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
   
-  <link rel="stylesheet" href="css/styles.css?v=20261104a">
+  <link rel="stylesheet" href="css/styles.css?v=20261104b">
 </head>
 <body>
 
@@ -525,7 +525,7 @@
             <div style="background:#e8f4fd;border:1px solid #b3d9f7;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#1351b4">
               <i class="ti ti-info-circle"></i>
               Escolha o servidor e defina o hor&aacute;rio de entrada e sa&iacute;da dele. O hor&aacute;rio individual vale mais que o da fun&ccedil;&atilde;o
-              e j&aacute; sai nas folhas Individual e Por Unidade. O 2&ordm; per&iacute;odo pode ficar em branco.
+              e j&aacute; sai nas folhas Individual e Por Unidade. Preencha o 1&ordm; per&iacute;odo, o 2&ordm; ou os dois.
             </div>
             <div class="fp-hor-aviso" id="fp-sh-aviso" hidden>
               <i class="ti ti-alert-triangle"></i> A tabela de hor&aacute;rio individual precisa ser criada &mdash; rode <code>sql/folha_ponto_servidor_horario.sql</code> no SQL Editor do Supabase.
@@ -549,7 +549,7 @@
                     <label>Sa&iacute;da <input type="time" id="fp-sh-s1" class="form-control"></label>
                   </fieldset>
                   <fieldset class="fp-sh-periodo">
-                    <legend>2&ordm; per&iacute;odo <small>(opcional)</small></legend>
+                    <legend>2&ordm; per&iacute;odo</legend>
                     <label>Entrada <input type="time" id="fp-sh-e2" class="form-control"></label>
                     <label>Sa&iacute;da <input type="time" id="fp-sh-s2" class="form-control"></label>
                   </fieldset>
@@ -558,7 +558,7 @@
                   <span class="fp-sh-rot">Preencher com:</span>
                   <button type="button" class="btn btn-outline fp-btn-xs" onclick="fpShPreencher('padrao')">Padr&atilde;o</button>
                   <button type="button" class="btn btn-outline fp-btn-xs" onclick="fpShPreencher('dia_todo')">Dia todo</button>
-                  <button type="button" class="btn btn-outline fp-btn-xs" onclick="fpShPreencher('limpar2')">Sem 2&ordm; per&iacute;odo</button>
+                  <button type="button" class="btn btn-outline fp-btn-xs" onclick="fpShPreencher('limpar')">Limpar campos</button>
                   <span style="flex:1"></span>
                   <button type="button" class="btn btn-outline fp-btn-xs" id="fp-sh-remover" onclick="fpShRemover()" hidden><i class="ti ti-trash"></i> Voltar ao hor&aacute;rio da fun&ccedil;&atilde;o</button>
                   <button type="button" class="btn-primary" id="fp-sh-salvar" onclick="fpShSalvar()" disabled><i class="ti ti-device-floppy"></i> Salvar hor&aacute;rio</button>
@@ -2412,7 +2412,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20261104a"></script>
+  <script type="module" src="js/app.js?v=20261104b"></script>
 
 
 

@@ -1,18 +1,43 @@
 -- Folha de Ponto › Horário Individual
--- Horário próprio de um servidor (entrada/saída da manhã e da tarde). Quando existe, vale mais que o
+-- Horário próprio de um servidor (entrada/saída do 1º e do 2º período). Quando existe, vale mais que o
 -- horário da função (Funções e Horários) — inclusive para Serviço Prestado.
--- O 2º período (entrada2/saida2) pode ficar vazio: a folha sai com esses campos em branco.
--- Execute no SQL Editor do Supabase. Pode rodar de novo sem problema.
+-- Pode ter só o 1º período, só o 2º ou os dois; o período vazio sai em branco na folha.
+-- Execute no SQL Editor do Supabase. Pode rodar de novo sem problema (também atualiza a versão anterior,
+-- que exigia o 1º período).
 
 CREATE TABLE IF NOT EXISTS public.folha_ponto_servidor_horario (
   funcionario_id  bigint PRIMARY KEY,
-  entrada1        text NOT NULL CHECK (entrada1 ~ '^\d{2}:\d{2}$'),
-  saida1          text NOT NULL CHECK (saida1   ~ '^\d{2}:\d{2}$'),
-  entrada2        text CHECK (entrada2 IS NULL OR entrada2 ~ '^\d{2}:\d{2}$'),
-  saida2          text CHECK (saida2   IS NULL OR saida2   ~ '^\d{2}:\d{2}$'),
+  entrada1        text,
+  saida1          text,
+  entrada2        text,
+  saida2          text,
   updated_at      timestamptz NOT NULL DEFAULT now(),
   updated_by      uuid DEFAULT auth.uid()
 );
+
+-- Versão anterior: 1º período obrigatório
+ALTER TABLE public.folha_ponto_servidor_horario ALTER COLUMN entrada1 DROP NOT NULL;
+ALTER TABLE public.folha_ponto_servidor_horario ALTER COLUMN saida1   DROP NOT NULL;
+
+-- Troca as regras antigas pelas atuais
+DO $$
+DECLARE c record;
+BEGIN
+  FOR c IN SELECT conname FROM pg_constraint
+           WHERE conrelid = 'public.folha_ponto_servidor_horario'::regclass AND contype = 'c'
+  LOOP
+    EXECUTE format('ALTER TABLE public.folha_ponto_servidor_horario DROP CONSTRAINT %I', c.conname);
+  END LOOP;
+END $$;
+
+ALTER TABLE public.folha_ponto_servidor_horario
+  ADD CONSTRAINT fp_srv_hor_formato CHECK (
+        (entrada1 IS NULL OR entrada1 ~ '^\d{2}:\d{2}$') AND (saida1 IS NULL OR saida1 ~ '^\d{2}:\d{2}$')
+    AND (entrada2 IS NULL OR entrada2 ~ '^\d{2}:\d{2}$') AND (saida2 IS NULL OR saida2 ~ '^\d{2}:\d{2}$')),
+  -- cada período tem entrada e saída juntas (ou nenhuma das duas)
+  ADD CONSTRAINT fp_srv_hor_pares CHECK ((entrada1 IS NULL) = (saida1 IS NULL) AND (entrada2 IS NULL) = (saida2 IS NULL)),
+  -- pelo menos um período preenchido
+  ADD CONSTRAINT fp_srv_hor_algum CHECK (entrada1 IS NOT NULL OR entrada2 IS NOT NULL);
 
 COMMENT ON TABLE public.folha_ponto_servidor_horario IS 'Folha de ponto: horário individual do servidor (sobrepõe o horário da função)';
 

@@ -4219,7 +4219,7 @@ async function fpCarregarSrvHorarios() {
   _fpSrvHorTabelaOk = !error;
   if (error) { console.warn('folha_ponto_servidor_horario:', error.message); return; }
   _fpSrvHor.clear();
-  data.forEach(r => _fpSrvHor.set(Number(r.funcionario_id), [r.entrada1, r.saida1, r.entrada2 || '', r.saida2 || '']));
+  data.forEach(r => _fpSrvHor.set(Number(r.funcionario_id), [r.entrada1 || '', r.saida1 || '', r.entrada2 || '', r.saida2 || '']));
 }
 
 async function fpCarregarCargoHorarios() {
@@ -4570,7 +4570,7 @@ function fpSwitchTab(tab, btn) {
   $(`fp-tab-${tab}`)?.classList.add('active');
   btn.classList.add('active');
   // Funções e Horários é só configuração; em Feriados a folha só aparece pelo botão de prévia
-  $('fp-paper-wrap').hidden = tab === 'horarios' || (tab === 'feriados' && !_fpFerUi.previa);
+  $('fp-paper-wrap').hidden = tab === 'horarios' || tab === 'srvhor' || (tab === 'feriados' && !_fpFerUi.previa);
   if (tab === 'feriados') fpRenderFeriados();
   if (tab === 'unidade')  fpIniciarAbaUnidade();
   if (tab === 'horarios') fpRenderHorarios();
@@ -4622,8 +4622,6 @@ function fpShEscolher(id) {
   const [e1, s1, e2, s2] = fpHorarioServidor(srv);
   fpShCampos().forEach((el, i) => { el.value = [e1, s1, e2, s2][i] || ''; });
   fpShPintarForm();
-  // A folha ao lado mostra o mesmo servidor (prévia)
-  if (srv) fpSelecionarServidor(srv);
 }
 
 function fpShPintarForm() {
@@ -4636,8 +4634,8 @@ function fpShPintarForm() {
     const tipo = FP_HORARIOS[fpTipoHorario(srv)];
     const pelaFuncao = `${fpFuncaoNome(srv)} – ${fpVinculoNome(srv)}: ${tipo.nome} (${tipo.h.join(' · ')})`;
     atual.innerHTML = ind
-      ? `<span class="fp-hor-tag">Individual</span> Já tem horário individual: <strong>${htmlEscape(fpShTexto(ind[0], ind[1]))}</strong>` +
-        (ind[2] ? ` e <strong>${htmlEscape(fpShTexto(ind[2], ind[3]))}</strong>` : '') +
+      ? `<span class="fp-hor-tag">Individual</span> Já tem horário individual: <strong>${htmlEscape(
+          [ind[0] && `1º período ${fpShTexto(ind[0], ind[1])}`, ind[2] && `2º período ${fpShTexto(ind[2], ind[3])}`].filter(Boolean).join(' e '))}</strong>` +
         `<small>Sem ele, sairia pelo horário da função — ${htmlEscape(pelaFuncao)}</small>`
       : `Hoje sai pelo horário da função — <strong>${htmlEscape(pelaFuncao)}</strong><small>Ajuste os campos abaixo e salve para dar um horário só dele.</small>`;
   }
@@ -4648,13 +4646,14 @@ function fpShPintarForm() {
 
 function fpShAtualizarBotoes() {
   const [e1, s1, e2, s2] = fpShCampos().map(el => el.value);
-  const ok = _fpShId != null && e1 && s1 && (!e2 === !s2);
+  // Cada período: entrada e saída juntas, ou os dois vazios; precisa de pelo menos um período
+  const ok = _fpShId != null && (!e1 === !s1) && (!e2 === !s2) && (e1 || e2);
   $('fp-sh-salvar').disabled = !ok;
 }
 
 function fpShPreencher(tipo) {
   const campos = fpShCampos();
-  if (tipo === 'limpar2') { campos[2].value = ''; campos[3].value = ''; }
+  if (tipo === 'limpar') campos.forEach(el => { el.value = ''; });
   else FP_HORARIOS[tipo].h.forEach((h, i) => { campos[i].value = h; });
   fpShAtualizarBotoes();
 }
@@ -4677,21 +4676,21 @@ async function fpShSalvar() {
   const srv = _fpServidores.find(s => Number(s.funcionario_id) === _fpShId);
   if (!srv) return;
   const [e1, s1, e2, s2] = fpShCampos().map(el => el.value);
-  if (!e1 || !s1) { showToast('Informe a entrada e a saída do 1º período', 'error'); return; }
-  if (!e2 !== !s2) { showToast('No 2º período, informe entrada e saída — ou deixe os dois em branco', 'error'); return; }
-  if (s1 <= e1 || (e2 && s2 <= e2)) { showToast('A saída precisa ser depois da entrada', 'error'); return; }
-  if (e2 && e2 < s1) { showToast('O 2º período precisa começar depois da saída do 1º', 'error'); return; }
+  if (!e1 && !e2) { showToast('Preencha o 1º ou o 2º período', 'error'); return; }
+  if (!e1 !== !s1 || !e2 !== !s2) { showToast('Em cada período, informe a entrada e a saída', 'error'); return; }
+  if ((e1 && s1 <= e1) || (e2 && s2 <= e2)) { showToast('A saída precisa ser depois da entrada', 'error'); return; }
+  if (e1 && e2 && e2 < s1) { showToast('O 2º período precisa começar depois da saída do 1º', 'error'); return; }
   const btn = $('fp-sh-salvar');
   btn.disabled = true;
-  const linha = { funcionario_id: _fpShId, entrada1: e1, saida1: s1, entrada2: e2 || null, saida2: s2 || null, updated_at: new Date().toISOString() };
+  const linha = { funcionario_id: _fpShId, entrada1: e1 || null, saida1: s1 || null, entrada2: e2 || null, saida2: s2 || null, updated_at: new Date().toISOString() };
   const { error } = await sb.from('folha_ponto_servidor_horario').upsert(linha, { onConflict: 'funcionario_id' });
   if (error) { btn.disabled = false; fpShErroTabela(error); return; }
   _fpSrvHorTabelaOk = true;
   $('fp-sh-aviso').hidden = true;
-  _fpSrvHor.set(_fpShId, [e1, s1, e2 || '', s2 || '']);
+  _fpSrvHor.set(_fpShId, [e1 || '', s1 || '', e2 || '', s2 || '']);
   fpShDepoisDeMudar();
   await registrarLog('HORÁRIO INDIVIDUAL DA FOLHA DE PONTO', _fpShId, srv.nome,
-    { horario: [fpShTexto(e1, s1), e2 ? fpShTexto(e2, s2) : null].filter(Boolean).join(' e ') });
+    { horario: [e1 && `1º período ${fpShTexto(e1, s1)}`, e2 && `2º período ${fpShTexto(e2, s2)}`].filter(Boolean).join(' e ') });
   showToast(`Horário de ${giapNomeTitulo(srv.nome)} salvo`, 'success');
 }
 
