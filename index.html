@@ -331,11 +331,8 @@
         <div class="diario-page-head">
           <div>
             <div class="row-label" style="margin:0"><i class="ti ti-news"></i> Diário Oficial — movimentações SEMCAS</div>
-            <p class="view-help" style="margin:6px 0 0">Nomeações, promoções e exonerações ficam registradas aqui. O sistema confere o nome no cadastro antes de liberar cada ação.</p>
+            <p class="view-help" style="margin:6px 0 0">Nomeações, promoções e exonerações ficam registradas aqui. O sistema busca o Diário sozinho todo dia às 17h, 17h20 e 17h30 (edição extra) e confere cada nome no cadastro automaticamente.</p>
           </div>
-          <button type="button" class="btn-primary" id="diario-btn-atualizar" onclick="diarioAtualizarUltimasDuasSemanas()">
-            <i class="ti ti-calendar-search"></i> Buscar últimas 2 semanas
-          </button>
         </div>
 
         <div class="diario-kpis" id="diario-kpis">
@@ -348,7 +345,7 @@
         <div class="filter-bar diario-filter-bar">
           <div class="search-wrap">
             <i class="ti ti-search"></i>
-            <input type="search" id="diario-filtro-busca" class="form-control" placeholder="Buscar nome, cargo ou edição…" oninput="diarioAplicarFiltros()">
+            <input type="search" id="diario-filtro-busca" class="form-control" placeholder="Buscar nome, cargo ou edição…" oninput="diarioAplicarBusca()">
           </div>
           <select id="diario-filtro-tipo" class="form-control" onchange="diarioAplicarFiltros()" aria-label="Filtrar por tipo de ato">
             <option value="">Todos os atos</option>
@@ -380,6 +377,10 @@
               <tr><td colspan="7" class="empty-state"><span class="spinner"></span> Carregando publicações…</td></tr>
             </tbody>
           </table>
+          <div class="pagination">
+            <div class="page-info" id="diario-page-info">—</div>
+            <div class="page-controls" id="diario-page-controls"></div>
+          </div>
         </div>
       </section>
 
@@ -2475,7 +2476,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20261106d"></script>
+  <script type="module" src="js/app.js?v=20261106e"></script>
 
 
 

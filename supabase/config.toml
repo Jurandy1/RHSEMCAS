@@ -5,4 +5,6 @@ project_id = "isqslnnixdudhpunwnpx"
 verify_jwt = true
 
 [functions.diario-semcas]
-verify_jwt = true
+# false: a coleta agendada (pg_cron) chama sem login; a própria função confere
+# a chave x-diario-cron ou a sessão do usuário.
+verify_jwt = false

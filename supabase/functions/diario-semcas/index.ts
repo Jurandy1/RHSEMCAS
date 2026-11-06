@@ -143,15 +143,29 @@ Deno.serve(async (req) => {
     })
 
   try {
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) return json({ error: 'Sessão não informada.' }, 401)
-    const userClient = createClient(
+    const admin = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      req.headers.get('apikey') || Deno.env.get('SUPABASE_ANON_KEY') || '',
-      { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } },
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      { auth: { persistSession: false } },
     )
-    const { data: { user }, error: userError } = await userClient.auth.getUser()
-    if (userError || !user) return json({ error: 'Sessão inválida ou expirada.' }, 401)
+
+    // Duas formas de chamar: a coleta agendada do banco (17:00, 17:20, 17:30),
+    // que manda a chave guardada em diario_cron_config, ou um usuário logado.
+    const cronToken = req.headers.get('x-diario-cron')
+    if (cronToken) {
+      const { data: cfg } = await admin.from('diario_cron_config').select('token').eq('id', 1).maybeSingle()
+      if (!cfg?.token || cfg.token !== cronToken) return json({ error: 'Chave da coleta agendada inválida.' }, 401)
+    } else {
+      const authHeader = req.headers.get('Authorization')
+      if (!authHeader) return json({ error: 'Sessão não informada.' }, 401)
+      const userClient = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        req.headers.get('apikey') || Deno.env.get('SUPABASE_ANON_KEY') || '',
+        { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } },
+      )
+      const { data: { user }, error: userError } = await userClient.auth.getUser()
+      if (userError || !user) return json({ error: 'Sessão inválida ou expirada.' }, 401)
+    }
 
     const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {}
     const url = new URL(req.url)
@@ -171,14 +185,10 @@ Deno.serve(async (req) => {
     }
 
     // Mantém o histórico no banco. A service role é usada apenas dentro da Edge
-    // Function; o navegador continua limitado pelas políticas RLS.
+    // Function; o navegador continua limitado pelas políticas RLS. O gatilho do
+    // banco confere cada ato no cadastro logo após gravar.
     let persistidos = 0
     if (atos.length) {
-      const admin = createClient(
-        Deno.env.get('SUPABASE_URL')!,
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-        { auth: { persistSession: false } },
-      )
       const rows = atos.map((a) => ({
         source_id: a.id,
         acao: a.acao,

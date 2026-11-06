@@ -52,20 +52,33 @@ A coordenadora entra normalmente e acessa **Usuários do Sistema** no menu.
 Contas criadas por essa tela recebem o perfil `usuario` e acesso completo aos
 módulos, mas não podem cadastrar outras contas.
 
-# Alerta do Diário Oficial (nomeações/exonerações SEMCAS)
+# Diário Oficial (nomeações/promoções/exonerações SEMCAS)
 
-O popup das 17h depende da Edge Function `diario-semcas` (o site do Diário
-Oficial não libera CORS, então o navegador não consegue consultá-lo direto).
+A coleta roda sozinha no Supabase (pg_cron + pg_net, plano gratuito) todo dia
+às **17:00, 17:20 e 17:30** de São Luís — as duas últimas pegam edição EXTRA.
+O navegador não consulta o Diário: só lê o que já está gravado.
+
+1. SQL Editor: rode `sql/diario_oficial_eventos.sql` (se ainda não rodou) e
+   depois `sql/diario_oficial_automatico.sql`. O último `SELECT` deve mostrar o
+   job `diario-semcas-coleta` com schedule `0,20,30 20 * * *` (horário UTC).
+2. Publique a função com **Verify JWT desligado** (a coleta agendada chama sem
+   login; a função confere a chave interna ou a sessão do usuário):
 
 ```powershell
 npx supabase functions deploy diario-semcas --project-ref isqslnnixdudhpunwnpx
 ```
 
-Ou pelo Dashboard: **Deploy a new function**, nome `diario-semcas`, colando
-`supabase/functions/diario-semcas/index.ts`. Não precisa de secrets.
+   Pelo Dashboard: cole `supabase/functions/diario-semcas/index.ts` e desmarque
+   **Enforce JWT verification** nas configurações da função.
 
-Testar (logado no sistema, console do navegador F12):
+Testar sem esperar as 17h (SQL Editor):
 
-```js
-verificarDiarioSemcas('2026-10-07')   // deve abrir o popup com a exoneração de Letícia G. M. Costa
+```sql
+SELECT public.diario_disparar_coleta();
+-- ~20s depois:
+SELECT status_code, left(content::text, 300) FROM net._http_response ORDER BY id DESC LIMIT 1;
 ```
+
+No console do navegador (F12), logado: `diarioColetarAgora('2026-10-07')`
+consulta o Diário daquela data e grava; `verificarDiarioSemcas('2026-10-07')`
+reabre o popup com o que está no banco.

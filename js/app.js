@@ -11942,14 +11942,15 @@ function abrirModalLicencasVencidasSeNecessario() {
 }
 
 // ─── DIÁRIO OFICIAL · nomeações/exonerações SEMCAS ───────────────────────────
-// Só a edição DO DIA e só de segunda a sexta (o DO sai às 17h). Para quem já
-// está logado, das 17:00 às 17:10 (hora de São Luís) consulta a Edge Function
-// `diario-semcas` a cada minuto até a edição do dia aparecer. Quem entrar
-// depois das 17h recebe a mesma checagem ao logar. Abre o popup com as
-// nomeações/exonerações da SEMCAS que ESTE usuário ainda não marcou "Ciente".
+// A coleta é feita pelo próprio Supabase (pg_cron → Edge Function `diario-semcas`)
+// todo dia às 17:00, 17:20 e 17:30 de São Luís; as duas últimas pegam edição
+// EXTRA. O navegador NÃO consulta o Diário: só lê o que já está no banco.
+// Para quem está logado entre 17:00 e 17:45, relê a cada 2 minutos os atos do
+// dia (consulta pequena) e abre o popup com o que ESTE usuário ainda não marcou
+// "Ciente". Quem entrar depois das 17h recebe a mesma checagem ao logar.
 const DIARIO_INICIO_MIN = 17 * 60;       // 17:00
-const DIARIO_FIM_MIN = 17 * 60 + 10;     // 17:10
-const DIARIO_INTERVALO_MS = 60 * 1000;
+const DIARIO_FIM_MIN = 17 * 60 + 45;     // 17:45 (folga depois da coleta das 17:30)
+const DIARIO_INTERVALO_MS = 2 * 60 * 1000;
 let _diarioTimer = null;
 let _diarioBuscando = false;
 let _diarioExibindo = [];
@@ -11981,7 +11982,7 @@ const diarioChaveVistos = () => `diario-semcas-vistos:${state.usuario?.id || 'an
 
 const fmtDataBr = (iso) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '—');
 
-/** filtro: { data: 'YYYY-MM-DD' } */
+/** Chama a Edge Function na hora (só para teste no console: diarioColetarAgora('2026-10-07')). */
 async function buscarDiarioSemcas(filtro) {
   const { data: sess } = await sb.auth.getSession();
   const token = sess?.session?.access_token;
@@ -11996,26 +11997,37 @@ async function buscarDiarioSemcas(filtro) {
   return json;
 }
 
+/** Atos já gravados pela coleta agendada numa data (YYYY-MM-DD). */
+async function diarioAtosDoDia(data) {
+  const { data: rows, error } = await sb.from('diario_oficial_eventos')
+    .select('source_id, acao, nome, cargo, simbologia, data_ato, data_publicacao, edicao, titulo, link')
+    .eq('data_publicacao', data)
+    .order('id', { ascending: true });
+  if (error) throw error;
+  return (rows || []).map((r) => ({ ...r, id: r.source_id }));
+}
+
 /** forcar=true mostra mesmo atos já marcados como "Ciente" (teste manual). */
-async function verificarDiarioSemcas(filtro, { forcar = false } = {}) {
+async function verificarDiarioSemcas(data, { forcar = false } = {}) {
   if (_diarioBuscando) return null;
   _diarioBuscando = true;
   try {
-    const r = await buscarDiarioSemcas(filtro);
-    if (r.atos?.length) await diarioPersistirAtosCliente(r.atos);
-    const hoje = agoraSaoLuis().data;
-    if (r.edicoes?.some((e) => e.data === hoje)) diarioStorage('diario-semcas-concluido', hoje);
+    const atos = await diarioAtosDoDia(data);
     const vistos = new Set(diarioStorage(diarioChaveVistos()) || []);
-    const novos = (r.atos || []).filter((a) => forcar || !vistos.has(a.id));
-    if (novos.length) abrirModalDiarioSemcas(novos);
-    return r;
+    const novos = atos.filter((a) => forcar || !vistos.has(a.id));
+    if (novos.length) {
+      abrirModalDiarioSemcas(novos);
+      if (state.rotaAtual === 'diario-oficial') carregarDiarioOficial();
+      else diarioAtualizarBadge();
+    }
+    return atos;
   } finally {
     _diarioBuscando = false;
   }
 }
 
 function abrirModalDiarioSemcas(atos) {
-  // Popup já aberto (ex.: saiu edição nova às 17h): junta sem repetir
+  // Popup já aberto (ex.: saiu edição extra): junta sem repetir
   const ids = new Set(_diarioExibindo.map((a) => a.id));
   _diarioExibindo = [..._diarioExibindo, ...atos.filter((a) => !ids.has(a.id))]
     .sort((a, b) => b.data_publicacao.localeCompare(a.data_publicacao));
@@ -12060,29 +12072,41 @@ window.fecharModalDiarioSemcas = function fecharModalDiarioSemcas() {
 };
 
 function tickMonitorDiarioSemcas() {
-  const { data, minutos, fimDeSemana } = agoraSaoLuis();
-  if (fimDeSemana || minutos < DIARIO_INICIO_MIN || minutos > DIARIO_FIM_MIN) return;
-  if (diarioStorage('diario-semcas-concluido') === data) return;
-  verificarDiarioSemcas({ data }).catch((e) => console.warn('Diário Oficial SEMCAS:', e.message));
+  const { data, minutos } = agoraSaoLuis();
+  if (minutos < DIARIO_INICIO_MIN || minutos > DIARIO_FIM_MIN) return;
+  if (document.visibilityState === 'hidden') return;
+  verificarDiarioSemcas(data).catch((e) => console.warn('Diário Oficial SEMCAS:', e.message));
 }
 
 /** Chamado a cada login (bootApp). */
 function iniciarMonitorDiarioSemcas() {
   _diarioExibindo = [];
-  const { data, minutos, fimDeSemana } = agoraSaoLuis();
-  // Sábado/domingo não há edição; antes das 17h a do dia ainda não saiu
-  if (!fimDeSemana && minutos >= DIARIO_INICIO_MIN) {
-    verificarDiarioSemcas({ data }).catch((e) => console.warn('Diário Oficial SEMCAS:', e.message));
+  const { data, minutos } = agoraSaoLuis();
+  // Antes das 17h a edição do dia ainda não saiu
+  if (minutos >= DIARIO_INICIO_MIN) {
+    verificarDiarioSemcas(data).catch((e) => console.warn('Diário Oficial SEMCAS:', e.message));
   }
   if (!_diarioTimer) _diarioTimer = setInterval(tickMonitorDiarioSemcas, DIARIO_INTERVALO_MS);
 }
 
-// Teste manual no console: verificarDiarioSemcas('2026-10-07')
-window.verificarDiarioSemcas = (data = agoraSaoLuis().data) => verificarDiarioSemcas({ data }, { forcar: true });
+// Testes manuais no console:
+//   verificarDiarioSemcas('2026-10-07')  → reabre o popup com o que está no banco
+//   diarioColetarAgora('2026-10-07')     → consulta o Diário agora e grava no banco
+window.verificarDiarioSemcas = (data = agoraSaoLuis().data) => verificarDiarioSemcas(data, { forcar: true });
+window.diarioColetarAgora = async (data = agoraSaoLuis().data) => {
+  const r = await buscarDiarioSemcas({ data });
+  if (state.rotaAtual === 'diario-oficial') await carregarDiarioOficial();
+  return r;
+};
 
 // ─── PÁGINA DIÁRIO OFICIAL · histórico e ações do RH ────────────────────────
+// Paginada no banco (25 por página): só a página aberta trafega, o que poupa o
+// plano gratuito do Supabase. Os números dos cards vêm de diario_resumo().
 window._diarioEventosCache = [];
 window._diarioAcaoPendente = null;
+const DIARIO_POR_PAGINA = 25;
+const diarioPag = { page: 1, total: 0 };
+let _diarioCargaSeq = 0;
 
 function diarioTipoInfo(acao) {
   return {
@@ -12093,38 +12117,25 @@ function diarioTipoInfo(acao) {
 }
 
 function diarioNormalizar(txt) {
-  return String(txt || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  return String(txt || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 }
 
-function diarioChavePessoaEdicao(evento) {
-  const nome = diarioNormalizar(evento?.nome);
-  const pessoa = nome ? `nome:${nome}` : `id:${evento?.funcionario_id || ''}`;
-  const publicacao = String(evento?.data_publicacao || evento?.data_ato || '').slice(0, 10);
-  const edicao = diarioNormalizar(evento?.edicao || '');
-  return pessoa && publicacao ? `${pessoa}|${publicacao}|${edicao}` : '';
+/** Mesmo formato da coluna `busca` da view (maiúsculo, sem acento, só letras/números). */
+function diarioTermoBusca(txt) {
+  return String(txt || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
 }
 
-/** Exoneração + nomeação da mesma pessoa na mesma edição = troca de cargo, não saída. */
-function diarioEventoPareado(evento, lista = window._diarioEventosCache || []) {
-  if (!evento || !['nomeacao', 'exoneracao'].includes(evento.acao)) return null;
-  const chave = diarioChavePessoaEdicao(evento);
-  if (!chave) return null;
-  const oposta = evento.acao === 'nomeacao' ? 'exoneracao' : 'nomeacao';
-  return lista.find((outro) => Number(outro.id) !== Number(evento.id)
-    && outro.acao === oposta
-    && diarioChavePessoaEdicao(outro) === chave) || null;
-}
-
-function diarioContarPendencias(lista) {
-  const pendentes = (lista || []).filter((e) => e.status === 'pendente');
-  const pares = new Set();
-  let avulsos = 0;
-  for (const e of pendentes) {
-    const par = diarioEventoPareado(e, pendentes);
-    if (par) pares.add([Number(e.id), Number(par.id)].sort((a, b) => a - b).join(':'));
-    else avulsos += 1;
-  }
-  return avulsos + pares.size;
+/** Exoneração + nomeação da mesma pessoa na mesma edição = troca de cargo (a view já traz o par). */
+function diarioEventoPareado(evento) {
+  if (!evento?.par_id) return null;
+  return {
+    id: evento.par_id,
+    acao: evento.par_acao,
+    status: evento.par_status,
+    funcionario_id: evento.par_funcionario_id,
+    funcionario_ativo: evento.par_funcionario_ativo
+  };
 }
 
 function diarioSepararCargoSimbologia(ato = {}) {
@@ -12157,85 +12168,96 @@ function atualizarStatusCargoCadastro() {
 
 $('add-cargo')?.addEventListener('input', atualizarStatusCargoCadastro);
 
-/**
- * Fallback para a versão da Edge Function que ainda só consulta o Diário.
- * O upsert não envia status/resultado, portanto nunca reabre atos já processados.
- */
-async function diarioPersistirAtosCliente(atos) {
-  const rows = (atos || []).filter((a) => a?.id).map((a) => {
-    const dadosCargo = diarioSepararCargoSimbologia(a);
-    return {
-      source_id: String(a.id),
-      acao: a.acao,
-      nome: a.nome || null,
-      cargo: dadosCargo.cargo,
-      simbologia: dadosCargo.simbologia,
-      data_ato: a.data_ato || a.data_publicacao,
-      data_publicacao: a.data_publicacao,
-      edicao: String(a.edicao || ''),
-      titulo: a.titulo || 'Ato do Diário Oficial',
-      link: a.link || 'https://diariooficial.saoluis.ma.gov.br/'
-    };
-  });
-  if (!rows.length) return true;
-  const { error } = await sb.from('diario_oficial_eventos').upsert(rows, { onConflict: 'source_id' });
-  if (error) {
-    console.warn('Não foi possível gravar os atos do Diário:', error.message);
-    return false;
-  }
-  return true;
-}
-
+/** Cards + número do menu, numa consulta só. */
 async function diarioAtualizarBadge() {
   const badge = $('badge-diario-oficial');
-  if (!badge) return;
-  const { data, error } = await sb.from('diario_oficial_eventos')
-    .select('id, acao, nome, funcionario_id, data_ato, data_publicacao, edicao, status')
-    .eq('status', 'pendente');
-  if (error) {
-    badge.hidden = true;
-    return;
+  const { data, error } = await sb.rpc('diario_resumo');
+  if (error || !data) {
+    if (badge) badge.hidden = true;
+    return null;
   }
-  const total = diarioContarPendencias(data || []);
-  badge.textContent = String(total);
-  badge.hidden = !(total > 0);
+  const fmt = (n) => Number(n || 0).toLocaleString('pt-BR');
+  if (badge) {
+    badge.textContent = String(data.pendentes || 0);
+    badge.hidden = !(data.pendentes > 0);
+  }
+  if ($('diario-kpi-pendentes')) $('diario-kpi-pendentes').textContent = fmt(data.pendentes);
+  if ($('diario-kpi-nomeacoes')) $('diario-kpi-nomeacoes').textContent = fmt(data.nomeacoes);
+  if ($('diario-kpi-promocoes')) $('diario-kpi-promocoes').textContent = fmt(data.promocoes);
+  if ($('diario-kpi-exoneracoes')) $('diario-kpi-exoneracoes').textContent = fmt(data.exoneracoes);
+  return data;
 }
 
 async function carregarDiarioOficial() {
   const tbody = $('tbody-diario-oficial');
   if (!tbody) return;
+  const seq = ++_diarioCargaSeq;
   tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><span class="spinner"></span> Carregando publicações…</td></tr>';
-  const { data, error } = await sb.from('v_diario_oficial_eventos')
-    .select('*')
-    .order('data_publicacao', { ascending: false })
-    .order('id', { ascending: false })
-    .limit(500);
+
+  const busca = diarioTermoBusca($('diario-filtro-busca')?.value);
+  const tipo = $('diario-filtro-tipo')?.value || '';
+  const status = $('diario-filtro-status')?.value || '';
+  const ini = (diarioPag.page - 1) * DIARIO_POR_PAGINA;
+
+  let q = sb.from('v_diario_oficial_eventos').select('*', { count: 'exact' });
+  if (tipo) q = q.eq('tipo_exibicao', tipo);
+  if (status) q = q.eq('status', status);
+  if (busca) q = q.ilike('busca', `%${busca}%`);
+  const [{ data, error, count }] = await Promise.all([
+    q.order('data_publicacao', { ascending: false })
+      .order('id', { ascending: false })
+      .range(ini, ini + DIARIO_POR_PAGINA - 1),
+    diarioAtualizarBadge()
+  ]);
+  if (seq !== _diarioCargaSeq) return; // o usuário já mudou filtro/página
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Não foi possível abrir o histórico do Diário Oficial.<br><small>Execute <code>sql/diario_oficial_eventos.sql</code> no Supabase. ${htmlEscape(error.message)}</small></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Não foi possível abrir o histórico do Diário Oficial.<br><small>Execute <code>sql/diario_oficial_automatico.sql</code> no Supabase. ${htmlEscape(error.message)}</small></td></tr>`;
+    diarioPag.total = 0;
+    diarioRenderPaginacao();
     return;
   }
+  diarioPag.total = count || 0;
+  // Filtro mudou e a página ficou além do fim: volta para a última que existe
+  const ultima = Math.max(1, Math.ceil(diarioPag.total / DIARIO_POR_PAGINA));
+  if (diarioPag.page > ultima) {
+    diarioPag.page = ultima;
+    return carregarDiarioOficial();
+  }
   window._diarioEventosCache = data || [];
-  diarioAplicarFiltros();
-  await diarioAtualizarBadge();
+  diarioRenderTabela(window._diarioEventosCache);
+  diarioRenderPaginacao();
 }
 
-function diarioRenderKpis(lista) {
-  const todos = window._diarioEventosCache || [];
-  const pares = new Set();
-  for (const e of todos) {
-    const par = diarioEventoPareado(e, todos);
-    if (par) pares.add([Number(e.id), Number(par.id)].sort((a, b) => a - b).join(':'));
-  }
-  const pendentes = diarioContarPendencias(todos);
-  if ($('diario-kpi-pendentes')) $('diario-kpi-pendentes').textContent = pendentes.toLocaleString('pt-BR');
-  if ($('diario-kpi-nomeacoes')) $('diario-kpi-nomeacoes').textContent = todos.filter((x) => x.acao === 'nomeacao' && !diarioEventoPareado(x, todos)).length.toLocaleString('pt-BR');
-  if ($('diario-kpi-promocoes')) $('diario-kpi-promocoes').textContent = (todos.filter((x) => x.acao === 'promocao').length + pares.size).toLocaleString('pt-BR');
-  if ($('diario-kpi-exoneracoes')) $('diario-kpi-exoneracoes').textContent = todos.filter((x) => x.acao === 'exoneracao' && !diarioEventoPareado(x, todos)).length.toLocaleString('pt-BR');
+function diarioRenderPaginacao() {
+  const info = $('diario-page-info');
+  const controles = $('diario-page-controls');
+  if (!info || !controles) return;
+  const total = diarioPag.total;
+  const paginas = Math.max(1, Math.ceil(total / DIARIO_POR_PAGINA));
+  const ini = (diarioPag.page - 1) * DIARIO_POR_PAGINA + 1;
+  const fim = Math.min(diarioPag.page * DIARIO_POR_PAGINA, total);
+  info.textContent = total === 0 ? 'Nenhuma publicação' : `Mostrando ${ini}-${fim} de ${total.toLocaleString('pt-BR')}`;
+  const btn = (label, p, dis, ativo = false) =>
+    `<button type="button" class="page-btn ${ativo ? 'active' : ''}" ${dis ? 'disabled' : ''} data-page="${p}">${label}</button>`;
+  let html = btn('«', diarioPag.page - 1, diarioPag.page === 1);
+  const inicio = Math.max(1, Math.min(diarioPag.page - 2, paginas - 4));
+  const termino = Math.min(paginas, inicio + 4);
+  for (let i = inicio; i <= termino; i += 1) html += btn(i, i, false, i === diarioPag.page);
+  html += btn('»', diarioPag.page + 1, diarioPag.page === paginas);
+  controles.innerHTML = html;
+  controles.querySelectorAll('.page-btn').forEach((b) => {
+    b.onclick = () => {
+      if (b.disabled) return;
+      diarioPag.page = Number(b.dataset.page);
+      carregarDiarioOficial();
+      $('view-diario-oficial')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    };
+  });
 }
 
 function diarioAcoesHtml(e) {
   if (e.status === 'processado') {
-    return `<span class="diario-publicacao-meta">${htmlEscape(e.resultado || 'Conferido')}</span>`;
+    return `<span class="diario-publicacao-meta">${htmlEscape(e.resultado || 'Processado')}</span>`;
   }
   const pareado = diarioEventoPareado(e);
   const funcionarioId = e.funcionario_id || pareado?.funcionario_id || null;
@@ -12247,20 +12269,24 @@ function diarioAcoesHtml(e) {
   }
   if (pareado && e.acao === 'exoneracao') {
     botoes.push('<span class="diario-publicacao-meta"><i class="ti ti-link"></i> Vinculado ao novo cargo</span>');
+  } else if (pareado && e.acao === 'nomeacao' && temCadastro && !ativo) {
+    botoes.push(`<button type="button" class="btn-primary" onclick="diarioReativarNomeacao(${e.id})"><i class="ti ti-user-check"></i> Reativar</button>`);
   } else if (pareado && e.acao === 'nomeacao' && temCadastro) {
     botoes.push(`<button type="button" class="btn-primary" onclick="diarioAbrirPromocao(${e.id})"><i class="ti ti-arrows-exchange"></i> Alterar cargo</button>`);
   } else if (e.acao === 'nomeacao') {
     if (!temCadastro) {
       botoes.push(`<button type="button" class="btn-primary" onclick="diarioCadastrarNomeacao(${e.id})"><i class="ti ti-user-plus"></i> Adicionar servidor</button>`);
+    } else if (!ativo) {
+      // Já foi servidor e está inativo: volta ao quadro com o cargo do ato
+      botoes.push(`<button type="button" class="btn-primary" onclick="diarioReativarNomeacao(${e.id})"><i class="ti ti-user-check"></i> Reativar</button>`);
     } else {
-      botoes.push(`<button type="button" class="btn-primary" onclick="diarioMarcarConferido(${e.id}, 'Nomeação conferida — servidor já cadastrado')"><i class="ti ti-check"></i> Conferir</button>`);
+      // Ativo com cargo diferente do ato (igual o sistema já fecha sozinho)
+      botoes.push(`<button type="button" class="btn-primary" onclick="diarioAbrirPromocao(${e.id})"><i class="ti ti-arrows-exchange"></i> Alterar cargo</button>`);
     }
   } else if (e.acao === 'promocao' && temCadastro) {
     botoes.push(`<button type="button" class="btn-primary" onclick="diarioAbrirPromocao(${e.id})"><i class="ti ti-trending-up"></i> Promover</button>`);
   } else if (e.acao === 'exoneracao' && temCadastro && ativo) {
     botoes.push(`<button type="button" class="btn-primary" style="background:var(--gov-red)" onclick="diarioExonerar(${e.id})"><i class="ti ti-user-off"></i> Exonerar</button>`);
-  } else if (e.acao === 'exoneracao' && temCadastro && !ativo) {
-    botoes.push(`<button type="button" class="btn-primary" onclick="diarioMarcarConferido(${e.id}, 'Exoneração conferida — servidor já estava inativo')"><i class="ti ti-check"></i> Conferir</button>`);
   }
   return botoes.join('');
 }
@@ -12302,109 +12328,19 @@ function diarioRenderTabela(lista) {
   }).join('');
 }
 
+// Filtro mudou: volta para a página 1 e consulta o banco (busca com espera de 300ms)
 window.diarioAplicarFiltros = function diarioAplicarFiltros() {
-  const busca = diarioNormalizar($('diario-filtro-busca')?.value);
-  const tipo = $('diario-filtro-tipo')?.value || '';
-  const status = $('diario-filtro-status')?.value || '';
-  const lista = (window._diarioEventosCache || []).filter((e) => {
-    const pareado = diarioEventoPareado(e);
-    if (tipo === 'promocao' && e.acao !== 'promocao' && !pareado) return false;
-    if (tipo === 'nomeacao' && (e.acao !== 'nomeacao' || pareado)) return false;
-    if (tipo === 'exoneracao' && (e.acao !== 'exoneracao' || pareado)) return false;
-    if (status && e.status !== status) return false;
-    if (busca && !diarioNormalizar([e.nome, e.cargo, e.simbologia, e.edicao, e.funcionario_nome].join(' ')).includes(busca)) return false;
-    return true;
-  });
-  diarioRenderKpis(lista);
-  diarioRenderTabela(lista);
+  diarioPag.page = 1;
+  carregarDiarioOficial();
 };
+window.diarioAplicarBusca = debounce(() => window.diarioAplicarFiltros(), 300);
 
 async function renderDiarioOficial() {
+  // Confere de novo no cadastro (servidor pode ter sido cadastrado depois da publicação)
+  const { error } = await sb.rpc('diario_auto_conferir');
+  if (error) console.warn('Conferência automática do Diário Oficial:', error.message);
   await carregarDiarioOficial();
-  const hoje = agoraSaoLuis().data;
-  const chave = `diario-semcas-backfill-14d:${state.usuario?.id || 'anon'}`;
-  if (diarioStorage(chave) !== hoje) {
-    diarioAtualizarUltimasDuasSemanas({ automatico: true }).catch((e) =>
-      console.warn('Retrospecto do Diário Oficial:', e.message || e));
-  }
 }
-
-function diarioDatasUteisUltimos14Dias() {
-  const base = new Date(`${agoraSaoLuis().data}T12:00:00Z`);
-  const datas = [];
-  for (let i = 0; i < 14; i += 1) {
-    const d = new Date(base);
-    d.setUTCDate(base.getUTCDate() - i);
-    const dia = d.getUTCDay();
-    if (dia === 0 || dia === 6) continue; // Diário municipal não publica sábado/domingo
-    datas.push(d.toISOString().slice(0, 10));
-  }
-  return datas;
-}
-
-let _diarioBackfillBuscando = false;
-window.diarioAtualizarUltimasDuasSemanas = async function diarioAtualizarUltimasDuasSemanas({ automatico = false } = {}) {
-  if (_diarioBackfillBuscando) return;
-  _diarioBackfillBuscando = true;
-  const btn = $('diario-btn-atualizar');
-  const datas = diarioDatasUteisUltimos14Dias();
-  let atosEncontrados = 0;
-  let diasComEdicao = 0;
-  const falhas = [];
-  if (btn) btn.disabled = true;
-  try {
-    for (let i = 0; i < datas.length; i += 1) {
-      if (btn) btn.innerHTML = `<i class="ti ti-loader-2"></i> Consultando ${i + 1}/${datas.length}`;
-      try {
-        const r = await buscarDiarioSemcas({ data: datas[i] });
-        // A Edge Function já descarta matérias que não citam SEMCAS; reforço local
-        // não é necessário porque o texto completo do ato fica somente no servidor.
-        if (r.edicoes?.length) diasComEdicao += 1;
-        if (r.atos?.length) {
-          const gravou = await diarioPersistirAtosCliente(r.atos);
-          if (!gravou) throw new Error('banco recusou a gravação');
-          atosEncontrados += r.atos.length;
-        }
-      } catch (e) {
-        falhas.push(`${fmtDataBr(datas[i])}: ${e.message || e}`);
-      }
-    }
-    await carregarDiarioOficial();
-    if (!falhas.length) {
-      diarioStorage(`diario-semcas-backfill-14d:${state.usuario?.id || 'anon'}`, agoraSaoLuis().data);
-    }
-    const msg = `${atosEncontrados} ato(s) da SEMCAS encontrado(s) em ${diasComEdicao} dia(s) com edição nos últimos 14 dias.`;
-    if (!automatico || atosEncontrados || falhas.length) {
-      showToast(falhas.length ? `${msg} ${falhas.length} dia(s) não puderam ser consultados.` : msg, falhas.length ? 'warning' : 'success');
-    }
-  } finally {
-    _diarioBackfillBuscando = false;
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = '<i class="ti ti-calendar-search"></i> Buscar últimas 2 semanas';
-    }
-  }
-};
-
-window.diarioAtualizarAgora = async function diarioAtualizarAgora() {
-  const btn = $('diario-btn-atualizar');
-  if (btn) btn.disabled = true;
-  try {
-    const r = await buscarDiarioSemcas({ data: agoraSaoLuis().data });
-    if (r.atos?.length) {
-      const gravou = await diarioPersistirAtosCliente(r.atos);
-      if (!gravou) throw new Error('Os atos foram encontrados, mas o banco recusou a gravação. Execute novamente sql/diario_oficial_eventos.sql.');
-    }
-    await carregarDiarioOficial();
-    showToast(r.atos?.length
-      ? `${r.atos.length} ato(s) encontrado(s); histórico atualizado.`
-      : 'A edição de hoje ainda não trouxe movimentações da SEMCAS.', r.atos?.length ? 'success' : 'info');
-  } catch (e) {
-    showToast('Não foi possível consultar o Diário Oficial: ' + (e.message || e), 'error');
-  } finally {
-    if (btn) btn.disabled = false;
-  }
-};
 
 async function diarioFinalizarEvento(id, funcionarioId, resultado) {
   return diarioFinalizarEventos([id], funcionarioId, resultado);
@@ -12425,14 +12361,47 @@ async function diarioFinalizarEventos(ids, funcionarioId, resultado) {
   else await diarioAtualizarBadge();
 }
 
-window.diarioMarcarConferido = async function diarioMarcarConferido(id, resultado) {
+window.diarioReativarNomeacao = async function diarioReativarNomeacao(id) {
   const e = (window._diarioEventosCache || []).find((x) => Number(x.id) === Number(id));
-  if (!e) return;
+  const pareado = diarioEventoPareado(e);
+  const funcionarioId = Number(e?.funcionario_id || pareado?.funcionario_id || 0);
+  if (!funcionarioId) return;
+  const nome = e.funcionario_nome || e.nome || 'Servidor(a)';
+  const dadosCargo = diarioSepararCargoSimbologia(e);
+  if (!confirm(
+    `CONFIRMAR REATIVAÇÃO\n\n“${nome}” está inativo no cadastro e foi nomeado no Diário Oficial (edição ${e.edicao || '—'}).\n\n` +
+    `O servidor voltará ao quadro ativo na última lotação${dadosCargo.cargo ? ` com o cargo ${dadosCargo.cargo}` : ''}.\n\n` +
+    'Clique em OK para confirmar.'
+  )) return;
   try {
-    await diarioFinalizarEvento(e.id, e.funcionario_id, resultado || 'Conferido pelo RH');
-    showToast('Publicação marcada como conferida.', 'success');
+    const dataAto = e.data_ato || e.data_publicacao || agoraSaoLuis().data;
+    const { data, error } = await sb.rpc('fn_reativar_funcionario', {
+      p_funcionario_id: funcionarioId,
+      p_data_reativacao: dataAto
+    });
+    if (error) throw error;
+    if (dadosCargo.cargo) {
+      const { error: errCargo } = await sb.from('funcionarios')
+        .update({ cargo: dadosCargo.cargo, simbologia: dadosCargo.simbologia || null })
+        .eq('id', funcionarioId);
+      if (errCargo) throw errCargo;
+    }
+    await registrarLog('REATIVAÇÃO — NOMEAÇÃO NO DIÁRIO OFICIAL', funcionarioId, nome, {
+      data_reativacao: dataAto,
+      cargo_anterior: e.funcionario_cargo || null,
+      cargo_novo: dadosCargo.cargo || null,
+      edicao_diario: e.edicao || null,
+      link_ato: e.link || null,
+      sem_lotacao: !!data?.sem_lotacao
+    });
+    gsInvalidarCache();
+    invalidarCacheFiltros();
+    await diarioFinalizarEventos([e.id, pareado?.id], funcionarioId, 'servidor reativado pela nomeação');
+    showToast(data?.sem_lotacao
+      ? `${nome} foi reativado, mas não tinha lotação anterior e foi para Sem Lotação.`
+      : `${nome} foi reativado.`, data?.sem_lotacao ? 'warning' : 'success');
   } catch (err) {
-    showToast('Erro ao concluir publicação: ' + (err.message || err), 'error');
+    showToast('Erro ao reativar servidor: ' + (err.message || err), 'error');
   }
 };
 
