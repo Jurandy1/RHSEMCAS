@@ -1207,7 +1207,69 @@
       line-height: 1.45;
     }
     .badge-nomeacao { background: #e3f5e5; color: var(--gov-green); }
+    .badge-promocao { background: #e7f0ff; color: var(--gov-blue-primary); }
+    .badge-movimentacao { background: #e8f1fb; color: #164c83; }
     .badge-exoneracao { background: #fde8e5; color: var(--gov-red); }
+    .nav-count-badge {
+      margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border-radius: 999px; background: var(--gov-orange, #ed7b2f); color: #fff;
+      font-size: 11px; font-weight: 800; line-height: 1;
+    }
+    .diario-page-head {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 16px; margin-bottom: 18px;
+    }
+    .diario-kpis {
+      display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr));
+      gap: 12px; margin-bottom: 16px;
+    }
+    .diario-kpi {
+      position: relative; overflow: hidden; display: grid; gap: 3px;
+      padding: 15px 16px; background: #fff; border: 1px solid var(--gov-border);
+      border-left: 4px solid var(--gov-orange, #ed7b2f); border-radius: 8px;
+      box-shadow: var(--shadow-sm);
+    }
+    .diario-kpi span { color: var(--color-text-sec); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+    .diario-kpi strong { color: var(--gov-blue-dark); font: 800 28px/1.1 var(--font-heading); }
+    .diario-kpi small { color: var(--color-text-muted); font-size: 11px; }
+    .diario-kpi--green { border-left-color: var(--gov-green, #168821); }
+    .diario-kpi--blue { border-left-color: var(--gov-blue-primary, #1351b4); }
+    .diario-kpi--red { border-left-color: var(--gov-red, #e52207); }
+    .diario-filter-bar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
+    .diario-filter-bar .search-wrap { flex: 1; min-width: 240px; }
+    .diario-filter-bar select { width: auto; min-width: 180px; }
+    .diario-table td { vertical-align: middle; }
+    .diario-servidor-match { display: grid; gap: 2px; }
+    .diario-servidor-match strong { color: var(--gov-green, #168821); }
+    .diario-servidor-match small, .diario-publicacao-meta { color: var(--color-text-muted); }
+    .diario-sem-match { display: grid; gap: 5px; color: var(--gov-orange, #b45309); font-size: 12px; }
+    .diario-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .diario-actions .btn-primary, .diario-actions .btn-secondary, .diario-actions .btn-outline { padding: 6px 9px; font-size: 11px; white-space: nowrap; }
+    .diario-status { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 4px 8px; font-size: 11px; font-weight: 700; }
+    .diario-status--pendente { background: #fff3cd; color: #7a4d00; }
+    .diario-status--processado { background: #e3f5e5; color: #116b1b; }
+    .diario-row-pareada td { background: rgba(19, 81, 180, .035); }
+    .diario-pair-note { display: block; margin-top: 5px; color: #164c83; font-size: 10px; line-height: 1.25; }
+    .diario-match-list { display: grid; gap: 8px; max-height: 330px; overflow-y: auto; margin-top: 12px; }
+    .diario-match-item {
+      width: 100%; display: flex; justify-content: space-between; gap: 12px;
+      text-align: left; padding: 11px 12px; border: 1px solid var(--gov-border);
+      border-radius: 7px; background: #fff; cursor: pointer; color: var(--color-text);
+    }
+    .diario-match-item:hover, .diario-match-item:focus { border-color: var(--gov-blue-primary); background: var(--gov-blue-light, #edf5ff); }
+    .diario-match-item small { color: var(--color-text-muted); }
+    .diario-promocao-resumo { display: grid; gap: 10px; padding: 12px; margin-bottom: 16px; background: var(--gov-bg-light, #f7fafc); border-radius: 8px; }
+    .diario-promocao-resumo div { display: grid; gap: 2px; }
+    .diario-promocao-resumo span { color: var(--color-text-muted); font-size: 11px; text-transform: uppercase; font-weight: 700; }
+    .diario-modal-note { margin: 14px 0 0; color: var(--color-text-muted); font-size: 12px; line-height: 1.45; }
+    @media (max-width: 900px) {
+      .diario-kpis { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+      .diario-page-head, .diario-filter-bar { align-items: stretch; flex-direction: column; }
+      .diario-filter-bar select { width: 100%; }
+      .diario-table-wrap { overflow-x: auto; }
+      .diario-table { min-width: 1050px; }
+    }
     .stat { position: relative; }
 
     /* ─── DASHBOARD MELHORADO ─── */

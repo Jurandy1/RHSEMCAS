@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
   
-  <link rel="stylesheet" href="css/styles.css?v=20261104b">
+  <link rel="stylesheet" href="css/styles.css?v=20261106d">
 </head>
 <body>
 
@@ -85,6 +85,10 @@
       </a>
       <a href="#funcionarios" class="nav-item" data-route="funcionarios">
         <i class="ti ti-users"></i> Funcionários
+      </a>
+      <a href="#diario-oficial" class="nav-item" data-route="diario-oficial">
+        <i class="ti ti-news"></i> Diário Oficial
+        <span id="badge-diario-oficial" class="nav-count-badge" hidden></span>
       </a>
       <a href="#locais" class="nav-item" data-route="locais">
         <i class="ti ti-map-pin"></i> Locais
@@ -319,6 +323,63 @@
             <div class="page-info" id="page-info">—</div>
             <div class="page-controls" id="page-controls"></div>
           </div>
+        </div>
+      </section>
+
+      <!-- ===== DIÁRIO OFICIAL ===== -->
+      <section id="view-diario-oficial" class="view-section">
+        <div class="diario-page-head">
+          <div>
+            <div class="row-label" style="margin:0"><i class="ti ti-news"></i> Diário Oficial — movimentações SEMCAS</div>
+            <p class="view-help" style="margin:6px 0 0">Nomeações, promoções e exonerações ficam registradas aqui. O sistema confere o nome no cadastro antes de liberar cada ação.</p>
+          </div>
+          <button type="button" class="btn-primary" id="diario-btn-atualizar" onclick="diarioAtualizarUltimasDuasSemanas()">
+            <i class="ti ti-calendar-search"></i> Buscar últimas 2 semanas
+          </button>
+        </div>
+
+        <div class="diario-kpis" id="diario-kpis">
+          <div class="diario-kpi"><span>Pendentes</span><strong id="diario-kpi-pendentes">0</strong><small>aguardando ação do RH</small></div>
+          <div class="diario-kpi diario-kpi--green"><span>Nomeações</span><strong id="diario-kpi-nomeacoes">0</strong><small>últimas publicações</small></div>
+          <div class="diario-kpi diario-kpi--blue"><span>Promoções</span><strong id="diario-kpi-promocoes">0</strong><small>mudanças de cargo</small></div>
+          <div class="diario-kpi diario-kpi--red"><span>Exonerações</span><strong id="diario-kpi-exoneracoes">0</strong><small>últimas publicações</small></div>
+        </div>
+
+        <div class="filter-bar diario-filter-bar">
+          <div class="search-wrap">
+            <i class="ti ti-search"></i>
+            <input type="search" id="diario-filtro-busca" class="form-control" placeholder="Buscar nome, cargo ou edição…" oninput="diarioAplicarFiltros()">
+          </div>
+          <select id="diario-filtro-tipo" class="form-control" onchange="diarioAplicarFiltros()" aria-label="Filtrar por tipo de ato">
+            <option value="">Todos os atos</option>
+            <option value="nomeacao">Nomeações</option>
+            <option value="promocao">Promoções</option>
+            <option value="exoneracao">Exonerações</option>
+          </select>
+          <select id="diario-filtro-status" class="form-control" onchange="diarioAplicarFiltros()" aria-label="Filtrar por situação">
+            <option value="">Todas as situações</option>
+            <option value="pendente">Pendentes</option>
+            <option value="processado">Processados</option>
+          </select>
+        </div>
+
+        <div class="table-container diario-table-wrap">
+          <table class="gov-table diario-table">
+            <thead>
+              <tr>
+                <th style="width:120px">Ato</th>
+                <th>Servidor publicado</th>
+                <th>Cadastro no RH</th>
+                <th>Cargo / simbologia</th>
+                <th style="width:145px">Publicação</th>
+                <th style="width:120px">Situação</th>
+                <th style="width:190px">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-diario-oficial">
+              <tr><td colspan="7" class="empty-state"><span class="spinner"></span> Carregando publicações…</td></tr>
+            </tbody>
+          </table>
         </div>
       </section>
 
@@ -1932,7 +1993,9 @@
         </div>
         <div class="form-group">
           <label class="form-label">Cargo</label>
-          <input type="text" class="form-control" id="add-cargo" placeholder="Ex.: cargo da folha / denominação">
+          <input type="text" class="form-control" id="add-cargo" list="cargos-cadastrados" placeholder="Ex.: cargo da folha / denominação">
+          <small id="add-cargo-status" style="display:block;margin-top:4px;color:var(--color-text-muted)"></small>
+          <datalist id="cargos-cadastrados"></datalist>
         </div>
         <div class="form-group">
           <label class="form-label">Função</label>
@@ -2257,7 +2320,7 @@
         </div>
         <div class="form-group">
           <label class="form-label">Cargo</label>
-          <input type="text" class="form-control" id="edit-cargo" placeholder="Ex.: cargo da folha / denominação">
+          <input type="text" class="form-control" id="edit-cargo" list="cargos-cadastrados" placeholder="Ex.: cargo da folha / denominação">
         </div>
         <div class="form-group">
           <label class="form-label">Função</label>
@@ -2412,7 +2475,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20261104b"></script>
+  <script type="module" src="js/app.js?v=20261106d"></script>
 
 
 
@@ -2791,7 +2854,58 @@
       </div>
     </div>
     <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+      <button type="button" class="btn-secondary" onclick="fecharModalDiarioSemcas(); location.hash='#diario-oficial'">Abrir Diário Oficial</button>
       <button type="button" class="btn-primary" onclick="fecharModalDiarioSemcas()">Ciente</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · VINCULAR PUBLICAÇÃO A SERVIDOR -->
+<div class="modal-overlay" id="modal-diario-vincular">
+  <div class="modal-content" style="max-width:620px">
+    <div class="modal-header">
+      <div class="modal-title"><i class="ti ti-user-search"></i> Localizar servidor no cadastro</div>
+      <button class="modal-close" onclick="closeModal('modal-diario-vincular')" aria-label="Fechar"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="diario-vincular-id">
+      <p class="modal-diario-semcas-intro">Publicação para <strong id="diario-vincular-nome">—</strong>. Selecione a pessoa correta para habilitar a ação do ato.</p>
+      <div class="search-wrap diario-vincular-search">
+        <i class="ti ti-search"></i>
+        <input type="search" id="diario-vincular-busca" class="form-control" placeholder="Digite nome ou matrícula…" autocomplete="off">
+      </div>
+      <div id="diario-vincular-resultados" class="diario-match-list" role="listbox"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · PROMOVER CARGO PELO DIÁRIO -->
+<div class="modal-overlay" id="modal-diario-promover">
+  <div class="modal-content" style="max-width:540px">
+    <div class="modal-header">
+      <div class="modal-title" id="diario-promover-titulo"><i class="ti ti-arrows-exchange"></i> Confirmar mudança de cargo</div>
+      <button class="modal-close" onclick="closeModal('modal-diario-promover')" aria-label="Fechar"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="diario-promover-id">
+      <input type="hidden" id="diario-promover-funcionario-id">
+      <div class="diario-promocao-resumo">
+        <div><span>Servidor</span><strong id="diario-promover-nome">—</strong></div>
+        <div><span>Cargo atual</span><strong id="diario-promover-atual">—</strong></div>
+      </div>
+      <div class="form-group full-width">
+        <label class="form-label" for="diario-promover-cargo">Novo cargo *</label>
+        <input type="text" id="diario-promover-cargo" class="form-control">
+      </div>
+      <div class="form-group full-width" style="margin-top:12px">
+        <label class="form-label" for="diario-promover-simbologia">Nova simbologia</label>
+        <input type="text" id="diario-promover-simbologia" class="form-control" placeholder="Ex.: DAS-5">
+      </div>
+      <p class="diario-modal-note"><i class="ti ti-database"></i> O cargo anterior ficará registrado no histórico do sistema e este ato será marcado como processado.</p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary" onclick="closeModal('modal-diario-promover')">Cancelar</button>
+      <button type="button" class="btn-primary" id="diario-btn-confirmar-promocao" onclick="diarioConfirmarPromocao()">Confirmar alteração</button>
     </div>
   </div>
 </div>

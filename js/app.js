@@ -22,16 +22,24 @@ const $$ = (sel, root = document) => root.querySelectorAll(sel);
 
 const SIMBOLOGIAS = [
   'DAS',
-  'DAS 1', 'DAS 2', 'DAS 3', 'DAS 4', 'DAS 5', 'DAS 6', 'DAS 7',
-  'DAI 1', 'DAI 2', 'DAI 3', 'DAI 4', 'DAI 5'
+  'DAS-1', 'DAS-2', 'DAS-3', 'DAS-4', 'DAS-5', 'DAS-6', 'DAS-7',
+  'DAI-1', 'DAI-2', 'DAI-3', 'DAI-4', 'DAI-5'
 ];
+
+function normalizarSimbologia(valor = '') {
+  const limpo = String(valor || '').trim().toUpperCase();
+  if (limpo === 'DAS') return 'DAS';
+  const m = limpo.match(/\b(DA[SI])\s*[-–— ]?\s*(\d+)\b/);
+  return m ? `${m[1]}-${m[2]}` : '';
+}
 
 function popularSelectSimbologia(selectId, valor = '') {
   const el = $(selectId);
   if (!el) return;
   el.innerHTML = '<option value="">— Sem simbologia —</option>' +
     SIMBOLOGIAS.map(s => `<option value="${s}">${s}</option>`).join('');
-  el.value = valor && SIMBOLOGIAS.includes(valor) ? valor : '';
+  const normalizada = normalizarSimbologia(valor);
+  el.value = normalizada && SIMBOLOGIAS.includes(normalizada) ? normalizada : '';
 }
 
 // ── Fotos dos servidores (Supabase Storage) ──
@@ -342,7 +350,7 @@ function initFuncionarioFotoUi() {
 }
 
 const state = {
-  vinculos: [], turnos: [], lotacoes: [], funcoes: [],
+  vinculos: [], turnos: [], lotacoes: [], funcoes: [], cargos: [],
   filtros: { busca: '', vinculo_id: null, lotacao_id: null, funcoes: [], turno_id: null },
   sort: { col: 'nome', dir: 'asc' },
   page: 1, pageSize: 15, total: 0,
@@ -433,6 +441,7 @@ async function bootApp() {
     }
     atualizarBadgesSemLotacaoExonerados();
     atualizarAlertasLicenca();
+    diarioAtualizarBadge();
     iniciarMonitorDiarioSemcas();
   } catch (e) {
     _appBooted = false;
@@ -1541,11 +1550,12 @@ $('sidebar-overlay').addEventListener('click', closeSidebarMobile);
 // ║                  CARGA INICIAL DE DOMÍNIOS                    ║
 // ╚══════════════════════════════════════════════════════════════╝
 async function carregarDominios() {
-  const [vRes, tRes, lRes, fRes] = await Promise.all([
+  const [vRes, tRes, lRes, fRes, cRes] = await Promise.all([
     sb.from('vinculos').select('id, categoria').order('categoria'),
     sb.from('turnos').select('id, nome').order('nome'),
     sb.from('v_lotacoes_com_count').select('*').range(0, 9999).order('nome'),
-    sb.from('v_funcoes').select('funcao')
+    sb.from('v_funcoes').select('funcao'),
+    sb.from('funcionarios').select('cargo').not('cargo', 'is', null).order('cargo').range(0, 9999)
   ]);
 
   if (vRes.error) console.warn('Nenhum vínculo carregado — verifique a tabela vinculos e as permissões RLS');
@@ -1554,6 +1564,8 @@ async function carregarDominios() {
   state.turnos   = tRes.data  || [];
   state.lotacoes = filtrarLotacoesState(lRes.data || []);
   state.funcoes  = fRes?.data || [];
+  state.cargos   = [...new Set((cRes?.data || []).map((x) => String(x.cargo || '').trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
   const listaFuncoes = $('funcoes-cadastradas');
   if (listaFuncoes) {
@@ -1561,6 +1573,10 @@ async function carregarDominios() {
       .sort((a, b) => a.localeCompare(b, 'pt-BR'))
       .map(funcao => `<option value="${htmlEscape(funcao)}"></option>`)
       .join('');
+  }
+  const listaCargos = $('cargos-cadastrados');
+  if (listaCargos) {
+    listaCargos.innerHTML = state.cargos.map((cargo) => `<option value="${htmlEscape(cargo)}"></option>`).join('');
   }
 
   $('f-vinculo').innerHTML = '<option value="">Todos os vínculos</option>' +
@@ -2955,6 +2971,10 @@ $('btn-confirmar-remover')?.addEventListener('click', async () => {
         tipo_saida: tipo,
         motivo: motivo || null
       });
+      if (window._diarioAcaoPendente?.acao === 'exoneracao') {
+        await diarioFinalizarEvento(window._diarioAcaoPendente.id, id, 'exonerado');
+        window._diarioAcaoPendente = null;
+      }
       const toastOk = {
         EXONERACAO: 'Servidor marcado como exonerado.',
         DEMISSAO_TERCEIRIZADO: 'Demissão de terceirizado/CLT registrada.',
@@ -2987,6 +3007,7 @@ window.abrirModalAddFuncionario = () => {
   $('add-telefone').value = '';
   $('add-funcao').value = '';
   if ($('add-cargo')) $('add-cargo').value = '';
+  if ($('add-cargo-status')) $('add-cargo-status').textContent = '';
   $('add-ano').value = '';
   if ($('add-empresa')) $('add-empresa').value = '';
   if ($('add-empresa-atuacao')) $('add-empresa-atuacao').value = '';
@@ -3487,6 +3508,10 @@ $('btn-salvar-add').onclick = async () => {
     recebido_outra_secretaria: outraSec || false,
     orgao_origem: orgaoOrigem || null
   });
+  if (window._diarioAcaoPendente?.acao === 'nomeacao') {
+    await diarioFinalizarEvento(window._diarioAcaoPendente.id, funcData.id, 'cadastrado');
+    window._diarioAcaoPendente = null;
+  }
   showToast(
     outraSec
       ? 'Servidor cadastrado e incluído em Cedidos/Recebidos (RECEBIDO).'
@@ -5438,6 +5463,7 @@ if (typeof rotas !== 'undefined') {
   rotas.lotacoes     = { titulo: 'Gestão de Lotações',     bread: 'Lotações',     render: renderLotacoes };
   rotas['sem-lotacao'] = { titulo: 'Servidores sem Lotação', bread: 'Sem Lotação', render: renderSemLotacao };
   rotas.exonerados   = { titulo: 'Exonerados e Demitidos', bread: 'Exonerados e Demitidos', render: renderExonerados };
+  rotas['diario-oficial'] = { titulo: 'Diário Oficial', bread: 'Diário Oficial', render: renderDiarioOficial };
   rotas['relatorio-api'] = { titulo: 'Conferência GIAP', bread: 'Conferência GIAP', render: renderRelatorioApi };
   rotas['giap-rastreio'] = {
     titulo: 'Auditoria de Saídas GIAP',
@@ -11976,6 +12002,7 @@ async function verificarDiarioSemcas(filtro, { forcar = false } = {}) {
   _diarioBuscando = true;
   try {
     const r = await buscarDiarioSemcas(filtro);
+    if (r.atos?.length) await diarioPersistirAtosCliente(r.atos);
     const hoje = agoraSaoLuis().data;
     if (r.edicoes?.some((e) => e.data === hoje)) diarioStorage('diario-semcas-concluido', hoje);
     const vistos = new Set(diarioStorage(diarioChaveVistos()) || []);
@@ -11994,9 +12021,11 @@ function abrirModalDiarioSemcas(atos) {
     .sort((a, b) => b.data_publicacao.localeCompare(a.data_publicacao));
   const lista = _diarioExibindo;
   const nNom = lista.filter((a) => a.acao === 'nomeacao').length;
-  const nExo = lista.length - nNom;
+  const nPro = lista.filter((a) => a.acao === 'promocao').length;
+  const nExo = lista.filter((a) => a.acao === 'exoneracao').length;
   const partes = [];
   if (nNom) partes.push(`${nNom} ${nNom === 1 ? 'nomeação' : 'nomeações'}`);
+  if (nPro) partes.push(`${nPro} ${nPro === 1 ? 'promoção' : 'promoções'}`);
   if (nExo) partes.push(`${nExo} ${nExo === 1 ? 'exoneração' : 'exonerações'}`);
   const edicoes = [...new Set(lista.map((a) => `${a.edicao} (${fmtDataBr(a.data_publicacao)})`))].join(', ');
   $('diario-semcas-intro').textContent =
@@ -12004,7 +12033,9 @@ function abrirModalDiarioSemcas(atos) {
   $('tbody-diario-semcas').innerHTML = lista.map((a) => {
     const tipo = a.acao === 'nomeacao'
       ? '<span class="badge badge-nomeacao"><i class="ti ti-user-plus"></i> Nomeação</span>'
-      : '<span class="badge badge-exoneracao"><i class="ti ti-user-minus"></i> Exoneração</span>';
+      : (a.acao === 'promocao'
+        ? '<span class="badge badge-promocao"><i class="ti ti-trending-up"></i> Promoção</span>'
+        : '<span class="badge badge-exoneracao"><i class="ti ti-user-minus"></i> Exoneração</span>');
     const cargo = a.cargo
       ? `${htmlEscape(a.cargo)}${a.simbologia ? ` <small style="color:var(--color-text-muted)">(${htmlEscape(a.simbologia)})</small>` : ''}`
       : '<span style="color:var(--color-text-muted)">ver ato</span>';
@@ -12048,6 +12079,491 @@ function iniciarMonitorDiarioSemcas() {
 
 // Teste manual no console: verificarDiarioSemcas('2026-10-07')
 window.verificarDiarioSemcas = (data = agoraSaoLuis().data) => verificarDiarioSemcas({ data }, { forcar: true });
+
+// ─── PÁGINA DIÁRIO OFICIAL · histórico e ações do RH ────────────────────────
+window._diarioEventosCache = [];
+window._diarioAcaoPendente = null;
+
+function diarioTipoInfo(acao) {
+  return {
+    nomeacao: { label: 'Nomeação', icon: 'ti-user-plus', classe: 'badge-nomeacao' },
+    promocao: { label: 'Promoção', icon: 'ti-trending-up', classe: 'badge-promocao' },
+    exoneracao: { label: 'Exoneração', icon: 'ti-user-minus', classe: 'badge-exoneracao' }
+  }[acao] || { label: acao || 'Ato', icon: 'ti-file-text', classe: '' };
+}
+
+function diarioNormalizar(txt) {
+  return String(txt || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
+function diarioChavePessoaEdicao(evento) {
+  const nome = diarioNormalizar(evento?.nome);
+  const pessoa = nome ? `nome:${nome}` : `id:${evento?.funcionario_id || ''}`;
+  const publicacao = String(evento?.data_publicacao || evento?.data_ato || '').slice(0, 10);
+  const edicao = diarioNormalizar(evento?.edicao || '');
+  return pessoa && publicacao ? `${pessoa}|${publicacao}|${edicao}` : '';
+}
+
+/** Exoneração + nomeação da mesma pessoa na mesma edição = troca de cargo, não saída. */
+function diarioEventoPareado(evento, lista = window._diarioEventosCache || []) {
+  if (!evento || !['nomeacao', 'exoneracao'].includes(evento.acao)) return null;
+  const chave = diarioChavePessoaEdicao(evento);
+  if (!chave) return null;
+  const oposta = evento.acao === 'nomeacao' ? 'exoneracao' : 'nomeacao';
+  return lista.find((outro) => Number(outro.id) !== Number(evento.id)
+    && outro.acao === oposta
+    && diarioChavePessoaEdicao(outro) === chave) || null;
+}
+
+function diarioContarPendencias(lista) {
+  const pendentes = (lista || []).filter((e) => e.status === 'pendente');
+  const pares = new Set();
+  let avulsos = 0;
+  for (const e of pendentes) {
+    const par = diarioEventoPareado(e, pendentes);
+    if (par) pares.add([Number(e.id), Number(par.id)].sort((a, b) => a - b).join(':'));
+    else avulsos += 1;
+  }
+  return avulsos + pares.size;
+}
+
+function diarioSepararCargoSimbologia(ato = {}) {
+  const cargoOriginal = String(ato.cargo || '').trim();
+  const simbologia = normalizarSimbologia(ato.simbologia)
+    || normalizarSimbologia(cargoOriginal);
+  const cargo = cargoOriginal
+    .replace(/\s*(?:[·|,;/-]\s*)?(?:simbologia\s+)?DA[SI]\s*[-–— ]?\s*\d+\b.*$/i, '')
+    .replace(/[\s·|,;/-]+$/g, '')
+    .trim();
+  return { cargo: cargo || cargoOriginal || null, simbologia: simbologia || null };
+}
+
+function diarioCargoJaCadastrado(cargo) {
+  const alvo = diarioNormalizar(cargo);
+  if (!alvo) return null;
+  return (state.cargos || []).find((item) => diarioNormalizar(item) === alvo) || null;
+}
+
+function atualizarStatusCargoCadastro() {
+  const status = $('add-cargo-status');
+  const valor = $('add-cargo')?.value || '';
+  if (!status) return;
+  const existente = diarioCargoJaCadastrado(valor);
+  status.textContent = !valor
+    ? ''
+    : (existente ? 'Cargo já disponível no cadastro.' : 'Cargo novo — confira a denominação antes de cadastrar.');
+  status.style.color = existente ? 'var(--gov-green)' : 'var(--gov-orange, #b45309)';
+}
+
+$('add-cargo')?.addEventListener('input', atualizarStatusCargoCadastro);
+
+/**
+ * Fallback para a versão da Edge Function que ainda só consulta o Diário.
+ * O upsert não envia status/resultado, portanto nunca reabre atos já processados.
+ */
+async function diarioPersistirAtosCliente(atos) {
+  const rows = (atos || []).filter((a) => a?.id).map((a) => {
+    const dadosCargo = diarioSepararCargoSimbologia(a);
+    return {
+      source_id: String(a.id),
+      acao: a.acao,
+      nome: a.nome || null,
+      cargo: dadosCargo.cargo,
+      simbologia: dadosCargo.simbologia,
+      data_ato: a.data_ato || a.data_publicacao,
+      data_publicacao: a.data_publicacao,
+      edicao: String(a.edicao || ''),
+      titulo: a.titulo || 'Ato do Diário Oficial',
+      link: a.link || 'https://diariooficial.saoluis.ma.gov.br/'
+    };
+  });
+  if (!rows.length) return true;
+  const { error } = await sb.from('diario_oficial_eventos').upsert(rows, { onConflict: 'source_id' });
+  if (error) {
+    console.warn('Não foi possível gravar os atos do Diário:', error.message);
+    return false;
+  }
+  return true;
+}
+
+async function diarioAtualizarBadge() {
+  const badge = $('badge-diario-oficial');
+  if (!badge) return;
+  const { data, error } = await sb.from('diario_oficial_eventos')
+    .select('id, acao, nome, funcionario_id, data_ato, data_publicacao, edicao, status')
+    .eq('status', 'pendente');
+  if (error) {
+    badge.hidden = true;
+    return;
+  }
+  const total = diarioContarPendencias(data || []);
+  badge.textContent = String(total);
+  badge.hidden = !(total > 0);
+}
+
+async function carregarDiarioOficial() {
+  const tbody = $('tbody-diario-oficial');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><span class="spinner"></span> Carregando publicações…</td></tr>';
+  const { data, error } = await sb.from('v_diario_oficial_eventos')
+    .select('*')
+    .order('data_publicacao', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(500);
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Não foi possível abrir o histórico do Diário Oficial.<br><small>Execute <code>sql/diario_oficial_eventos.sql</code> no Supabase. ${htmlEscape(error.message)}</small></td></tr>`;
+    return;
+  }
+  window._diarioEventosCache = data || [];
+  diarioAplicarFiltros();
+  await diarioAtualizarBadge();
+}
+
+function diarioRenderKpis(lista) {
+  const todos = window._diarioEventosCache || [];
+  const pares = new Set();
+  for (const e of todos) {
+    const par = diarioEventoPareado(e, todos);
+    if (par) pares.add([Number(e.id), Number(par.id)].sort((a, b) => a - b).join(':'));
+  }
+  const pendentes = diarioContarPendencias(todos);
+  if ($('diario-kpi-pendentes')) $('diario-kpi-pendentes').textContent = pendentes.toLocaleString('pt-BR');
+  if ($('diario-kpi-nomeacoes')) $('diario-kpi-nomeacoes').textContent = todos.filter((x) => x.acao === 'nomeacao' && !diarioEventoPareado(x, todos)).length.toLocaleString('pt-BR');
+  if ($('diario-kpi-promocoes')) $('diario-kpi-promocoes').textContent = (todos.filter((x) => x.acao === 'promocao').length + pares.size).toLocaleString('pt-BR');
+  if ($('diario-kpi-exoneracoes')) $('diario-kpi-exoneracoes').textContent = todos.filter((x) => x.acao === 'exoneracao' && !diarioEventoPareado(x, todos)).length.toLocaleString('pt-BR');
+}
+
+function diarioAcoesHtml(e) {
+  if (e.status === 'processado') {
+    return `<span class="diario-publicacao-meta">${htmlEscape(e.resultado || 'Conferido')}</span>`;
+  }
+  const pareado = diarioEventoPareado(e);
+  const funcionarioId = e.funcionario_id || pareado?.funcionario_id || null;
+  const temCadastro = !!funcionarioId;
+  const ativo = e.funcionario_ativo !== false && pareado?.funcionario_ativo !== false;
+  const botoes = [];
+  if (!temCadastro) {
+    botoes.push(`<button type="button" class="btn-secondary" onclick="diarioAbrirVinculo(${e.id})"><i class="ti ti-user-search"></i> Localizar</button>`);
+  }
+  if (pareado && e.acao === 'exoneracao') {
+    botoes.push('<span class="diario-publicacao-meta"><i class="ti ti-link"></i> Vinculado ao novo cargo</span>');
+  } else if (pareado && e.acao === 'nomeacao' && temCadastro) {
+    botoes.push(`<button type="button" class="btn-primary" onclick="diarioAbrirPromocao(${e.id})"><i class="ti ti-arrows-exchange"></i> Alterar cargo</button>`);
+  } else if (e.acao === 'nomeacao') {
+    if (!temCadastro) {
+      botoes.push(`<button type="button" class="btn-primary" onclick="diarioCadastrarNomeacao(${e.id})"><i class="ti ti-user-plus"></i> Adicionar servidor</button>`);
+    } else {
+      botoes.push(`<button type="button" class="btn-primary" onclick="diarioMarcarConferido(${e.id}, 'Nomeação conferida — servidor já cadastrado')"><i class="ti ti-check"></i> Conferir</button>`);
+    }
+  } else if (e.acao === 'promocao' && temCadastro) {
+    botoes.push(`<button type="button" class="btn-primary" onclick="diarioAbrirPromocao(${e.id})"><i class="ti ti-trending-up"></i> Promover</button>`);
+  } else if (e.acao === 'exoneracao' && temCadastro && ativo) {
+    botoes.push(`<button type="button" class="btn-primary" style="background:var(--gov-red)" onclick="diarioExonerar(${e.id})"><i class="ti ti-user-off"></i> Exonerar</button>`);
+  } else if (e.acao === 'exoneracao' && temCadastro && !ativo) {
+    botoes.push(`<button type="button" class="btn-primary" onclick="diarioMarcarConferido(${e.id}, 'Exoneração conferida — servidor já estava inativo')"><i class="ti ti-check"></i> Conferir</button>`);
+  }
+  return botoes.join('');
+}
+
+function diarioRenderTabela(lista) {
+  const tbody = $('tbody-diario-oficial');
+  if (!tbody) return;
+  if (!lista.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Nenhuma publicação encontrada com esses filtros.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = lista.map((e) => {
+    const pareado = diarioEventoPareado(e);
+    const tipo = pareado
+      ? (e.acao === 'exoneracao'
+        ? { label: 'Saída do cargo', icon: 'ti-briefcase-off', classe: 'badge-movimentacao' }
+        : { label: 'Novo cargo', icon: 'ti-arrows-exchange', classe: 'badge-movimentacao' })
+      : diarioTipoInfo(e.acao);
+    const dadosCargo = diarioSepararCargoSimbologia(e);
+    const cadastro = e.funcionario_id
+      ? `<div class="diario-servidor-match"><strong><i class="ti ti-circle-check-filled"></i> ${htmlEscape(e.funcionario_nome || e.nome || 'Servidor')}</strong><small>${htmlEscape(e.funcionario_matricula ? `Matrícula ${e.funcionario_matricula}` : 'Sem matrícula')}${e.funcionario_ativo === false ? ' · inativo' : ''}</small></div>`
+      : `<div class="diario-sem-match"><span><i class="ti ti-alert-circle"></i> Nome não localizado</span></div>`;
+    const cargo = [dadosCargo.cargo, dadosCargo.simbologia].filter(Boolean).map(htmlEscape).join(' · ') || '<span class="diario-publicacao-meta">Não informado no ato</span>';
+    const status = e.status === 'processado'
+      ? '<span class="diario-status diario-status--processado"><i class="ti ti-check"></i> Processado</span>'
+      : '<span class="diario-status diario-status--pendente"><i class="ti ti-clock"></i> Pendente</span>';
+    const notaPareada = pareado
+      ? `<small class="diario-pair-note">${e.acao === 'exoneracao' ? 'Não inativa: há nomeação na mesma edição' : 'Mudança de cargo na mesma edição'}</small>`
+      : '';
+    return `<tr class="${pareado ? 'diario-row-pareada' : ''}">
+      <td><span class="badge ${tipo.classe}"><i class="ti ${tipo.icon}"></i> ${tipo.label}</span></td>
+      <td><strong>${htmlEscape(e.nome || 'Ver ato original')}</strong></td>
+      <td>${cadastro}</td>
+      <td>${cargo}</td>
+      <td>${fmtDataBr(e.data_ato)}<br><small class="diario-publicacao-meta">Edição ${htmlEscape(e.edicao || '—')} · <a href="${htmlEscape(e.link)}" target="_blank" rel="noopener">abrir ato</a></small></td>
+      <td>${status}${notaPareada}</td>
+      <td><div class="diario-actions">${diarioAcoesHtml(e)}</div></td>
+    </tr>`;
+  }).join('');
+}
+
+window.diarioAplicarFiltros = function diarioAplicarFiltros() {
+  const busca = diarioNormalizar($('diario-filtro-busca')?.value);
+  const tipo = $('diario-filtro-tipo')?.value || '';
+  const status = $('diario-filtro-status')?.value || '';
+  const lista = (window._diarioEventosCache || []).filter((e) => {
+    const pareado = diarioEventoPareado(e);
+    if (tipo === 'promocao' && e.acao !== 'promocao' && !pareado) return false;
+    if (tipo === 'nomeacao' && (e.acao !== 'nomeacao' || pareado)) return false;
+    if (tipo === 'exoneracao' && (e.acao !== 'exoneracao' || pareado)) return false;
+    if (status && e.status !== status) return false;
+    if (busca && !diarioNormalizar([e.nome, e.cargo, e.simbologia, e.edicao, e.funcionario_nome].join(' ')).includes(busca)) return false;
+    return true;
+  });
+  diarioRenderKpis(lista);
+  diarioRenderTabela(lista);
+};
+
+async function renderDiarioOficial() {
+  await carregarDiarioOficial();
+  const hoje = agoraSaoLuis().data;
+  const chave = `diario-semcas-backfill-14d:${state.usuario?.id || 'anon'}`;
+  if (diarioStorage(chave) !== hoje) {
+    diarioAtualizarUltimasDuasSemanas({ automatico: true }).catch((e) =>
+      console.warn('Retrospecto do Diário Oficial:', e.message || e));
+  }
+}
+
+function diarioDatasUteisUltimos14Dias() {
+  const base = new Date(`${agoraSaoLuis().data}T12:00:00Z`);
+  const datas = [];
+  for (let i = 0; i < 14; i += 1) {
+    const d = new Date(base);
+    d.setUTCDate(base.getUTCDate() - i);
+    const dia = d.getUTCDay();
+    if (dia === 0 || dia === 6) continue; // Diário municipal não publica sábado/domingo
+    datas.push(d.toISOString().slice(0, 10));
+  }
+  return datas;
+}
+
+let _diarioBackfillBuscando = false;
+window.diarioAtualizarUltimasDuasSemanas = async function diarioAtualizarUltimasDuasSemanas({ automatico = false } = {}) {
+  if (_diarioBackfillBuscando) return;
+  _diarioBackfillBuscando = true;
+  const btn = $('diario-btn-atualizar');
+  const datas = diarioDatasUteisUltimos14Dias();
+  let atosEncontrados = 0;
+  let diasComEdicao = 0;
+  const falhas = [];
+  if (btn) btn.disabled = true;
+  try {
+    for (let i = 0; i < datas.length; i += 1) {
+      if (btn) btn.innerHTML = `<i class="ti ti-loader-2"></i> Consultando ${i + 1}/${datas.length}`;
+      try {
+        const r = await buscarDiarioSemcas({ data: datas[i] });
+        // A Edge Function já descarta matérias que não citam SEMCAS; reforço local
+        // não é necessário porque o texto completo do ato fica somente no servidor.
+        if (r.edicoes?.length) diasComEdicao += 1;
+        if (r.atos?.length) {
+          const gravou = await diarioPersistirAtosCliente(r.atos);
+          if (!gravou) throw new Error('banco recusou a gravação');
+          atosEncontrados += r.atos.length;
+        }
+      } catch (e) {
+        falhas.push(`${fmtDataBr(datas[i])}: ${e.message || e}`);
+      }
+    }
+    await carregarDiarioOficial();
+    if (!falhas.length) {
+      diarioStorage(`diario-semcas-backfill-14d:${state.usuario?.id || 'anon'}`, agoraSaoLuis().data);
+    }
+    const msg = `${atosEncontrados} ato(s) da SEMCAS encontrado(s) em ${diasComEdicao} dia(s) com edição nos últimos 14 dias.`;
+    if (!automatico || atosEncontrados || falhas.length) {
+      showToast(falhas.length ? `${msg} ${falhas.length} dia(s) não puderam ser consultados.` : msg, falhas.length ? 'warning' : 'success');
+    }
+  } finally {
+    _diarioBackfillBuscando = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="ti ti-calendar-search"></i> Buscar últimas 2 semanas';
+    }
+  }
+};
+
+window.diarioAtualizarAgora = async function diarioAtualizarAgora() {
+  const btn = $('diario-btn-atualizar');
+  if (btn) btn.disabled = true;
+  try {
+    const r = await buscarDiarioSemcas({ data: agoraSaoLuis().data });
+    if (r.atos?.length) {
+      const gravou = await diarioPersistirAtosCliente(r.atos);
+      if (!gravou) throw new Error('Os atos foram encontrados, mas o banco recusou a gravação. Execute novamente sql/diario_oficial_eventos.sql.');
+    }
+    await carregarDiarioOficial();
+    showToast(r.atos?.length
+      ? `${r.atos.length} ato(s) encontrado(s); histórico atualizado.`
+      : 'A edição de hoje ainda não trouxe movimentações da SEMCAS.', r.atos?.length ? 'success' : 'info');
+  } catch (e) {
+    showToast('Não foi possível consultar o Diário Oficial: ' + (e.message || e), 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+};
+
+async function diarioFinalizarEvento(id, funcionarioId, resultado) {
+  return diarioFinalizarEventos([id], funcionarioId, resultado);
+}
+
+async function diarioFinalizarEventos(ids, funcionarioId, resultado) {
+  const payload = {
+    status: 'processado',
+    resultado,
+    funcionario_id: funcionarioId || null,
+    processado_por: state.usuario?.id || null,
+    processado_em: new Date().toISOString()
+  };
+  const eventoIds = [...new Set((ids || []).map(Number).filter(Boolean))];
+  const { error } = await sb.from('diario_oficial_eventos').update(payload).in('id', eventoIds);
+  if (error) throw error;
+  if (state.rotaAtual === 'diario-oficial') await carregarDiarioOficial();
+  else await diarioAtualizarBadge();
+}
+
+window.diarioMarcarConferido = async function diarioMarcarConferido(id, resultado) {
+  const e = (window._diarioEventosCache || []).find((x) => Number(x.id) === Number(id));
+  if (!e) return;
+  try {
+    await diarioFinalizarEvento(e.id, e.funcionario_id, resultado || 'Conferido pelo RH');
+    showToast('Publicação marcada como conferida.', 'success');
+  } catch (err) {
+    showToast('Erro ao concluir publicação: ' + (err.message || err), 'error');
+  }
+};
+
+window.diarioCadastrarNomeacao = function diarioCadastrarNomeacao(id) {
+  const e = (window._diarioEventosCache || []).find((x) => Number(x.id) === Number(id));
+  if (!e) return;
+  window._diarioAcaoPendente = { id: e.id, acao: 'nomeacao' };
+  abrirModalAddFuncionario();
+  const dadosCargo = diarioSepararCargoSimbologia(e);
+  const cargoExistente = diarioCargoJaCadastrado(dadosCargo.cargo);
+  $('add-nome').value = e.nome || '';
+  $('add-admissao').value = e.data_ato || e.data_publicacao || '';
+  if ($('add-cargo')) $('add-cargo').value = cargoExistente || dadosCargo.cargo || '';
+  if ($('add-cargo-status')) {
+    $('add-cargo-status').textContent = cargoExistente
+      ? 'Cargo já disponível no cadastro — denominação existente reutilizada.'
+      : (dadosCargo.cargo ? 'Cargo novo — confira a denominação antes de cadastrar.' : 'Cargo não identificado no ato.');
+    $('add-cargo-status').style.color = cargoExistente ? 'var(--gov-green)' : 'var(--gov-orange, #b45309)';
+  }
+  popularSelectSimbologia('add-simbologia', dadosCargo.simbologia || '');
+  setTimeout(() => $('add-lotacao')?.focus(), 100);
+};
+
+window.diarioExonerar = async function diarioExonerar(id) {
+  const e = (window._diarioEventosCache || []).find((x) => Number(x.id) === Number(id));
+  if (!e?.funcionario_id) return showToast('Localize o servidor no cadastro antes de exonerar.', 'warning');
+  window._diarioAcaoPendente = { id: e.id, acao: 'exoneracao' };
+  await abrirRemoverServidor(e.funcionario_id);
+  $('rem-tipo-exo').checked = true;
+  $('rem-data-exo').value = e.data_ato || e.data_publicacao || new Date().toISOString().slice(0, 10);
+  $('rem-motivo').value = `Diário Oficial — edição ${e.edicao || ''}`.trim();
+  atualizarCamposRemover();
+};
+
+window.diarioAbrirPromocao = function diarioAbrirPromocao(id) {
+  const e = (window._diarioEventosCache || []).find((x) => Number(x.id) === Number(id));
+  const pareado = diarioEventoPareado(e);
+  const funcionarioId = e?.funcionario_id || pareado?.funcionario_id;
+  if (!funcionarioId) return showToast('Localize o servidor no cadastro antes de alterar o cargo.', 'warning');
+  const dadosCargo = diarioSepararCargoSimbologia(e);
+  const cargoExistente = diarioCargoJaCadastrado(dadosCargo.cargo);
+  $('diario-promover-id').value = e.id;
+  $('diario-promover-funcionario-id').value = funcionarioId;
+  $('diario-promover-nome').textContent = e.funcionario_nome || e.nome || 'Servidor';
+  $('diario-promover-atual').textContent = [e.funcionario_cargo, e.funcionario_simbologia].filter(Boolean).join(' · ') || 'Não informado';
+  $('diario-promover-cargo').value = cargoExistente || dadosCargo.cargo || '';
+  $('diario-promover-simbologia').value = dadosCargo.simbologia || '';
+  $('diario-promover-titulo').innerHTML = pareado
+    ? '<i class="ti ti-arrows-exchange"></i> Confirmar mudança de cargo'
+    : '<i class="ti ti-trending-up"></i> Confirmar promoção de cargo';
+  $('diario-btn-confirmar-promocao').textContent = pareado ? 'Confirmar alteração' : 'Confirmar promoção';
+  openModal('modal-diario-promover');
+};
+
+window.diarioConfirmarPromocao = async function diarioConfirmarPromocao() {
+  const id = Number($('diario-promover-id').value);
+  const funcionarioId = Number($('diario-promover-funcionario-id').value);
+  const cargo = $('diario-promover-cargo').value.trim();
+  const simbologia = $('diario-promover-simbologia').value.trim() || null;
+  if (!id || !funcionarioId || !cargo) return showToast('Informe o novo cargo.', 'warning');
+  const e = (window._diarioEventosCache || []).find((x) => Number(x.id) === id);
+  const pareado = diarioEventoPareado(e);
+  const btn = $('diario-btn-confirmar-promocao');
+  btn.disabled = true;
+  try {
+    const { error } = await sb.from('funcionarios').update({ cargo, simbologia }).eq('id', funcionarioId);
+    if (error) throw error;
+    await registrarLog(pareado ? 'MUDANÇA DE CARGO — DIÁRIO OFICIAL' : 'PROMOÇÃO DE CARGO — DIÁRIO OFICIAL', funcionarioId, e?.funcionario_nome || e?.nome || 'Servidor(a)', {
+      cargo_anterior: e?.funcionario_cargo || null,
+      cargo_novo: cargo,
+      simbologia_anterior: e?.funcionario_simbologia || null,
+      simbologia_nova: simbologia,
+      ato_saida_cargo_id: pareado?.acao === 'exoneracao' ? pareado.id : null,
+      edicao_diario: e?.edicao || null,
+      link_ato: e?.link || null
+    });
+    await diarioFinalizarEventos([id, pareado?.id], funcionarioId, pareado ? 'mudança de cargo processada' : 'cargo promovido');
+    closeModal('modal-diario-promover');
+    showToast(pareado
+      ? 'Mudança de cargo registrada. O servidor permaneceu ativo.'
+      : 'Promoção registrada no cadastro e no histórico.', 'success');
+  } catch (err) {
+    showToast('Erro ao registrar promoção: ' + (err.message || err), 'error');
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+window.diarioAbrirVinculo = function diarioAbrirVinculo(id) {
+  const e = (window._diarioEventosCache || []).find((x) => Number(x.id) === Number(id));
+  if (!e) return;
+  $('diario-vincular-id').value = e.id;
+  $('diario-vincular-nome').textContent = e.nome || 'nome não extraído';
+  $('diario-vincular-busca').value = e.nome || '';
+  $('diario-vincular-resultados').innerHTML = '<div class="empty-state"><span class="spinner"></span> Procurando no cadastro…</div>';
+  openModal('modal-diario-vincular');
+  diarioBuscarVinculos(e.nome || '');
+};
+
+async function diarioBuscarVinculos(termo) {
+  const box = $('diario-vincular-resultados');
+  if (!box) return;
+  if (String(termo || '').trim().length < 2) {
+    box.innerHTML = '<div class="empty-state">Digite pelo menos 2 caracteres.</div>';
+    return;
+  }
+  const lista = await buscarServidoresAutocomplete(termo, 20);
+  if (!lista.length) {
+    box.innerHTML = '<div class="empty-state">Nenhum servidor encontrado.</div>';
+    return;
+  }
+  box.innerHTML = lista.map((f) => {
+    const fid = Number(f.funcionario_id || f.id);
+    return `<button type="button" class="diario-match-item" role="option" onclick="diarioVincularServidor(${fid})">
+      <span><strong>${htmlEscape(f.nome || 'Servidor')}</strong><br><small>${htmlEscape(f.funcao || f.cargo || 'Função não informada')}</small></span>
+      <small>${htmlEscape(f.matricula || 'Sem matrícula')}</small>
+    </button>`;
+  }).join('');
+}
+
+$('diario-vincular-busca')?.addEventListener('input', debounce((ev) => diarioBuscarVinculos(ev.target.value), 250));
+
+window.diarioVincularServidor = async function diarioVincularServidor(funcionarioId) {
+  const id = Number($('diario-vincular-id').value);
+  if (!id || !funcionarioId) return;
+  const { error } = await sb.from('diario_oficial_eventos').update({ funcionario_id: Number(funcionarioId) }).eq('id', id);
+  if (error) return showToast('Erro ao vincular servidor: ' + error.message, 'error');
+  closeModal('modal-diario-vincular');
+  await carregarDiarioOficial();
+  showToast('Servidor identificado no cadastro.', 'success');
+};
 
 const TIPOS_LICENCA_OFICIAIS = [
   'Licença Prêmio',
