@@ -10168,6 +10168,7 @@ async function renderFerias() {
     if (window._ferKpiFiltro && $('fer-filtro-status')) $('fer-filtro-status').value = '';
     ferAtualizarDestaqueCardsFerias();
     ferRender();
+    if (location.hash.startsWith('#ferias')) ferVerificarConflitos();
   } catch (e) {
     showToast('Erro ao carregar férias: ' + (e.message || e), 'error');
     if (tb) tb.innerHTML = '<tr><td colspan="10" class="empty-state">Erro ao carregar dados</td></tr>';
@@ -10289,6 +10290,151 @@ window.cancelarFerias = async (id) => {
     detalhesComAlteracoes(alteracoes, { ferias_id: id })
   );
   showToast('Férias canceladas', 'success');
+  renderFerias();
+};
+
+// ─── Férias com datas que se cruzam (mesmo servidor) ─────────────────────────
+// Ao entrar em Férias, abre um pop-up para corrigir as datas ou cancelar o
+// registro lançado por engano. "Corrigir depois" esconde até o dia seguinte.
+const FER_CONF_KEY = 'fer-conflitos-depois';
+
+function ferDiasEntre(ini, fim) {
+  if (!ini || !fim) return 0;
+  return Math.round((new Date(fim + 'T12:00:00') - new Date(ini + 'T12:00:00')) / 86400000) + 1;
+}
+
+function ferSeCruzam(a, b) {
+  return a.data_inicio <= b.data_fim && b.data_inicio <= a.data_fim;
+}
+
+function ferRegistrosComData(funcionarioId, ignorarId = null) {
+  return (_ferV2.rows || []).filter((r) =>
+    r.funcionario_id === funcionarioId && r.id !== ignorarId && r.ativo &&
+    r.status !== 'Cancelado' && r.data_inicio && r.data_fim);
+}
+
+// Agrupa, por servidor, os registros que se cruzam entre si
+function ferDetectarConflitos() {
+  const porServidor = new Map();
+  for (const r of _ferV2.rows || []) {
+    if (!r.ativo || r.status === 'Cancelado' || !r.data_inicio || !r.data_fim) continue;
+    if (!porServidor.has(r.funcionario_id)) porServidor.set(r.funcionario_id, []);
+    porServidor.get(r.funcionario_id).push(r);
+  }
+  const grupos = [];
+  for (const lista of porServidor.values()) {
+    if (lista.length < 2) continue;
+    const ordenada = [...lista].sort((a, b) => a.data_inicio.localeCompare(b.data_inicio) || a.id - b.id);
+    let atual = [ordenada[0]];
+    let fimAtual = ordenada[0].data_fim;
+    for (const r of ordenada.slice(1)) {
+      if (r.data_inicio <= fimAtual) {
+        atual.push(r);
+        if (r.data_fim > fimAtual) fimAtual = r.data_fim;
+      } else {
+        if (atual.length > 1) grupos.push(atual);
+        atual = [r];
+        fimAtual = r.data_fim;
+      }
+    }
+    if (atual.length > 1) grupos.push(atual);
+  }
+  return grupos.sort((a, b) => ferNorm(a[0].servidor).localeCompare(ferNorm(b[0].servidor)));
+}
+
+function ferConflitosAdiadoHoje() {
+  try { return sessionStorage.getItem(FER_CONF_KEY) === ferHojeISO(); } catch { return false; }
+}
+
+window.ferConflitosDepois = function ferConflitosDepois() {
+  try { sessionStorage.setItem(FER_CONF_KEY, ferHojeISO()); } catch { /* ignora */ }
+  closeModal('modal-ferias-conflitos');
+};
+
+function ferRenderConflitos(grupos) {
+  const lista = $('fer-conflitos-lista');
+  if (!lista) return;
+  lista.innerHTML = grupos.map((g) => {
+    const s = g[0];
+    const registros = g.map((r, i) => `
+      <div class="fer-conf-reg" data-id="${r.id}">
+        <div class="fer-conf-reg-head">
+          <strong>Registro ${i + 1}</strong>
+          <span>Período aquisitivo: ${htmlEscape(r.aquisitivo || '—')}</span>
+          ${ferStatusHtml(r.status)}
+        </div>
+        <div class="fer-conf-campos">
+          <label>Início<input type="date" class="form-control" id="fer-conf-ini-${r.id}" value="${htmlEscape(r.data_inicio)}" oninput="ferConflitoDias(${r.id})"></label>
+          <label>Término<input type="date" class="form-control" id="fer-conf-fim-${r.id}" value="${htmlEscape(r.data_fim)}" oninput="ferConflitoDias(${r.id})"></label>
+          <span class="fer-conf-dias" id="fer-conf-dias-${r.id}">${ferDiasEntre(r.data_inicio, r.data_fim)} dias</span>
+          <div class="fer-conf-acoes">
+            <button type="button" class="btn-primary" onclick="ferSalvarConflito(${r.id})"><i class="fa-solid fa-floppy-disk"></i> Salvar datas</button>
+            <button type="button" class="btn-secondary fer-conf-cancelar" onclick="cancelarFerias(${r.id})"><i class="fa-solid fa-ban"></i> Cancelar registro</button>
+          </div>
+        </div>
+      </div>`).join('');
+    return `<section class="fer-conf-grupo">
+      <header class="fer-conf-servidor">
+        <i class="fa-solid fa-user" aria-hidden="true"></i>
+        <div><strong>${htmlEscape(s.servidor)}</strong><small>${htmlEscape(s.matricula ? `Mat. ${s.matricula}` : 'Sem matrícula')} · ${htmlEscape(s.lotacao || '—')}</small></div>
+      </header>
+      ${registros}
+    </section>`;
+  }).join('');
+  const resumo = $('fer-conflitos-resumo');
+  if (resumo) resumo.textContent = `${grupos.length} servidor(es) com datas a corrigir`;
+}
+
+window.ferConflitoDias = function ferConflitoDias(id) {
+  const ini = $(`fer-conf-ini-${id}`)?.value;
+  const fim = $(`fer-conf-fim-${id}`)?.value;
+  const el = $(`fer-conf-dias-${id}`);
+  if (!el) return;
+  const d = ferDiasEntre(ini, fim);
+  el.textContent = ini && fim ? (d > 0 ? `${d} dias` : 'Data inválida') : '—';
+};
+
+// Abre o pop-up ao entrar em Férias; se já está aberto, só atualiza a lista
+function ferVerificarConflitos() {
+  const grupos = ferDetectarConflitos();
+  const modal = $('modal-ferias-conflitos');
+  const aberto = modal?.style.display === 'flex';
+  if (!grupos.length) {
+    if (aberto) {
+      closeModal('modal-ferias-conflitos');
+      showToast('Pronto: nenhuma férias com datas cruzadas.', 'success');
+    }
+    return;
+  }
+  if (!aberto && ferConflitosAdiadoHoje()) return;
+  ferRenderConflitos(grupos);
+  if (!aberto) openModal('modal-ferias-conflitos');
+}
+
+window.ferSalvarConflito = async function ferSalvarConflito(id) {
+  const r = (_ferV2.rows || []).find((x) => x.id === id);
+  if (!r) return;
+  const ini = $(`fer-conf-ini-${id}`)?.value || '';
+  const fim = $(`fer-conf-fim-${id}`)?.value || '';
+  if (!ini || !fim) return showToast('Informe início e término.', 'warning');
+  if (fim < ini) return showToast('O término deve ser depois do início.', 'warning');
+  const choque = ferRegistrosComData(r.funcionario_id, id).find((o) => ferSeCruzam({ data_inicio: ini, data_fim: fim }, o));
+  if (choque) {
+    return showToast(`Ainda se cruza com ${fmtDtFer(choque.data_inicio)} a ${fmtDtFer(choque.data_fim)}. Ajuste as datas ou cancele um dos registros.`, 'warning');
+  }
+  const status = ferCalcStatus({ data_inicio: ini, data_fim: fim, status_ferias: '' });
+  const { error } = await sb.from('funcionario_ferias')
+    .update({ data_inicio: ini, data_fim: fim, status_ferias: status })
+    .eq('id', id);
+  if (error) return showToast('Erro: ' + error.message, 'error');
+  const alteracoes = montarDiffCampos(
+    { data_inicio: r.data_inicio, data_fim: r.data_fim, status_ferias: r.status },
+    { data_inicio: ini, data_fim: fim, status_ferias: status },
+    LOG_LABELS_FERIAS
+  );
+  await registrarLog('FÉRIAS EDITADA', r.funcionario_id, r.servidor || 'Servidor',
+    detalhesComAlteracoes(alteracoes, { ferias_id: id, origem: 'Correção de datas cruzadas' }));
+  showToast('Datas corrigidas.', 'success');
   renderFerias();
 };
 
@@ -10458,6 +10604,14 @@ async function salvarFerias() {
   const pendente = ($('fer-pendente')?.value || '').trim();
   if (!!inicio !== !!fim) return showToast('Informe início e término do gozo, ou deixe ambos em branco', 'warning');
   if (inicio && fim && fim < inicio) return showToast('A data de término deve ser depois do início', 'warning');
+  if (inicio && fim) {
+    const editIdAtual = Number($('fer-edit-id')?.value) || null;
+    const choque = ferRegistrosComData(funcId, editIdAtual)
+      .find((o) => ferSeCruzam({ data_inicio: inicio, data_fim: fim }, o));
+    if (choque) {
+      return showToast(`Este servidor já tem férias de ${fmtDtFer(choque.data_inicio)} a ${fmtDtFer(choque.data_fim)}. Edite o registro existente em vez de lançar outro.`, 'warning');
+    }
+  }
 
   let status = $('fer-status')?.value || 'Programado';
   if (!inicio) status = 'Pendente';

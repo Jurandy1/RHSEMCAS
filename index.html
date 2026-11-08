@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="vendor/fontawesome/css/solid.min.css">
   <link rel="stylesheet" href="vendor/fontawesome/css/regular.min.css">
   
-  <link rel="stylesheet" href="css/styles.css?v=20261108h">
+  <link rel="stylesheet" href="css/styles.css?v=20261108i">
 </head>
 <body>
 
@@ -2538,7 +2538,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20261108h"></script>
+  <script type="module" src="js/app.js?v=20261108i"></script>
 
 
 
@@ -2888,6 +2888,24 @@
     <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
       <button type="button" class="btn-secondary" onclick="fecharModalLicencasVencidas()">Fechar</button>
       <button type="button" class="btn-primary" onclick="fecharModalLicencasVencidas(); abrirLicencasComAlerta('vencidas')">Ver todas na tabela</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL · FÉRIAS COM DATAS QUE SE CRUZAM (abre ao entrar em Férias) -->
+<div class="modal-overlay" id="modal-ferias-conflitos">
+  <div class="modal-content modal-fer-conflitos">
+    <div class="modal-header">
+      <div class="modal-title"><i class="fa-solid fa-calendar-xmark"></i> Corrigir férias com datas que se cruzam</div>
+      <button class="modal-close" onclick="ferConflitosDepois()" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <p class="fer-conf-intro">Um servidor não pode estar de férias duas vezes no mesmo dia. Ajuste as datas para o período que ele realmente vai gozar, ou cancele o registro lançado por engano.</p>
+      <div id="fer-conflitos-lista"></div>
+    </div>
+    <div class="modal-footer" style="display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap">
+      <small class="fer-conf-rodape" id="fer-conflitos-resumo"></small>
+      <button type="button" class="btn-secondary" onclick="ferConflitosDepois()">Corrigir depois</button>
     </div>
   </div>
 </div>
