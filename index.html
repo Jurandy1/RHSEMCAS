@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="vendor/fontawesome/css/solid.min.css">
   <link rel="stylesheet" href="vendor/fontawesome/css/regular.min.css">
   
-  <link rel="stylesheet" href="css/styles.css?v=20261108i">
+  <link rel="stylesheet" href="css/styles.css?v=20261108j">
 </head>
 <body>
 
@@ -1038,7 +1038,7 @@
         <div class="fer-v2-head">
           <div>
             <div class="row-label" style="margin:0"><i class="fa-solid fa-umbrella-beach"></i> Programação e Escala de Gozo</div>
-            <p class="view-help" style="margin:6px 0 0">Controle integrado à base de funcionários da SEMCAS. Ao encerrar o gozo, o registro vai para o Histórico e uma nova pendência é preparada automaticamente.</p>
+            <p class="view-help" style="margin:6px 0 0">Cada período aquisitivo dá 30 dias de férias: o mês inteiro ou duas parcelas de 15 dias. Ao terminar uma parcela, o sistema cobra os dias que faltam; ao completar os 30, prepara o próximo período.</p>
           </div>
           <button class="btn-primary" onclick="abrirAgendarFerias()"><i class="fa-solid fa-plus"></i> Novo Registro de Férias</button>
         </div>
@@ -1054,15 +1054,15 @@
             <div class="fer-v2-kpi-val" id="kpiProgramados">0</div>
             <div class="fer-v2-kpi-sub">Início previsto em até 60 dias</div>
           </div>
-          <div class="fer-v2-kpi orange clickable" data-kpi="pendentes" onclick="ferFiltrarPorKpi('pendentes')" title="Clique para filtrar pendências de férias">
-            <div class="fer-v2-kpi-lbl">Pendentes (+12M sem Férias)</div>
+          <div class="fer-v2-kpi orange clickable" data-kpi="pendentes" onclick="ferFiltrarPorKpi('pendentes')" title="Clique para ver quem ainda tem dias de férias sem data">
+            <div class="fer-v2-kpi-lbl">Com saldo a programar</div>
             <div class="fer-v2-kpi-val" id="kpiPendentes">0</div>
-            <div class="fer-v2-kpi-sub">Períodos a programar</div>
+            <div class="fer-v2-kpi-sub">Servidores com dias ainda sem data</div>
           </div>
-          <div class="fer-v2-kpi red clickable" data-kpi="risco" onclick="ferFiltrarPorKpi('risco')" title="Clique para filtrar risco de dobra/acúmulo">
-            <div class="fer-v2-kpi-lbl">Risco de Dobra / Acúmulo</div>
+          <div class="fer-v2-kpi red clickable" data-kpi="risco" onclick="ferFiltrarPorKpi('risco')" title="Clique para ver períodos aquisitivos antigos com saldo">
+            <div class="fer-v2-kpi-lbl">Período antigo com saldo</div>
             <div class="fer-v2-kpi-val" id="kpiRisco">0</div>
-            <div class="fer-v2-kpi-sub">Prioridade para marcação imediata</div>
+            <div class="fer-v2-kpi-sub">Aquisitivo de 2 anos atrás ou mais</div>
           </div>
         </div>
 
@@ -1137,7 +1137,7 @@
                     <th class="sortable fer-sortable" data-fer-sort="funcao" onclick="ferSortBy('funcao')">Função <i class="fa-solid fa-sort sort-icon"></i></th>
                     <th class="sortable fer-sortable" data-fer-sort="aquisitivo" onclick="ferSortBy('aquisitivo')">Período Aquisitivo <i class="fa-solid fa-sort sort-icon"></i></th>
                     <th class="sortable fer-sortable" data-fer-sort="gozo" onclick="ferSortBy('gozo')">Período de Gozo <i class="fa-solid fa-sort sort-icon"></i></th>
-                    <th class="sortable fer-sortable" data-fer-sort="pendente" onclick="ferSortBy('pendente')">Pendências <i class="fa-solid fa-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="pendente" onclick="ferSortBy('pendente')">Saldo do período <i class="fa-solid fa-sort sort-icon"></i></th>
                     <th class="sortable fer-sortable" data-fer-sort="documento" onclick="ferSortBy('documento')">Documento / Link <i class="fa-solid fa-sort sort-icon"></i></th>
                     <th class="sortable fer-sortable" data-fer-sort="status" onclick="ferSortBy('status')">Situação <i class="fa-solid fa-sort sort-icon"></i></th>
                     <th style="width:140px">Ações</th>
@@ -1173,7 +1173,7 @@
                     <th class="sortable fer-sortable" data-fer-sort="lotacao" onclick="ferSortBy('lotacao')">Lotação / Unidade <i class="fa-solid fa-sort sort-icon"></i></th>
                     <th class="sortable fer-sortable" data-fer-sort="cargo" onclick="ferSortBy('cargo')">Cargo <i class="fa-solid fa-sort sort-icon"></i></th>
                     <th class="sortable fer-sortable" data-fer-sort="funcao" onclick="ferSortBy('funcao')">Função <i class="fa-solid fa-sort sort-icon"></i></th>
-                    <th class="sortable fer-sortable" data-fer-sort="pendente" onclick="ferSortBy('pendente')">Situação / Período Pendente <i class="fa-solid fa-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="pendente" onclick="ferSortBy('pendente')">Período aquisitivo / Saldo <i class="fa-solid fa-sort sort-icon"></i></th>
                     <th class="sortable fer-sortable" data-fer-sort="documento" onclick="ferSortBy('documento')">Documento / Link <i class="fa-solid fa-sort sort-icon"></i></th>
                     <th style="width:140px">Ação</th>
                   </tr>
@@ -2538,7 +2538,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20261108i"></script>
+  <script type="module" src="js/app.js?v=20261108j"></script>
 
 
 
@@ -2568,8 +2568,8 @@
         </div>
         <div class="form-group">
           <label class="form-label">Período Aquisitivo</label>
-          <input type="text" id="fer-aquisitivo" class="form-control" placeholder="Ex.: 2024/2025 (opcional)">
-          <small class="form-hint">Opcional por enquanto — o cadastro desse dado está começando agora.</small>
+          <input type="text" id="fer-aquisitivo" class="form-control" placeholder="Ex.: 2025/2026" inputmode="numeric" maxlength="9">
+          <small class="form-hint">Ano de início / ano seguinte. É por ele que o sistema soma as parcelas.</small>
         </div>
         <div class="form-group">
           <label class="form-label">Tipo de Concessão</label>
@@ -2580,6 +2580,17 @@
             <option value="abono">Abono</option>
           </select>
         </div>
+        <div class="form-group full-width">
+          <div class="fer-saldo-info" id="fer-saldo-info" hidden></div>
+        </div>
+        <div class="form-group full-width">
+          <label class="form-label">Como vai gozar</label>
+          <div class="fer-duracao" role="radiogroup" aria-label="Duração das férias">
+            <label class="fer-duracao-opcao"><input type="radio" name="fer-duracao" value="30" checked> <span><strong>Mês inteiro</strong><small>30 dias de uma vez</small></span></label>
+            <label class="fer-duracao-opcao"><input type="radio" name="fer-duracao" value="15"> <span><strong>Parcela de 15 dias</strong><small>15 agora e 15 em outro mês</small></span></label>
+            <label class="fer-duracao-opcao"><input type="radio" name="fer-duracao" value="outro"> <span><strong>Outro</strong><small>datas livres (exceção)</small></span></label>
+          </div>
+        </div>
         <div class="form-group">
           <label class="form-label">Data de Início do Gozo</label>
           <input type="date" id="fer-inicio" class="form-control">
@@ -2587,27 +2598,17 @@
         <div class="form-group">
           <label class="form-label">Data de Término do Gozo</label>
           <input type="date" id="fer-fim" class="form-control">
-        </div>
-        <div class="form-group full-width">
-          <small class="form-hint">Deixe as datas em branco para registrar apenas pendência ou período aquisitivo sem gozo programado.</small>
+          <small class="form-hint">Calculada pela duração escolhida.</small>
         </div>
         <div class="form-group">
           <label class="form-label">Dias</label>
           <input type="text" id="fer-dias" class="form-control" readonly style="background:var(--gov-bg-light)">
         </div>
         <div class="form-group">
-          <label class="form-label">Período Pendente</label>
-          <input type="text" id="fer-pendente" class="form-control" placeholder="Ex.: 2023/2024 ou —">
+          <small class="form-hint" style="display:block;margin-top:26px">Deixe as datas em branco para registrar só a pendência (período ainda sem data).</small>
         </div>
-        <div class="form-group">
-          <label class="form-label">Status das Férias</label>
-          <select id="fer-status" class="form-control">
-            <option value="Programado">Programado</option>
-            <option value="Em Gozo">Em Gozo</option>
-            <option value="Pendente">Pendente</option>
-            <option value="Concluído">Concluído</option>
-          </select>
-        </div>
+        <input type="hidden" id="fer-pendente">
+        <input type="hidden" id="fer-status" value="Programado">
         <div class="form-group full-width">
           <label class="form-label">Link do E-mail / Solicitação (URL SEI ou e-mail)</label>
           <input type="url" id="fer-email" class="form-control" placeholder="https://…">

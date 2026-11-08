@@ -3569,3 +3569,30 @@
   .fer-conf-acoes { width: 100%; margin-left: 0; }
   .fer-conf-acoes > button { flex: 1; }
 }
+
+/* Férias · parcelas e saldo */
+.fer-parcela { display: block; margin-top: 3px; color: #5c6a7c; font-size: 11px; font-weight: 600; }
+.fer-parcela--fora { color: #b45309; }
+.fer-saldo { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 3px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.fer-saldo--ok { background: #e7f4e9; color: #146c1e; }
+.fer-saldo--falta { background: #fff4e5; color: #9a4b00; }
+.fer-saldo--excesso { background: #fdecea; color: #b42318; }
+.fer-saldo--sem { background: #eef1f5; color: #5c6a7c; font-weight: 600; }
+
+.fer-duracao { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.fer-duracao-opcao { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border: 1px solid var(--card-border); border-radius: 4px; background: #fff; cursor: pointer; }
+.fer-duracao-opcao input { margin-top: 3px; accent-color: #1351b4; }
+.fer-duracao-opcao span { display: flex; flex-direction: column; gap: 2px; }
+.fer-duracao-opcao strong { color: #071d41; font-size: 13px; }
+.fer-duracao-opcao small { color: #5c6a7c; font-size: 11px; }
+.fer-duracao-opcao:has(input:checked) { border-color: #1351b4; background: #eef4fc; box-shadow: inset 0 0 0 1px #1351b4; }
+
+.fer-saldo-info { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid #b7cdea; border-left: 3px solid #1351b4; border-radius: 4px; background: #f2f7fd; }
+.fer-saldo-info > i { margin-top: 2px; color: #1351b4; }
+.fer-saldo-info strong { display: block; color: #071d41; font-size: 13px; }
+.fer-saldo-info small { display: block; margin-top: 3px; color: #44546a; font-size: 12px; }
+.fer-saldo-info--cheio { border-color: #e9b8b3; border-left-color: #b42318; background: #fdf3f2; }
+.fer-saldo-info--cheio > i { color: #b42318; }
+@media (max-width: 640px) {
+  .fer-duracao { grid-template-columns: 1fr; }
+}

@@ -9447,8 +9447,12 @@ function ferClassificarRow(r) {
     || !!(r.data_inicio && r.data_fim && r.data_inicio <= hoje && r.data_fim >= hoje);
   const lim60 = ferAddDays(hoje, 60);
   const proximas60 = !emFerias && !!(r.data_inicio && r.data_inicio > hoje && r.data_inicio <= lim60);
-  const pendente = operacional && (status === 'Pendente' || !r.data_inicio || !!(r.pendente && r.pendente !== '—'));
-  const risco = operacional && (ferNorm(r.pendente).includes('acumulado') || ferNorm(r.observacao).includes('risco'));
+  // Com saldo a programar: pendência sem data, ou última parcela marcada e ainda faltam dias
+  const ultimaParcela = !r.parcelaNum || r.parcelaNum === r.parcelasTotal;
+  const pendente = operacional && (!r.data_inicio || (ultimaParcela && r.saldoAq > 0));
+  // Período antigo com saldo: aquisitivo que terminou há 2 anos ou mais
+  const fimAq = r.aqKey ? Number(r.aqKey.slice(5)) : null;
+  const risco = pendente && fimAq !== null && fimAq <= Number(hoje.slice(0, 4)) - 2;
   return { emFerias, proximas60, pendente, risco };
 }
 
@@ -9604,6 +9608,62 @@ function ferMapRow(raw, funcMap, extraMap, cargoMap) {
   };
 }
 
+// ─── Parcelas e saldo ────────────────────────────────────────────────────────
+// Regra da SEMCAS: por período aquisitivo o servidor tem 30 dias de férias,
+// gozados de uma vez (mês inteiro) ou em duas parcelas de 15 dias.
+const FER_DIAS_DIREITO = 30;
+const FER_DURACOES_PADRAO = [15, 30];
+
+function ferAquisitivoValido(txt) {
+  const m = String(txt || '').replace(/\s+/g, '').match(/^(\d{4})\/(\d{4})$/);
+  return m && Number(m[2]) === Number(m[1]) + 1 ? `${m[1]}/${m[2]}` : '';
+}
+
+// Preenche em cada linha: dias, nº da parcela, total de parcelas e saldo do período
+function ferCalcularParcelas(rows) {
+  const grupos = new Map();
+  for (const r of rows) {
+    r.dias = r.data_inicio && r.data_fim ? ferDiasEntre(r.data_inicio, r.data_fim) : 0;
+    r.aqKey = ferAquisitivoValido(r.aquisitivo);
+    r.parcelaNum = 0;
+    r.parcelasTotal = 0;
+    r.usadosAq = null;
+    r.saldoAq = null;
+    if (!r.ativo || r.status === 'Cancelado' || !r.aqKey) continue;
+    const k = `${r.funcionario_id}|${r.aqKey}`;
+    if (!grupos.has(k)) grupos.set(k, []);
+    grupos.get(k).push(r);
+  }
+  for (const lista of grupos.values()) {
+    const comData = lista.filter((r) => r.dias > 0).sort((a, b) => a.data_inicio.localeCompare(b.data_inicio) || a.id - b.id);
+    const usados = comData.reduce((t, r) => t + r.dias, 0);
+    comData.forEach((r, i) => { r.parcelaNum = i + 1; });
+    for (const r of lista) {
+      r.parcelasTotal = comData.length;
+      r.usadosAq = usados;
+      r.saldoAq = FER_DIAS_DIREITO - usados;
+    }
+  }
+  return rows;
+}
+
+function ferParcelaTexto(r) {
+  if (!r.dias) return '';
+  if (r.dias >= FER_DIAS_DIREITO && r.parcelasTotal <= 1) return 'Mês inteiro';
+  return r.parcelaNum ? `${r.parcelaNum}ª parcela` : 'Parcela';
+}
+
+function ferForaDoPadrao(r) {
+  return r.dias > 0 && !FER_DURACOES_PADRAO.includes(r.dias);
+}
+
+function ferSaldoHtml(r) {
+  if (!r.aqKey) return '<span class="fer-saldo fer-saldo--sem">Sem período aquisitivo</span>';
+  if (r.saldoAq < 0) return `<span class="fer-saldo fer-saldo--excesso" title="Mais de 30 dias lançados neste período aquisitivo">Passou ${-r.saldoAq} dia(s)</span>`;
+  if (r.saldoAq === 0) return '<span class="fer-saldo fer-saldo--ok"><i class="fa-solid fa-check"></i> 30 dias completos</span>';
+  return `<span class="fer-saldo fer-saldo--falta">Faltam ${r.saldoAq} dias</span>`;
+}
+
 function ferProximoPeriodoAquisitivo(periodo) {
   const m = String(periodo || '').trim().match(/^(\d{4})\s*\/\s*(\d{4})$/);
   return m ? `${Number(m[1]) + 1}/${Number(m[2]) + 1}` : '';
@@ -9750,7 +9810,7 @@ async function ferCarregarDados() {
     } catch (_) { /* tabela pode não existir */ }
   }
 
-  _ferV2.rows = dados.map((r) => ferMapRow(r, funcMap, extraMap, cargoMap));
+  _ferV2.rows = ferCalcularParcelas(dados.map((r) => ferMapRow(r, funcMap, extraMap, cargoMap)));
   return _ferV2.rows;
 }
 
@@ -9802,7 +9862,7 @@ function ferSortValor(r, col) {
   if (col === 'funcao') return ferNorm(r.funcao === '—' ? '' : r.funcao);
   if (col === 'aquisitivo') return ferNorm(r.aquisitivo === '—' ? '' : r.aquisitivo);
   if (col === 'gozo') return r.data_inicio || '';
-  if (col === 'pendente') return ferNorm(r.pendente === '—' ? '' : r.pendente);
+  if (col === 'pendente') return r.saldoAq === null ? 999 : r.saldoAq;
   if (col === 'documento') return ferNorm(r.email || '');
   if (col === 'status') return ferNorm(r.status);
   return '';
@@ -9955,17 +10015,18 @@ function ferRenderTabela(data) {
   } else {
     tb.innerHTML = slice.map((r) => {
       const gozo = ferGozoTexto(r);
-      const pend = r.pendente && r.pendente !== '—'
-        ? `<span style="color:var(--gov-orange);font-weight:600">${htmlEscape(r.pendente)}</span>`
-        : '<span class="fer-vazio">Nenhuma</span>';
+      const parcela = r.dias
+        ? `<small class="fer-parcela${ferForaDoPadrao(r) ? ' fer-parcela--fora' : ''}" title="${ferForaDoPadrao(r) ? 'Fora do padrão: use 30 dias ou parcela de 15' : ''}">${htmlEscape(ferParcelaTexto(r))} · ${r.dias} dias${ferForaDoPadrao(r) ? ' <i class="fa-solid fa-triangle-exclamation"></i>' : ''}</small>`
+        : '';
+      const pend = ferSaldoHtml(r);
       return `<tr class="${ferClassificarRow(r).emFerias ? 'fer-row-em-ferias' : ''}">
         <td data-label="Servidor">${ferServidorCell(r)}</td>
         <td data-label="Lotação"><span class="fer-lot-badge">${htmlEscape(r.lotacao)}</span></td>
         <td data-label="Cargo">${htmlEscape(r.cargo || '—')}</td>
         <td data-label="Função">${htmlEscape(r.funcao || '—')}</td>
         <td data-label="Período aquisitivo">${htmlEscape(r.aquisitivo)}</td>
-        <td data-label="Período de gozo">${gozo ? `<span class="fer-periodo">${htmlEscape(gozo)}</span>` : '<span class="fer-vazio">Não agendado</span>'}</td>
-        <td data-label="Pendências">${pend}</td>
+        <td data-label="Período de gozo">${gozo ? `<span class="fer-periodo">${htmlEscape(gozo)}</span>${parcela}` : '<span class="fer-vazio">Não agendado</span>'}</td>
+        <td data-label="Saldo do período">${pend}</td>
         <td data-label="Documento">${ferLinkHtml(r.email)}</td>
         <td data-label="Situação">${ferStatusHtml(r.status)}</td>
         <td data-label="Ações" style="text-align:center">${ferAcoesHtml(r)}</td>
@@ -10070,7 +10131,7 @@ function ferRenderUnidades(data) {
 }
 
 function ferRenderPendencias(data) {
-  const pend = data.filter((r) => r.status === 'Pendente' || (r.pendente && r.pendente !== '—'));
+  const pend = data.filter((r) => ferClassificarRow(r).pendente);
   const tb = $('fer-pend-body');
   if (!tb) return;
   if (!pend.length) {
@@ -10083,7 +10144,7 @@ function ferRenderPendencias(data) {
       <td><span class="fer-lot-badge">${htmlEscape(r.lotacao)}</span></td>
       <td>${htmlEscape(r.cargo || '—')}</td>
       <td>${htmlEscape(r.funcao || '—')}</td>
-      <td><strong style="color:var(--gov-orange)">${htmlEscape(r.pendente !== '—' ? r.pendente : r.aquisitivo)}</strong></td>
+      <td><strong>${htmlEscape(r.aquisitivo || '—')}</strong><br>${ferSaldoHtml(r)}</td>
       <td>${ferLinkHtml(r.email)}</td>
       <td><button class="btn-primary" style="font-size:11px;padding:4px 10px" onclick="ferEditarRegistro(${r.id})"><i class="fa-solid fa-calendar-plus"></i> Programar</button></td>
     </tr>`).join('');
@@ -10446,6 +10507,8 @@ function ferLimparModal() {
   if ($('fer-tipo')) $('fer-tipo').value = 'regular';
   if ($('fer-status')) $('fer-status').value = 'Pendente';
   if ($('fer-suggest')) $('fer-suggest').innerHTML = '';
+  ferMarcarDuracao('30');
+  if ($('fer-saldo-info')) { $('fer-saldo-info').hidden = true; $('fer-saldo-info').innerHTML = ''; }
   if ($('fer-modal-title')) $('fer-modal-title').innerHTML = '<i class="fa-solid fa-umbrella-beach"></i> Lançamento de Férias do Servidor';
 }
 
@@ -10465,6 +10528,8 @@ window.abrirAgendarFeriasPara = async (funcId, nome) => {
     $('fer-lotacao-display').value = data.lotacao_nome || '';
     $('fer-matricula').value = data.matricula || '';
   }
+  ferSugerirAquisitivo(Number(funcId));
+  ferAtualizarSaldoForm();
 };
 
 window.ferEditarRegistro = function ferEditarRegistro(id) {
@@ -10486,9 +10551,14 @@ window.ferEditarRegistro = function ferEditarRegistro(id) {
   $('fer-obs').value = r.observacao || '';
   $('fer-tipo').value = FERIAS_TIPOS_REV[r.tipo] || 'regular';
   if (r.data_inicio && r.data_fim) {
-    const d = Math.floor((new Date(r.data_fim) - new Date(r.data_inicio)) / 86400000) + 1;
+    const d = ferDiasEntre(r.data_inicio, r.data_fim);
     $('fer-dias').value = d > 0 ? `${d} dia(s)` : '';
+    ferMarcarDuracao(d === 30 ? '30' : d === 15 ? '15' : 'outro');
+  } else {
+    // Pendência sem data: sugere a duração que cabe no saldo do período
+    ferMarcarDuracao(r.saldoAq === 15 ? '15' : '30');
   }
+  ferAtualizarSaldoForm();
   state._ferEditAntes = {
     data_inicio: r.data_inicio || '',
     data_fim: r.data_fim || '',
@@ -10580,19 +10650,86 @@ document.addEventListener('input', debounce(async (e) => {
         mat = row?.matricula || '';
       }
       $('fer-matricula').value = mat;
+      ferSugerirAquisitivo(fid);
+      ferAtualizarSaldoForm();
     };
   });
 }, 250));
 
-document.addEventListener('change', (e) => {
-  if (e.target.id === 'fer-inicio' || e.target.id === 'fer-fim') {
-    const ini = $('fer-inicio')?.value;
-    const fim = $('fer-fim')?.value;
-    if (ini && fim) {
-      const d = Math.floor((new Date(fim) - new Date(ini)) / 86400000) + 1;
-      if ($('fer-dias')) $('fer-dias').value = d > 0 ? `${d} dia(s)` : 'Data inválida';
-    }
+function ferDuracaoEscolhida() {
+  return document.querySelector('input[name="fer-duracao"]:checked')?.value || '30';
+}
+
+function ferMarcarDuracao(valor) {
+  const el = document.querySelector(`input[name="fer-duracao"][value="${valor}"]`);
+  if (el) el.checked = true;
+}
+
+function ferAtualizarDiasForm() {
+  const ini = $('fer-inicio')?.value;
+  const fim = $('fer-fim')?.value;
+  if (!$('fer-dias')) return;
+  if (ini && fim) {
+    const d = ferDiasEntre(ini, fim);
+    $('fer-dias').value = d > 0 ? `${d} dia(s)` : 'Data inválida';
+  } else {
+    $('fer-dias').value = '';
   }
+}
+
+// Término = início + duração − 1 (mês inteiro = 30 dias; parcela = 15)
+function ferCalcularTerminoForm() {
+  const dur = ferDuracaoEscolhida();
+  const ini = $('fer-inicio')?.value;
+  if (ini && dur !== 'outro' && $('fer-fim')) $('fer-fim').value = ferAddDays(ini, Number(dur) - 1);
+  ferAtualizarDiasForm();
+}
+
+// Mostra quanto do período aquisitivo já foi usado e o saldo
+function ferAtualizarSaldoForm() {
+  const box = $('fer-saldo-info');
+  if (!box) return;
+  const funcId = Number($('fer-func-id')?.value);
+  const aq = ferAquisitivoValido($('fer-aquisitivo')?.value);
+  const editId = Number($('fer-edit-id')?.value) || null;
+  if (!funcId || !aq) { box.hidden = true; box.innerHTML = ''; return; }
+  const parcelas = (_ferV2.rows || [])
+    .filter((r) => r.funcionario_id === funcId && r.id !== editId && r.ativo && r.status !== 'Cancelado'
+      && r.aqKey === aq && r.dias > 0)
+    .sort((a, b) => a.data_inicio.localeCompare(b.data_inicio));
+  const usados = parcelas.reduce((t, r) => t + r.dias, 0);
+  const saldo = FER_DIAS_DIREITO - usados;
+  const lista = parcelas.map((r) => `${fmtDtFer(r.data_inicio)} a ${fmtDtFer(r.data_fim)} (${r.dias} dias)`).join(' · ');
+  box.hidden = false;
+  box.className = `fer-saldo-info ${saldo <= 0 ? 'fer-saldo-info--cheio' : ''}`;
+  box.innerHTML = `<i class="fa-solid fa-circle-info"></i><div><strong>Período ${aq}: ${usados} de 30 dias já lançados${saldo > 0 ? ` · saldo de ${saldo} dias` : ' · período completo'}</strong>${lista ? `<small>${htmlEscape(lista)}</small>` : '<small>Nenhuma parcela lançada ainda neste período.</small>'}</div>`;
+  // Sugere a duração que cabe no saldo (só em lançamento novo)
+  if (!editId && saldo === 15 && ferDuracaoEscolhida() === '30') {
+    ferMarcarDuracao('15');
+    ferCalcularTerminoForm();
+  }
+}
+
+// Ao escolher o servidor, sugere o período aquisitivo que ainda tem saldo
+function ferSugerirAquisitivo(funcId) {
+  if (!$('fer-aquisitivo') || $('fer-aquisitivo').value.trim()) return;
+  const abertos = (_ferV2.rows || [])
+    .filter((r) => r.funcionario_id === funcId && r.ativo && r.status !== 'Cancelado' && r.aqKey && r.saldoAq > 0)
+    .map((r) => r.aqKey)
+    .sort();
+  if (abertos.length) $('fer-aquisitivo').value = abertos[0];
+}
+
+document.addEventListener('change', (e) => {
+  if (e.target.name === 'fer-duracao' || e.target.id === 'fer-inicio') ferCalcularTerminoForm();
+  if (e.target.id === 'fer-fim') {
+    const d = ferDiasEntre($('fer-inicio')?.value, $('fer-fim')?.value);
+    if (d > 0) ferMarcarDuracao(d === 30 ? '30' : d === 15 ? '15' : 'outro');
+    ferAtualizarDiasForm();
+  }
+});
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'fer-aquisitivo') ferAtualizarSaldoForm();
 });
 
 async function salvarFerias() {
@@ -10613,8 +10750,30 @@ async function salvarFerias() {
     }
   }
 
-  let status = $('fer-status')?.value || 'Programado';
-  if (!inicio) status = 'Pendente';
+  if (aquisitivo && !ferAquisitivoValido(aquisitivo)) {
+    return showToast('Período aquisitivo deve ser no formato 2025/2026 (ano e ano seguinte).', 'warning');
+  }
+  const aqOk = ferAquisitivoValido(aquisitivo);
+  if (inicio && fim) {
+    const diasNovo = ferDiasEntre(inicio, fim);
+    if (aqOk) {
+      const editIdSaldo = Number($('fer-edit-id')?.value) || null;
+      const usados = (_ferV2.rows || [])
+        .filter((r) => r.funcionario_id === funcId && r.id !== editIdSaldo && r.ativo && r.status !== 'Cancelado'
+          && r.aqKey === aqOk && r.dias > 0)
+        .reduce((t, r) => t + r.dias, 0);
+      if (usados + diasNovo > FER_DIAS_DIREITO) {
+        return showToast(`O período ${aqOk} já tem ${usados} dias lançados. Com mais ${diasNovo} passaria de 30. Saldo: ${Math.max(0, FER_DIAS_DIREITO - usados)} dias.`, 'warning');
+      }
+    }
+    if (!FER_DURACOES_PADRAO.includes(diasNovo)
+      && !confirm(`Este gozo tem ${diasNovo} dias. O padrão é mês inteiro (30) ou parcela de 15 dias. Salvar mesmo assim?`)) {
+      return;
+    }
+  }
+
+  // Situação sai das datas: sem data = Pendente
+  const status = inicio && fim ? ferCalcStatus({ data_inicio: inicio, data_fim: fim, status_ferias: '' }) : 'Pendente';
 
   const btn = $('btn-salvar-ferias');
   if (btn) btn.disabled = true;
@@ -10624,7 +10783,7 @@ async function salvarFerias() {
     data_fim: fim || null,
     tipo: FERIAS_TIPOS[$('fer-tipo')?.value] || 'Regulamentar',
     observacao: ($('fer-obs')?.value || '').trim() || null,
-    periodo_aquisitivo: aquisitivo || null,
+    periodo_aquisitivo: aqOk || null,
     periodo_pendente: pendente || null,
     link_solicitacao: ($('fer-email')?.value || '').trim() || null,
     status_ferias: status,
