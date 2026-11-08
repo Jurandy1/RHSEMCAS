@@ -10,9 +10,12 @@
   <!-- Fontes oficiais Gov.br: Rawline (títulos) + Raleway (texto), com Inter como fallback -->
   <link rel="stylesheet" href="https://cdngovbr-ds.estaleiro.serpro.gov.br/design-system/fonts/rawline/css/rawline.css">
   <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <!-- Ícones: Font Awesome Free 6.7.2 (mesmo conjunto do padrão gov.br), hospedado no próprio sistema -->
+  <link rel="stylesheet" href="vendor/fontawesome/css/fontawesome.min.css">
+  <link rel="stylesheet" href="vendor/fontawesome/css/solid.min.css">
+  <link rel="stylesheet" href="vendor/fontawesome/css/regular.min.css">
   
-  <link rel="stylesheet" href="css/styles.css?v=20261108c">
+  <link rel="stylesheet" href="css/styles.css?v=20261108e">
 </head>
 <body>
 
@@ -57,7 +60,7 @@
       </div>
       <p id="login-error" class="auth-error" hidden></p>
       <button type="submit" class="btn-primary auth-submit" id="btn-login">
-        <i class="ti ti-login"></i> Entrar
+        <i class="fa-solid fa-right-to-bracket"></i> Entrar
       </button>
     </form>
     <p class="auth-foot">Usuários são cadastrados pelo administrador do sistema.</p>
@@ -74,69 +77,69 @@
         <span class="org-sub">Gestão de Pessoas</span>
       </div>
       <button class="btn-close-sidebar" id="btn-close-sidebar" title="Fechar menu" aria-label="Fechar menu">
-        <i class="ti ti-x"></i>
+        <i class="fa-solid fa-xmark"></i>
       </button>
     </div>
 
     <div class="sidebar-nav">
       <div class="nav-group">Dia a dia</div>
       <a href="#painel" class="nav-item" data-route="painel">
-        <i class="ti ti-layout-dashboard"></i> Painel
+        <i class="fa-solid fa-gauge-high"></i> Painel
       </a>
       <a href="#funcionarios" class="nav-item" data-route="funcionarios">
-        <i class="ti ti-users"></i> Funcionários
+        <i class="fa-solid fa-users"></i> Funcionários
       </a>
       <a href="#diario-oficial" class="nav-item" data-route="diario-oficial">
-        <i class="ti ti-news"></i> Diário Oficial
+        <i class="fa-solid fa-newspaper"></i> Diário Oficial
         <span id="badge-diario-oficial" class="nav-count-badge" hidden></span>
       </a>
       <a href="#locais" class="nav-item" data-route="locais">
-        <i class="ti ti-map-pin"></i> Locais
+        <i class="fa-solid fa-location-dot"></i> Locais
       </a>
       <a href="#organograma" class="nav-item" data-route="organograma">
-        <i class="ti ti-sitemap"></i> Organograma
+        <i class="fa-solid fa-sitemap"></i> Organograma
       </a>
       <a href="#terceirizados" class="nav-item" data-route="terceirizados">
-        <i class="ti ti-briefcase"></i> Terceirizados
+        <i class="fa-solid fa-briefcase"></i> Terceirizados
       </a>
 
       <div class="nav-group">Afastamentos</div>
       <a href="#licencas" class="nav-item" data-route="licencas">
-        <i class="ti ti-activity"></i> Licenças
+        <i class="fa-solid fa-notes-medical"></i> Licenças
         <span id="badge-licencas" style="display:none;margin-left:auto;background:var(--gov-orange,#ed7b2f);color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;line-height:16px" title="Licenças próximas do vencimento"></span>
       </a>
       <a href="#ferias" class="nav-item" data-route="ferias">
-        <i class="ti ti-beach"></i> Férias
+        <i class="fa-solid fa-umbrella-beach"></i> Férias
       </a>
 
       <div class="nav-group">Movimentação</div>
       <a href="#cedidos" class="nav-item" data-route="cedidos">
-        <i class="ti ti-arrows-left-right"></i> Cedidos/Recebidos
+        <i class="fa-solid fa-arrows-left-right"></i> Cedidos/Recebidos
       </a>
       <a href="#sem-lotacao" class="nav-item" data-route="sem-lotacao">
-        <i class="ti ti-map-off"></i> Sem Lotação
+        <i class="fa-solid fa-building-circle-xmark"></i> Sem Lotação
         <span id="badge-sem-lotacao" style="display:none;margin-left:auto;background:var(--gov-orange,#ed8936);color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;line-height:16px"></span>
       </a>
       <a href="#exonerados" class="nav-item" data-route="exonerados">
-        <i class="ti ti-user-off"></i> Exonerados e Demitidos
+        <i class="fa-solid fa-user-slash"></i> Exonerados e Demitidos
         <span id="badge-exonerados" style="display:none;margin-left:auto;background:#718096;color:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:1px 7px;line-height:16px"></span>
       </a>
       <a href="#lotacoes" class="nav-item" data-route="lotacoes">
-        <i class="ti ti-building"></i> Gestão de Lotações
+        <i class="fa-solid fa-building"></i> Gestão de Lotações
       </a>
 
       <div class="nav-group">Folha e conferência</div>
       <a href="#folha-ponto" class="nav-item" data-route="folha-ponto">
-        <i class="ti ti-clock"></i> Folha de Ponto
+        <i class="fa-regular fa-clock"></i> Folha de Ponto
       </a>
       <a href="#remuneracoes" class="nav-item" data-route="remuneracoes">
-        <i class="ti ti-currency-real"></i> Remunerações
+        <i class="fa-solid fa-brazilian-real-sign"></i> Remunerações
       </a>
       <a href="#logs" class="nav-item" data-route="logs">
-        <i class="ti ti-history"></i> Histórico
+        <i class="fa-solid fa-clock-rotate-left"></i> Histórico
       </a>
       <a href="#usuarios" class="nav-item hidden" data-route="usuarios" id="nav-usuarios">
-        <i class="ti ti-user-cog"></i> Usuários do Sistema
+        <i class="fa-solid fa-user-gear"></i> Usuários do Sistema
       </a>
     </div>
 
@@ -149,10 +152,10 @@
         </div>
       </div>
       <button type="button" class="btn-logout hidden" id="btn-editar-meu-nome" title="Editar meu nome">
-        <i class="ti ti-pencil"></i>
+        <i class="fa-solid fa-pen"></i>
       </button>
       <button type="button" class="btn-logout" id="btn-logout" title="Sair do sistema">
-        <i class="ti ti-logout"></i>
+        <i class="fa-solid fa-right-from-bracket"></i>
       </button>
     </div>
   </nav>
@@ -161,7 +164,7 @@
     <header class="topbar">
       <div class="topbar-left">
         <button class="topbar-hamburger" id="btn-topbar-hamburger" title="Abrir menu" aria-label="Abrir menu">
-          <i class="ti ti-menu-2"></i>
+          <i class="fa-solid fa-bars"></i>
         </button>
         <div>
           <div class="topbar-title" id="header-title">Painel de Gestão</div>
@@ -170,16 +173,16 @@
       </div>
       <div class="topbar-right">
         <div class="global-search" id="global-search">
-          <i class="ti ti-search global-search-icon"></i>
+          <i class="fa-solid fa-magnifying-glass global-search-icon"></i>
           <input type="text" id="gs-input" class="global-search-input" placeholder="Buscar servidor (nome, matrícula ou CPF)…"
                  autocomplete="off" aria-label="Busca global de servidores" role="combobox" aria-expanded="false" aria-controls="gs-results">
           <div id="gs-results" class="global-search-results" role="listbox" style="display:none"></div>
         </div>
         <button type="button" class="tib" id="btn-modo-conforto" title="Aumentar texto e botões (leitura confortável)" aria-label="Modo leitura confortável" aria-pressed="false">
-          <i class="ti ti-text-size"></i>
+          <i class="fa-solid fa-text-height"></i>
         </button>
         <span class="tbadge">São Luís — MA</span>
-        <button class="tib" title="Notificações" aria-label="Notificações"><i class="ti ti-bell"></i></button>
+        <button class="tib" title="Notificações" aria-label="Notificações"><i class="fa-solid fa-bell"></i></button>
       </div>
     </header>
 
@@ -191,7 +194,7 @@
         <div id="alerta-licencas-painel" class="alerta-licenca-wrap" hidden></div>
 
         <div class="dash-section-header" style="margin-top:0">
-          <div class="dash-icon"><i class="ti ti-calendar-stats"></i></div>
+          <div class="dash-icon"><i class="fa-solid fa-calendar-week"></i></div>
           <h2>Situação do dia</h2>
           <div class="dash-line"></div>
         </div>
@@ -204,7 +207,7 @@
 
         <!-- Cabeçalho do Painel -->
         <div class="dash-section-header" style="margin-top:0">
-          <div class="dash-icon"><i class="ti ti-users"></i></div>
+          <div class="dash-icon"><i class="fa-solid fa-users"></i></div>
           <h2>Quadro de Servidores</h2>
           <div class="dash-line"></div>
         </div>
@@ -218,18 +221,18 @@
         <!-- Gráficos -->
         <div id="graficos-row" class="chart-row" style="display:none;margin-top:16px">
           <div class="chart-card">
-            <div class="chart-card-title"><i class="ti ti-chart-donut"></i> Distribuição por Vínculo</div>
+            <div class="chart-card-title"><i class="fa-solid fa-chart-pie"></i> Distribuição por Vínculo</div>
             <div style="position:relative;height:210px"><canvas id="chart-vinculos"></canvas></div>
           </div>
           <div class="chart-card">
-            <div class="chart-card-title"><i class="ti ti-chart-bar"></i> Servidores por Tipo de Local</div>
+            <div class="chart-card-title"><i class="fa-solid fa-chart-column"></i> Servidores por Tipo de Local</div>
             <div style="position:relative;height:210px"><canvas id="chart-locais"></canvas></div>
           </div>
         </div>
 
         <!-- Estrutura Organizacional -->
         <div class="dash-section-header">
-          <div class="dash-icon"><i class="ti ti-hierarchy"></i></div>
+          <div class="dash-icon"><i class="fa-solid fa-diagram-project"></i></div>
           <h2>Estrutura Organizacional</h2>
           <div class="dash-line"></div>
         </div>
@@ -237,7 +240,7 @@
 
         <!-- Superintendências -->
         <div class="dash-section-header">
-          <div class="dash-icon"><i class="ti ti-building-skyscraper"></i></div>
+          <div class="dash-icon"><i class="fa-solid fa-city"></i></div>
           <h2>Superintendências</h2>
           <div class="dash-line"></div>
         </div>
@@ -245,7 +248,7 @@
 
         <!-- Locais Operacionais -->
         <div class="dash-section-header">
-          <div class="dash-icon"><i class="ti ti-map-pin"></i></div>
+          <div class="dash-icon"><i class="fa-solid fa-location-dot"></i></div>
           <h2>Locais Operacionais</h2>
           <div class="dash-line"></div>
         </div>
@@ -257,7 +260,7 @@
       <section id="view-funcionarios" class="view-section">
         <p class="view-help">Busque e filtre o quadro ativo. Clique no nome ou em Ações para editar, transferir ou registrar afastamento.</p>
         <button type="button" class="func-filter-toggle" id="func-filter-toggle" onclick="alternarFiltrosFuncionarios()" aria-expanded="false" aria-controls="func-filtros">
-          <i class="ti ti-filter"></i><span>Filtros de funcionários</span><i class="ti ti-chevron-down"></i>
+          <i class="fa-solid fa-filter"></i><span>Filtros de funcionários</span><i class="fa-solid fa-chevron-down"></i>
         </button>
         <div class="toolbar-filters func-filtros-collapsed" id="func-filtros">
           <div class="filter-field" style="flex:1;min-width:220px">
@@ -300,7 +303,7 @@
           </div>
           <div class="filter-field">
             <label>&nbsp;</label>
-            <button class="btn-primary" style="padding:8px 16px" onclick="abrirModalAddFuncionario()"><i class="ti ti-plus"></i> Adicionar Servidor</button>
+            <button class="btn-primary" style="padding:8px 16px" onclick="abrirModalAddFuncionario()"><i class="fa-solid fa-plus"></i> Adicionar Servidor</button>
           </div>
         </div>
         <div id="filter-tags" style="margin-bottom:12px"></div>
@@ -333,7 +336,7 @@
       <section id="view-diario-oficial" class="view-section">
         <header class="diario-page-head">
           <div class="diario-page-title">
-            <span class="diario-page-icon" aria-hidden="true"><i class="ti ti-file-description"></i></span>
+            <span class="diario-page-icon" aria-hidden="true"><i class="fa-solid fa-file-lines"></i></span>
             <div>
               <p class="diario-eyebrow">Gestão de pessoas</p>
               <h2>Diário Oficial</h2>
@@ -361,16 +364,16 @@
 
         <div class="diario-tabs" id="diario-kpis" role="tablist" aria-label="Tipos de movimentação">
           <button type="button" class="diario-tab active" data-diario-tipo="" onclick="diarioSelecionarAba('')">
-            <i class="ti ti-list-details"></i><span>Todos</span><b id="diario-tab-total">0</b>
+            <i class="fa-solid fa-list"></i><span>Todos</span><b id="diario-tab-total">0</b>
           </button>
           <button type="button" class="diario-tab" data-diario-tipo="nomeacao" onclick="diarioSelecionarAba('nomeacao')">
-            <i class="ti ti-user-plus"></i><span>Nomeações</span><b id="diario-kpi-nomeacoes">0</b>
+            <i class="fa-solid fa-user-plus"></i><span>Nomeações</span><b id="diario-kpi-nomeacoes">0</b>
           </button>
           <button type="button" class="diario-tab" data-diario-tipo="exoneracao" onclick="diarioSelecionarAba('exoneracao')">
-            <i class="ti ti-user-minus"></i><span>Exonerações</span><b id="diario-kpi-exoneracoes">0</b>
+            <i class="fa-solid fa-user-minus"></i><span>Exonerações</span><b id="diario-kpi-exoneracoes">0</b>
           </button>
           <button type="button" class="diario-tab" data-diario-tipo="promocao" onclick="diarioSelecionarAba('promocao')">
-            <i class="ti ti-arrows-exchange"></i><span>Mudanças de cargo</span><b id="diario-tab-promocoes">0</b>
+            <i class="fa-solid fa-right-left"></i><span>Mudanças de cargo</span><b id="diario-tab-promocoes">0</b>
           </button>
         </div>
 
@@ -379,14 +382,14 @@
             <div class="diario-filter-search">
               <label for="diario-filtro-busca">Buscar publicação</label>
               <div class="search-wrap">
-                <i class="ti ti-search"></i>
+                <i class="fa-solid fa-magnifying-glass"></i>
                 <input type="search" id="diario-filtro-busca" class="form-control" placeholder="Servidor, matrícula, cargo ou número do ato" oninput="diarioAplicarBusca()">
               </div>
             </div>
             <button type="button" class="btn-outline diario-more-filters" id="diario-btn-mais-filtros" onclick="diarioAlternarFiltros()" aria-expanded="false" aria-controls="diario-filtros-avancados">
-              <i class="ti ti-filter"></i><span>Mais filtros</span><i class="ti ti-chevron-down diario-filter-chevron"></i>
+              <i class="fa-solid fa-filter"></i><span>Mais filtros</span><i class="fa-solid fa-chevron-down diario-filter-chevron"></i>
             </button>
-            <button type="button" class="btn-primary diario-filter-button" onclick="diarioAplicarFiltros()"><i class="ti ti-search"></i> Buscar</button>
+            <button type="button" class="btn-primary diario-filter-button" onclick="diarioAplicarFiltros()"><i class="fa-solid fa-magnifying-glass"></i> Buscar</button>
           </div>
           <div class="diario-filter-panel" id="diario-filtros-avancados" hidden>
             <div class="diario-filter-field">
@@ -414,7 +417,7 @@
                 <input type="date" id="diario-filtro-fim" class="form-control" aria-label="Data final">
               </div>
             </div>
-            <button type="button" class="btn-outline diario-clear-button" onclick="diarioLimparFiltros()"><i class="ti ti-filter-off"></i> Limpar filtros</button>
+            <button type="button" class="btn-outline diario-clear-button" onclick="diarioLimparFiltros()"><i class="fa-solid fa-filter-circle-xmark"></i> Limpar filtros</button>
           </div>
           <div class="diario-active-filters" id="diario-filtros-ativos" hidden aria-live="polite"></div>
         </div>
@@ -446,7 +449,7 @@
       <!-- ===== TERCEIRIZADOS ===== -->
       <section id="view-terceirizados" class="view-section">
         <div class="dash-section-header" style="margin-top:0; margin-bottom: 16px;">
-          <div class="dash-icon"><i class="ti ti-briefcase"></i></div>
+          <div class="dash-icon"><i class="fa-solid fa-briefcase"></i></div>
           <h2 id="titulo-terceirizados">Terceirizados</h2>
           <div class="dash-line"></div>
         </div>
@@ -459,31 +462,31 @@
               <div class="kpi-card-label">Categoria</div>
               <div class="kpi-card-value" style="font-size:22px">Vigilantes</div>
               <div class="kpi-card-sub">Empresa: SERVFAZ</div>
-              <i class="ti ti-shield kpi-card-bg-icon"></i>
+              <i class="fa-solid fa-shield kpi-card-bg-icon"></i>
             </div>
             <div class="kpi-card" style="border-top-color:var(--gov-orange)" onclick="abrirQuadroTerceirizado('PORTEIRO')">
               <div class="kpi-card-label">Categoria</div>
               <div class="kpi-card-value" style="font-size:22px">Porteiros</div>
               <div class="kpi-card-sub">Empresa: GLOBALTECH</div>
-              <i class="ti ti-door-enter kpi-card-bg-icon"></i>
+              <i class="fa-solid fa-door-open kpi-card-bg-icon"></i>
             </div>
             <div class="kpi-card" style="border-top-color:var(--gov-green, #107c41)" onclick="abrirQuadroTerceirizado('SERVICOS_GERAIS')">
               <div class="kpi-card-label">Categoria</div>
               <div class="kpi-card-value" style="font-size:22px">Serviços Gerais</div>
               <div class="kpi-card-sub">Empresa: GRUPO CLASI</div>
-              <i class="ti ti-tool kpi-card-bg-icon"></i>
+              <i class="fa-solid fa-screwdriver-wrench kpi-card-bg-icon"></i>
             </div>
             <div class="kpi-card" style="border-top-color:#1351b4" onclick="abrirQuadroTerceirizado('MOTORISTA_MEGA_ON')">
               <div class="kpi-card-label">Categoria</div>
               <div class="kpi-card-value" style="font-size:22px">Motoristas</div>
               <div class="kpi-card-sub">Empresa: MEGA ON</div>
-              <i class="ti ti-steering-wheel kpi-card-bg-icon"></i>
+              <i class="fa-solid fa-car kpi-card-bg-icon"></i>
             </div>
             <div class="kpi-card" style="border-top-color:#0F6E56" onclick="abrirMenuProcad()">
               <div class="kpi-card-label">Empresa</div>
               <div class="kpi-card-value" style="font-size:22px">PROCAD</div>
               <div class="kpi-card-sub">Motoristas e Administrativo</div>
-              <i class="ti ti-building kpi-card-bg-icon"></i>
+              <i class="fa-solid fa-building kpi-card-bg-icon"></i>
             </div>
           </div>
         </div>
@@ -491,7 +494,7 @@
         <!-- SUBMENU PROCAD -->
         <div id="terceirizados-procad-submenu" style="display:none;">
           <div style="margin-bottom: 16px;">
-            <button class="btn btn-outline" onclick="voltarCardsTerceirizados()"><i class="ti ti-arrow-left"></i> Voltar</button>
+            <button class="btn btn-outline" onclick="voltarCardsTerceirizados()"><i class="fa-solid fa-arrow-left"></i> Voltar</button>
           </div>
           <p class="view-help">Selecione o quadro da empresa PROCAD.</p>
           <div class="kpi-grid" style="margin-top:20px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
@@ -499,13 +502,13 @@
               <div class="kpi-card-label">Quadro</div>
               <div class="kpi-card-value" style="font-size:22px">Motoristas</div>
               <div class="kpi-card-sub">Lotação fixa · Dirigindo para</div>
-              <i class="ti ti-steering-wheel kpi-card-bg-icon"></i>
+              <i class="fa-solid fa-car kpi-card-bg-icon"></i>
             </div>
             <div class="kpi-card" style="border-top-color:#1351b4" onclick="abrirQuadroTerceirizado('ADMINISTRATIVO_PROCAD')">
               <div class="kpi-card-label">Quadro</div>
               <div class="kpi-card-value" style="font-size:22px">Administrativo</div>
               <div class="kpi-card-sub">Várias funções</div>
-              <i class="ti ti-briefcase kpi-card-bg-icon"></i>
+              <i class="fa-solid fa-briefcase kpi-card-bg-icon"></i>
             </div>
           </div>
         </div>
@@ -513,7 +516,7 @@
         <!-- VISÃO DE TABELA -->
         <div id="terceirizados-table-container" style="display:none;">
           <div style="margin-bottom: 16px;">
-            <button class="btn btn-outline" id="btn-voltar-terceirizados" onclick="voltarDeTabelaTerceirizados()"><i class="ti ti-arrow-left"></i> Voltar</button>
+            <button class="btn btn-outline" id="btn-voltar-terceirizados" onclick="voltarDeTabelaTerceirizados()"><i class="fa-solid fa-arrow-left"></i> Voltar</button>
           </div>
           <p class="view-help" id="help-terceirizados">Lista de servidores terceirizados.</p>
           
@@ -565,10 +568,10 @@
       <section id="view-cedidos" class="view-section">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
           <div>
-            <div class="row-label" style="margin:0"><i class="ti ti-arrows-left-right"></i> Cedidos e Recebidos</div>
+            <div class="row-label" style="margin:0"><i class="fa-solid fa-arrows-left-right"></i> Cedidos e Recebidos</div>
             <small style="color:var(--color-text-muted)">Movimentação de servidores entre a SEMCAS e outros órgãos</small>
           </div>
-          <button class="btn-primary" onclick="abrirModalCedido()"><i class="ti ti-plus"></i> Registrar Cessão/Recebimento</button>
+          <button class="btn-primary" onclick="abrirModalCedido()"><i class="fa-solid fa-plus"></i> Registrar Cessão/Recebimento</button>
         </div>
         <div class="stats-grid" id="cedidos-kpis" style="margin-bottom:20px;"></div>
 
@@ -591,7 +594,7 @@
           </div>
           <div class="filter-field">
             <label>&nbsp;</label>
-            <button id="ced-limpar" class="btn btn-outline" style="padding:8px 14px" title="Limpar filtros"><i class="ti ti-filter-off"></i> Limpar</button>
+            <button id="ced-limpar" class="btn btn-outline" style="padding:8px 14px" title="Limpar filtros"><i class="fa-solid fa-filter-circle-xmark"></i> Limpar</button>
           </div>
           <span class="filter-result-count" id="ced-count"></span>
         </div>
@@ -623,12 +626,12 @@
           <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;margin-bottom:14px">
             <div>
               <div style="font-size:16px;font-weight:700;color:var(--gov-blue-dark)">
-                <i class="ti ti-clock"></i> Gerador de Folha de Ponto
+                <i class="fa-regular fa-clock"></i> Gerador de Folha de Ponto
               </div>
               <div style="font-size:12px;color:var(--color-text-muted);margin-top:2px">Dados carregados do Supabase &mdash; Papel A4</div>
             </div>
             <button onclick="fpImprimir()" class="btn-primary">
-              <i class="ti ti-printer"></i> Imprimir
+              <i class="fa-solid fa-print"></i> Imprimir
             </button>
           </div>
 
@@ -644,19 +647,19 @@
           <!-- Tab: Horário Individual -->
           <div class="fp-tab-pane" id="fp-tab-srvhor">
             <div style="background:#e8f4fd;border:1px solid #b3d9f7;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#1351b4">
-              <i class="ti ti-info-circle"></i>
+              <i class="fa-solid fa-circle-info"></i>
               Escolha o servidor e defina o hor&aacute;rio de entrada e sa&iacute;da dele. O hor&aacute;rio individual vale mais que o da fun&ccedil;&atilde;o
               e j&aacute; sai nas folhas Individual e Por Unidade. Preencha o 1&ordm; per&iacute;odo, o 2&ordm; ou os dois.
             </div>
             <div class="fp-hor-aviso" id="fp-sh-aviso" hidden>
-              <i class="ti ti-alert-triangle"></i> A tabela de hor&aacute;rio individual precisa ser criada &mdash; rode <code>sql/folha_ponto_servidor_horario.sql</code> no SQL Editor do Supabase.
+              <i class="fa-solid fa-triangle-exclamation"></i> A tabela de hor&aacute;rio individual precisa ser criada &mdash; rode <code>sql/folha_ponto_servidor_horario.sql</code> no SQL Editor do Supabase.
             </div>
             <div class="fp-und-painel" style="margin-top:0">
               <div class="fp-sh-form">
                 <div class="fp-busca">
                   <label class="form-label" style="font-size:12px" for="fp-sh-busca">Servidor</label>
                   <div class="fp-busca-campo">
-                    <i class="ti ti-search"></i>
+                    <i class="fa-solid fa-magnifying-glass"></i>
                     <input type="search" id="fp-sh-busca" class="form-control" autocomplete="off"
                       placeholder="Buscar servidor por nome, matr&iacute;cula, fun&ccedil;&atilde;o ou unidade&#8230;" role="combobox" aria-expanded="false" aria-controls="fp-sh-lista">
                   </div>
@@ -681,8 +684,8 @@
                   <button type="button" class="btn btn-outline fp-btn-xs" onclick="fpShPreencher('dia_todo')">Dia todo</button>
                   <button type="button" class="btn btn-outline fp-btn-xs" onclick="fpShPreencher('limpar')">Limpar campos</button>
                   <span style="flex:1"></span>
-                  <button type="button" class="btn btn-outline fp-btn-xs" id="fp-sh-remover" onclick="fpShRemover()" hidden><i class="ti ti-trash"></i> Voltar ao hor&aacute;rio da fun&ccedil;&atilde;o</button>
-                  <button type="button" class="btn-primary" id="fp-sh-salvar" onclick="fpShSalvar()" disabled><i class="ti ti-device-floppy"></i> Salvar hor&aacute;rio</button>
+                  <button type="button" class="btn btn-outline fp-btn-xs" id="fp-sh-remover" onclick="fpShRemover()" hidden><i class="fa-solid fa-trash-can"></i> Voltar ao hor&aacute;rio da fun&ccedil;&atilde;o</button>
+                  <button type="button" class="btn-primary" id="fp-sh-salvar" onclick="fpShSalvar()" disabled><i class="fa-solid fa-floppy-disk"></i> Salvar hor&aacute;rio</button>
                 </div>
               </div>
               <div class="fp-und-cab">
@@ -704,7 +707,7 @@
               <div class="fp-busca">
                 <label class="form-label" style="font-size:12px" for="fp-srv-busca">Servidor</label>
                 <div class="fp-busca-campo">
-                  <i class="ti ti-search"></i>
+                  <i class="fa-solid fa-magnifying-glass"></i>
                   <input type="search" id="fp-srv-busca" class="form-control" autocomplete="off"
                     placeholder="Carregando servidores&#8230;" role="combobox" aria-expanded="false" aria-controls="fp-srv-lista">
                 </div>
@@ -726,17 +729,17 @@
           <!-- Tab: Feriados -->
           <div class="fp-tab-pane" id="fp-tab-feriados">
             <div class="fer-cab">
-              <div class="fer-cab-ico"><i class="ti ti-calendar"></i></div>
+              <div class="fer-cab-ico"><i class="fa-solid fa-calendar"></i></div>
               <div class="fer-cab-txt">
                 <h3>Gerenciamento de Feriados</h3>
                 <p>Cadastre, edite e gerencie os feriados utilizados na gera&ccedil;&atilde;o da folha de ponto.</p>
               </div>
-              <button type="button" class="fer-btn-previa" id="fer-btn-previa" onclick="fpFerPrevia()" title="Mostra a folha de ponto do m&ecirc;s escolhido nos filtros"><i class="ti ti-file-text"></i> <span id="fer-previa-txt">Ver folha de exemplo</span></button>
-              <button type="button" class="fer-btn-novo" onclick="fpFerNovo()"><i class="ti ti-plus"></i> Novo Feriado</button>
+              <button type="button" class="fer-btn-previa" id="fer-btn-previa" onclick="fpFerPrevia()" title="Mostra a folha de ponto do m&ecirc;s escolhido nos filtros"><i class="fa-solid fa-file-lines"></i> <span id="fer-previa-txt">Ver folha de exemplo</span></button>
+              <button type="button" class="fer-btn-novo" onclick="fpFerNovo()"><i class="fa-solid fa-plus"></i> Novo Feriado</button>
             </div>
 
             <div class="fp-hor-aviso" id="fp-fer-aviso" hidden>
-              <i class="ti ti-alert-triangle"></i> A tabela de feriados precisa ser atualizada &mdash; rode <code>sql/feriados_gerenciamento.sql</code> no SQL Editor do Supabase. At&eacute; l&aacute; os feriados oficiais s&atilde;o fixos e s&oacute; os personalizados podem ser cadastrados.
+              <i class="fa-solid fa-triangle-exclamation"></i> A tabela de feriados precisa ser atualizada &mdash; rode <code>sql/feriados_gerenciamento.sql</code> no SQL Editor do Supabase. At&eacute; l&aacute; os feriados oficiais s&atilde;o fixos e s&oacute; os personalizados podem ser cadastrados.
             </div>
 
             <div class="fer-kpis">
@@ -774,7 +777,7 @@
             </div>
 
             <div class="fer-filtros">
-              <div class="fer-busca"><i class="ti ti-search"></i>
+              <div class="fer-busca"><i class="fa-solid fa-magnifying-glass"></i>
                 <input type="search" id="fer-f-nome" class="form-control" placeholder="Pesquisar feriado por nome..." oninput="fpFerFiltrar()">
               </div>
               <label class="fer-f-rot" for="fp-fer-ano">Ano:</label>
@@ -795,14 +798,14 @@
                 <option value="municipal">Municipal (S&atilde;o Lu&iacute;s)</option>
                 <option value="ponto_facultativo">S&oacute; pontos facultativos</option>
               </select>
-              <button type="button" class="fer-btn-limpar" onclick="fpFerLimparFiltros()"><i class="ti ti-filter"></i> Limpar filtros</button>
+              <button type="button" class="fer-btn-limpar" onclick="fpFerLimparFiltros()"><i class="fa-solid fa-filter"></i> Limpar filtros</button>
             </div>
 
             <div class="fer-tabela-wrap">
               <table class="fer-tabela">
                 <thead>
                   <tr>
-                    <th><button type="button" class="fer-ord" onclick="fpFerOrdenar()" title="Inverter ordem">Data <i class="ti ti-arrows-sort"></i></button></th>
+                    <th><button type="button" class="fer-ord" onclick="fpFerOrdenar()" title="Inverter ordem">Data <i class="fa-solid fa-sort"></i></button></th>
                     <th>Descri&ccedil;&atilde;o do Feriado</th>
                     <th>Abrang&ecirc;ncia</th>
                     <th>Tipo</th>
@@ -827,7 +830,7 @@
               </div>
             </div>
             <div class="fp-hor-aviso" id="fp-hor-aviso" hidden>
-              <i class="ti ti-alert-triangle"></i> A tabela de hor&aacute;rios precisa ser criada ou atualizada &mdash; rode <code>sql/folha_ponto_funcao_horario.sql</code> no SQL Editor do Supabase. At&eacute; l&aacute; todos saem com o hor&aacute;rio Padr&atilde;o.
+              <i class="fa-solid fa-triangle-exclamation"></i> A tabela de hor&aacute;rios precisa ser criada ou atualizada &mdash; rode <code>sql/folha_ponto_funcao_horario.sql</code> no SQL Editor do Supabase. At&eacute; l&aacute; todos saem com o hor&aacute;rio Padr&atilde;o.
             </div>
             <div class="fp-und-painel" style="margin-top:0">
               <div class="fp-und-cab">
@@ -836,13 +839,13 @@
                   <div class="fp-und-caminho" id="fp-hor-resumo"></div>
                 </div>
                 <div class="fp-und-acoes">
-                  <button type="button" class="btn btn-outline fp-btn-xs" id="fp-hor-descartar" onclick="fpDescartarHorarios()" hidden><i class="ti ti-arrow-back-up"></i> Descartar</button>
-                  <button type="button" class="btn-primary" id="fp-hor-salvar" onclick="fpSalvarHorarios()" disabled><i class="ti ti-device-floppy"></i> <span id="fp-hor-salvar-txt">Salvar</span></button>
+                  <button type="button" class="btn btn-outline fp-btn-xs" id="fp-hor-descartar" onclick="fpDescartarHorarios()" hidden><i class="fa-solid fa-arrow-rotate-left"></i> Descartar</button>
+                  <button type="button" class="btn-primary" id="fp-hor-salvar" onclick="fpSalvarHorarios()" disabled><i class="fa-solid fa-floppy-disk"></i> <span id="fp-hor-salvar-txt">Salvar</span></button>
                 </div>
               </div>
               <div class="fp-hor-filtros">
                 <div class="fp-busca-campo" style="flex:1;min-width:200px">
-                  <i class="ti ti-search"></i>
+                  <i class="fa-solid fa-magnifying-glass"></i>
                   <input type="search" id="fp-hor-busca" class="form-control" autocomplete="off" placeholder="Filtrar por fun&ccedil;&atilde;o, v&iacute;nculo ou nome do servidor&#8230;">
                 </div>
                 <select id="fp-hor-vinculo" class="form-control" style="width:auto;font-size:13px" aria-label="Filtrar por v&iacute;nculo"></select>
@@ -860,7 +863,7 @@
           <!-- Tab: Por Unidade -->
           <div class="fp-tab-pane" id="fp-tab-unidade">
             <div style="background:#e8f4fd;border:1px solid #b3d9f7;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#1351b4">
-              <i class="ti ti-info-circle"></i>
+              <i class="fa-solid fa-circle-info"></i>
               Marque uma ou mais unidades na busca &mdash; a lista continua aberta para voc&ecirc; ir pesquisando e marcando. Gera uma p&aacute;gina por servidor; desmarque quem n&atilde;o deve receber folha.
               Entram os servidores com matr&iacute;cula e os de v&iacute;nculo <strong>Efetivo, Comissionado, Contrato e Servi&ccedil;o Prestado</strong> &mdash; terceirizados ficam de fora.
             </div>
@@ -868,7 +871,7 @@
               <div class="fp-busca">
                 <label class="form-label" style="font-size:12px" for="fp-und-busca">Unidades Administrativas</label>
                 <div class="fp-busca-campo">
-                  <i class="ti ti-search"></i>
+                  <i class="fa-solid fa-magnifying-glass"></i>
                   <input type="search" id="fp-und-busca" class="form-control" autocomplete="off"
                     placeholder="Buscar e marcar unidades pelo nome ou pela coordena&ccedil;&atilde;o&#8230;" role="combobox" aria-expanded="false" aria-controls="fp-und-lista">
                 </div>
@@ -884,7 +887,7 @@
               </div>
               <div style="padding-bottom:2px">
                 <button id="fp-btn-lote" onclick="fpImprimirUnidade()" class="btn-primary" style="height:38px;width:100%;justify-content:center" disabled>
-                  <i class="ti ti-printer"></i> <span id="fp-btn-lote-txt">Gerar folhas</span>
+                  <i class="fa-solid fa-print"></i> <span id="fp-btn-lote-txt">Gerar folhas</span>
                 </button>
               </div>
             </div>
@@ -892,7 +895,7 @@
             <div class="fp-und-sel" id="fp-und-sel" hidden>
               <div class="fp-und-sel-cab">
                 <span id="fp-und-sel-titulo"></span>
-                <button type="button" class="fp-link fp-link-perigo" onclick="fpLimparUnidades()"><i class="ti ti-trash"></i> Limpar sele&ccedil;&atilde;o</button>
+                <button type="button" class="fp-link fp-link-perigo" onclick="fpLimparUnidades()"><i class="fa-solid fa-trash-can"></i> Limpar sele&ccedil;&atilde;o</button>
               </div>
               <div class="fp-und-sel-chips" id="fp-und-sel-chips"></div>
             </div>
@@ -905,12 +908,12 @@
                 </div>
                 <div class="fp-und-acoes">
                   <span id="fp-und-contagem"></span>
-                  <button type="button" class="btn btn-outline fp-btn-xs" onclick="fpMarcarTodos(true)"><i class="ti ti-checks"></i> Marcar todos</button>
-                  <button type="button" class="btn btn-outline fp-btn-xs" onclick="fpMarcarTodos(false)"><i class="ti ti-square"></i> Desmarcar todos</button>
+                  <button type="button" class="btn btn-outline fp-btn-xs" onclick="fpMarcarTodos(true)"><i class="fa-solid fa-check-double"></i> Marcar todos</button>
+                  <button type="button" class="btn btn-outline fp-btn-xs" onclick="fpMarcarTodos(false)"><i class="fa-regular fa-square"></i> Desmarcar todos</button>
                 </div>
               </div>
               <div class="fp-busca-campo fp-und-filtro">
-                <i class="ti ti-search"></i>
+                <i class="fa-solid fa-magnifying-glass"></i>
                 <input type="search" id="fp-und-filtro" class="form-control" autocomplete="off" placeholder="Filtrar servidores das unidades marcadas (nome, matr&iacute;cula, fun&ccedil;&atilde;o)&#8230;">
               </div>
               <div class="fp-und-vazio" id="fp-und-sem-result" hidden>Nenhum servidor encontrado com esse filtro.</div>
@@ -1034,10 +1037,10 @@
       <section id="view-ferias" class="view-section ferias-v2">
         <div class="fer-v2-head">
           <div>
-            <div class="row-label" style="margin:0"><i class="ti ti-beach"></i> Programação e Escala de Gozo</div>
+            <div class="row-label" style="margin:0"><i class="fa-solid fa-umbrella-beach"></i> Programação e Escala de Gozo</div>
             <p class="view-help" style="margin:6px 0 0">Controle integrado à base de funcionários da SEMCAS. Ao encerrar o gozo, o registro vai para o Histórico e uma nova pendência é preparada automaticamente.</p>
           </div>
-          <button class="btn-primary" onclick="abrirAgendarFerias()"><i class="ti ti-plus"></i> Novo Registro de Férias</button>
+          <button class="btn-primary" onclick="abrirAgendarFerias()"><i class="fa-solid fa-plus"></i> Novo Registro de Férias</button>
         </div>
 
         <div class="fer-v2-summary" id="ferias-kpis">
@@ -1080,8 +1083,8 @@
 
           <div class="fer-v2-filters-wrap">
             <button type="button" id="fer-filtro-toggle" class="fer-filtro-toggle" aria-expanded="true" aria-controls="fer-filtro-panel">
-              <i class="ti ti-filter"></i> Filtros <span class="fer-filtro-resumo" id="fer-filtro-resumo"></span>
-              <i class="ti ti-chevron-down fer-filtro-chevron"></i>
+              <i class="fa-solid fa-filter"></i> Filtros <span class="fer-filtro-resumo" id="fer-filtro-resumo"></span>
+              <i class="fa-solid fa-chevron-down fer-filtro-chevron"></i>
             </button>
             <div class="fer-v2-filters toolbar-filters" id="fer-filtro-panel">
               <div class="filter-field" style="flex:1;min-width:220px">
@@ -1117,7 +1120,7 @@
               </div>
               <div class="filter-field">
                 <label>&nbsp;</label>
-                <button type="button" id="fer-filtro-limpar" class="btn btn-outline" style="padding:8px 14px"><i class="ti ti-filter-off"></i> Limpar</button>
+                <button type="button" id="fer-filtro-limpar" class="btn btn-outline" style="padding:8px 14px"><i class="fa-solid fa-filter-circle-xmark"></i> Limpar</button>
               </div>
               <span class="filter-result-count" id="fer-count"></span>
             </div>
@@ -1128,15 +1131,15 @@
               <table class="gov-table fer-v2-table">
                 <thead>
                   <tr>
-                    <th class="sortable fer-sortable" data-fer-sort="servidor" onclick="ferSortBy('servidor')">Servidor / Matrícula <i class="ti ti-arrows-sort sort-icon"></i></th>
-                    <th class="sortable fer-sortable" data-fer-sort="lotacao" onclick="ferSortBy('lotacao')">Lotação / Unidade <i class="ti ti-arrows-sort sort-icon"></i></th>
-                    <th class="sortable fer-sortable" data-fer-sort="cargo" onclick="ferSortBy('cargo')">Cargo <i class="ti ti-arrows-sort sort-icon"></i></th>
-                    <th class="sortable fer-sortable" data-fer-sort="funcao" onclick="ferSortBy('funcao')">Função <i class="ti ti-arrows-sort sort-icon"></i></th>
-                    <th class="sortable fer-sortable" data-fer-sort="aquisitivo" onclick="ferSortBy('aquisitivo')">Período Aquisitivo <i class="ti ti-arrows-sort sort-icon"></i></th>
-                    <th class="sortable fer-sortable" data-fer-sort="gozo" onclick="ferSortBy('gozo')">Período de Gozo <i class="ti ti-arrows-sort sort-icon"></i></th>
-                    <th class="sortable fer-sortable" data-fer-sort="pendente" onclick="ferSortBy('pendente')">Pendências <i class="ti ti-arrows-sort sort-icon"></i></th>
-                    <th class="sortable fer-sortable" data-fer-sort="documento" onclick="ferSortBy('documento')">Documento / Link <i class="ti ti-arrows-sort sort-icon"></i></th>
-                    <th class="sortable fer-sortable" data-fer-sort="status" onclick="ferSortBy('status')">Situação <i class="ti ti-arrows-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="servidor" onclick="ferSortBy('servidor')">Servidor / Matrícula <i class="fa-solid fa-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="lotacao" onclick="ferSortBy('lotacao')">Lotação / Unidade <i class="fa-solid fa-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="cargo" onclick="ferSortBy('cargo')">Cargo <i class="fa-solid fa-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="funcao" onclick="ferSortBy('funcao')">Função <i class="fa-solid fa-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="aquisitivo" onclick="ferSortBy('aquisitivo')">Período Aquisitivo <i class="fa-solid fa-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="gozo" onclick="ferSortBy('gozo')">Período de Gozo <i class="fa-solid fa-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="pendente" onclick="ferSortBy('pendente')">Pendências <i class="fa-solid fa-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="documento" onclick="ferSortBy('documento')">Documento / Link <i class="fa-solid fa-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="status" onclick="ferSortBy('status')">Situação <i class="fa-solid fa-sort sort-icon"></i></th>
                     <th style="width:140px">Ações</th>
                   </tr>
                 </thead>
@@ -1166,12 +1169,12 @@
               <table class="gov-table fer-v2-table">
                 <thead>
                   <tr>
-                    <th class="sortable fer-sortable" data-fer-sort="servidor" onclick="ferSortBy('servidor')">Servidor / Matrícula <i class="ti ti-arrows-sort sort-icon"></i></th>
-                    <th class="sortable fer-sortable" data-fer-sort="lotacao" onclick="ferSortBy('lotacao')">Lotação / Unidade <i class="ti ti-arrows-sort sort-icon"></i></th>
-                    <th class="sortable fer-sortable" data-fer-sort="cargo" onclick="ferSortBy('cargo')">Cargo <i class="ti ti-arrows-sort sort-icon"></i></th>
-                    <th class="sortable fer-sortable" data-fer-sort="funcao" onclick="ferSortBy('funcao')">Função <i class="ti ti-arrows-sort sort-icon"></i></th>
-                    <th class="sortable fer-sortable" data-fer-sort="pendente" onclick="ferSortBy('pendente')">Situação / Período Pendente <i class="ti ti-arrows-sort sort-icon"></i></th>
-                    <th class="sortable fer-sortable" data-fer-sort="documento" onclick="ferSortBy('documento')">Documento / Link <i class="ti ti-arrows-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="servidor" onclick="ferSortBy('servidor')">Servidor / Matrícula <i class="fa-solid fa-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="lotacao" onclick="ferSortBy('lotacao')">Lotação / Unidade <i class="fa-solid fa-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="cargo" onclick="ferSortBy('cargo')">Cargo <i class="fa-solid fa-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="funcao" onclick="ferSortBy('funcao')">Função <i class="fa-solid fa-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="pendente" onclick="ferSortBy('pendente')">Situação / Período Pendente <i class="fa-solid fa-sort sort-icon"></i></th>
+                    <th class="sortable fer-sortable" data-fer-sort="documento" onclick="ferSortBy('documento')">Documento / Link <i class="fa-solid fa-sort sort-icon"></i></th>
                     <th style="width:140px">Ação</th>
                   </tr>
                 </thead>
@@ -1212,12 +1215,12 @@
       <section id="view-pendentes" class="view-section" hidden aria-hidden="true">
         <div class="row-label">Dados incompletos</div>
         <div class="view-help" style="background:#FEF3C7;border-left:4px solid #F59E0B;padding:12px 16px;border-radius:4px;font-size:13px;margin-bottom:16px;color:#92400E">
-          <i class="ti ti-alert-triangle"></i>
+          <i class="fa-solid fa-triangle-exclamation"></i>
           <strong>O que fazer aqui:</strong> pessoas da folha que ainda não estão bem ligadas ao cadastro. Você pode <strong>vincular a um servidor já cadastrado</strong> (atualiza matrícula e admissão), <strong>criar cadastro novo</strong> ou <strong>descartar</strong> se não for da SEMCAS.
         </div>
         <div class="stats-grid" id="pendentes-kpis"></div>
         <div class="toolbar-filters" style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
-          <input type="text" id="pend-busca" placeholder="🔍 Buscar por nome ou matrícula…" style="flex:1;min-width:240px">
+          <input type="text" id="pend-busca" placeholder="Buscar por nome ou matrícula…" style="flex:1;min-width:240px">
           <select id="pend-status-filtro">
             <option value="pendente">Pendentes</option>
             <option value="casado">Casados</option>
@@ -1254,7 +1257,7 @@
         <!-- Nova Seção: Auditoria de Dados -->
         <div style="margin-top: 40px;">
           <div class="dash-section-header">
-            <div class="dash-icon" style="background:var(--gov-red)"><i class="ti ti-shield-search" style="color:#fff"></i></div>
+            <div class="dash-icon" style="background:var(--gov-red)"><i class="fa-solid fa-user-shield" style="color:#fff"></i></div>
             <h2>Qualidade do cadastro</h2>
             <div class="dash-line"></div>
           </div>
@@ -1263,7 +1266,7 @@
             <!-- Servidores sem Matrícula -->
             <div style="background:var(--gov-surface); border:1px solid var(--gov-border); border-radius:var(--br-md); padding:16px;">
               <h3 style="font-size:15px; font-weight:700; color:var(--gov-blue-dark); margin-bottom:12px; display:flex; justify-content:space-between;">
-                <span>⚠️ Servidores Sem Matrícula</span>
+                <span><i class="fa-solid fa-triangle-exclamation"></i> Servidores Sem Matrícula</span>
                 <span id="badge-sem-matricula" style="background:var(--gov-bg-light); color:var(--color-text-sec); font-size:12px; padding:2px 8px; border-radius:12px;">0</span>
               </h3>
               <div class="table-container" style="max-height: 400px; overflow-y: auto;">
@@ -1284,7 +1287,7 @@
             <!-- Possíveis Duplicidades -->
             <div style="background:var(--gov-surface); border:1px solid var(--gov-border); border-radius:var(--br-md); padding:16px;">
               <h3 style="font-size:15px; font-weight:700; color:var(--gov-blue-dark); margin-bottom:12px; display:flex; justify-content:space-between;">
-                <span>👥 Nomes Duplicados</span>
+                <span><i class="fa-solid fa-users"></i> Nomes Duplicados</span>
                 <span id="badge-duplicados" style="background:var(--gov-bg-light); color:var(--color-text-sec); font-size:12px; padding:2px 8px; border-radius:12px;">0</span>
               </h3>
               <div class="table-container" style="max-height: 400px; overflow-y: auto;">
@@ -1310,12 +1313,12 @@
       <section id="view-sem-lotacao" class="view-section">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
           <div>
-            <div class="row-label" style="margin:0"><i class="ti ti-map-off"></i> Servidores sem Lotação</div>
+            <div class="row-label" style="margin:0"><i class="fa-solid fa-building-circle-xmark"></i> Servidores sem Lotação</div>
             <small style="color:var(--color-text-muted)">Ativos sem lotação atual. Se o RH não tem função, o sistema busca o cargo na folha GIAP (marcado como GIAP).</small>
           </div>
         </div>
         <div class="toolbar-filters" style="margin-bottom:12px">
-          <input type="text" id="semlot-busca" class="form-control" placeholder="🔍 Buscar por nome, matrícula ou CPF…" style="max-width:360px">
+          <input type="text" id="semlot-busca" class="form-control" placeholder="Buscar por nome, matrícula ou CPF…" style="max-width:360px">
           <span class="filter-result-count" id="semlot-count"></span>
         </div>
         <div class="card">
@@ -1346,7 +1349,7 @@
       <section id="view-exonerados" class="view-section">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
           <div>
-            <div class="row-label" style="margin:0"><i class="ti ti-user-off"></i> Exonerados e Demitidos</div>
+            <div class="row-label" style="margin:0"><i class="fa-solid fa-user-slash"></i> Exonerados e Demitidos</div>
             <small style="color:var(--color-text-muted)">Exoneração (com matrícula), demissão de terceirizado/CLT, falecimento e outros motivos. Edite registros antigos pela coluna Ações.</small>
           </div>
         </div>
@@ -1396,25 +1399,25 @@
       <section id="view-relatorio-api" class="view-section">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:12px">
           <div>
-            <div class="row-label" style="margin:0"><i class="ti ti-file-search"></i> Conferência GIAP</div>
+            <div class="row-label" style="margin:0"><i class="fa-solid fa-file-circle-check"></i> Conferência GIAP</div>
             <small class="view-help" style="color:var(--color-text-muted)">Puxe a folha de remuneração da competência e corrija cadastros já identificados (matrícula, nome, admissão, CPF).</small>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             <span id="giap-comp-badge" style="font-size:12px;padding:4px 10px;border-radius:4px;background:#edf2f7;color:#4a5568"></span>
             <button type="button" class="btn-primary" id="giap-btn-run">
-              <i class="ti ti-cloud-download"></i> Buscar e gravar folha
+              <i class="fa-solid fa-cloud-arrow-down"></i> Buscar e gravar folha
             </button>
             <button type="button" class="btn-secondary" id="giap-btn-parar-folha" onclick="giapPararBuscaFolha()" style="display:none" title="Interrompe a sequência automática de lotes">
               Parar lotes
             </button>
             <button type="button" class="btn-secondary" id="giap-btn-puxar-cedidos" onclick="giapPuxarCedidos()">
-              <i class="ti ti-arrows-left-right"></i> Puxar Cedidos/Recebidos
+              <i class="fa-solid fa-arrows-left-right"></i> Puxar Cedidos/Recebidos
             </button>
           </div>
         </div>
 
         <div class="card" style="margin-bottom:16px;padding:16px">
-          <div class="row-label" style="margin:0 0 8px"><i class="ti ti-info-circle"></i> Buscar e gravar folha</div>
+          <div class="row-label" style="margin:0 0 8px"><i class="fa-solid fa-circle-info"></i> Buscar e gravar folha</div>
           <small style="display:block;color:var(--color-text-muted)">
             Busca <strong>todos</strong> os servidores do RH que ainda não estão na folha desta competência
             (com ou sem matrícula / admissão), exceto Terceirizado.
@@ -1427,7 +1430,7 @@
 
         <div class="card" style="margin-bottom:16px;padding:16px">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:12px">
-            <strong><i class="ti ti-progress"></i> Progresso do último job</strong>
+            <strong><i class="fa-solid fa-bars-progress"></i> Progresso do último job</strong>
             <span id="giap-job-meta" style="color:var(--color-text-muted);font-size:13px">—</span>
           </div>
           <div style="background:var(--gov-bg-light,#edf2f7);border-radius:8px;height:14px;overflow:hidden">
@@ -1441,7 +1444,7 @@
         </div>
 
         <div class="card" style="margin-bottom:16px;padding:16px">
-          <div class="row-label" style="margin:0 0 12px"><i class="ti ti-calendar-event"></i> Agendamento automático</div>
+          <div class="row-label" style="margin:0 0 12px"><i class="fa-solid fa-calendar-day"></i> Agendamento automático</div>
           <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
               <input type="checkbox" id="giap-cfg-auto">
@@ -1455,7 +1458,7 @@
               <label for="giap-cfg-comp">Competência alvo (YYYYMM)</label>
               <input type="number" id="giap-cfg-comp" class="form-control" placeholder="ex: 202607" style="width:120px">
             </div>
-            <button type="button" class="btn-secondary" onclick="giapSalvarConfig()"><i class="ti ti-device-floppy"></i> Salvar</button>
+            <button type="button" class="btn-secondary" onclick="giapSalvarConfig()"><i class="fa-solid fa-floppy-disk"></i> Salvar</button>
           </div>
           <small style="display:block;margin-top:10px;color:var(--color-text-muted)">
             Com o automático ligado, <strong>a partir do dia configurado até o fim do mês</strong> (padrão 20–31)
@@ -1467,11 +1470,11 @@
 
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;padding:0 4px">
-            <div class="row-label" style="margin:0"><i class="ti ti-table"></i> Resultados da folha GIAP</div>
+            <div class="row-label" style="margin:0"><i class="fa-solid fa-table"></i> Resultados da folha GIAP</div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <span class="filter-result-count" id="giap-folha-count"></span>
               <button type="button" class="btn-secondary" id="giap-btn-alimentar-cpf" onclick="giapAlimentarCpfsAlinhados()" title="Copia CPF do GIAP para o cadastro RH dos alinhados sem CPF">
-                <i class="ti ti-id"></i> Alimentar CPFs
+                <i class="fa-solid fa-id-card"></i> Alimentar CPFs
               </button>
               <button type="button" class="btn-secondary" id="giap-btn-parar-puxar" onclick="giapPararPuxarTodos()" style="display:none">
                 Parar
@@ -1506,7 +1509,7 @@
               </select>
             </div>
             <button type="button" class="btn-primary" id="giap-btn-puxar-nome" onclick="giapPuxarNomeApi()" style="white-space:nowrap" title="Com nome: puxa essa pessoa. Campo vazio: puxa todos os Cedidos/Recebidos">
-              <i class="ti ti-cloud-download"></i> Puxar na API
+              <i class="fa-solid fa-cloud-arrow-down"></i> Puxar na API
             </button>
           </div>
           <small style="display:block;margin:0 4px 10px;color:var(--color-text-muted)">
@@ -1559,7 +1562,7 @@
       <section id="view-giap-rastreio" class="view-section">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:12px">
           <div>
-            <div class="row-label" style="margin:0"><i class="ti ti-radar"></i> Auditoria de Saídas GIAP</div>
+            <div class="row-label" style="margin:0"><i class="fa-solid fa-magnifying-glass-chart"></i> Auditoria de Saídas GIAP</div>
             <small class="view-help" style="color:var(--color-text-muted)">
               Vasculha competências anteriores (até jan/2025) para saber se servidores ativos foram exonerados/demitidos.
               Baixa snapshot da folha por mês (órgão + A–Z, contorna o teto de 100 do GIAP) e cruza com o RH — sem busca 1 a 1.
@@ -1586,21 +1589,21 @@
             </div>
           </div>
           <div style="font-size:12px;color:var(--color-text-muted,#718096);margin-top:-4px;margin-bottom:8px">
-            <i class="ti ti-info-circle"></i>
+            <i class="fa-solid fa-circle-info"></i>
             Auditoria roda no Render em segundo plano — pode fechar a aba após iniciar; o resultado aparece nesta tela quando você voltar.
           </div>
           <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:18px;align-items:center">
             <button type="button" class="btn-primary" id="aud-btn-iniciar" onclick="audIniciarRastreio()">
-              <i class="ti ti-player-play"></i> Iniciar auditoria
+              <i class="fa-solid fa-play"></i> Iniciar auditoria
             </button>
             <button type="button" class="btn-secondary" id="aud-btn-parar" onclick="audPararRastreio()" style="display:none">
-              <i class="ti ti-player-stop"></i> Parar
+              <i class="fa-solid fa-stop"></i> Parar
             </button>
             <button type="button" class="btn-secondary" id="aud-btn-exonerar" onclick="audExonerarSugeridos()" style="display:none">
-              <i class="ti ti-user-off"></i> Exonerar sugeridos
+              <i class="fa-solid fa-user-slash"></i> Exonerar sugeridos
             </button>
             <button type="button" class="btn-secondary" onclick="audExportarCsv()">
-              <i class="ti ti-download"></i> CSV
+              <i class="fa-solid fa-download"></i> CSV
             </button>
             <span id="aud-status" style="font-size:13px;color:#2b6cb0;flex:1;min-width:200px"></span>
           </div>
@@ -1667,13 +1670,13 @@
       <section id="view-remuneracoes" class="view-section">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:12px">
           <div>
-            <div class="row-label" style="margin:0"><i class="ti ti-currency-real"></i> Remunerações</div>
+            <div class="row-label" style="margin:0"><i class="fa-solid fa-brazilian-real-sign"></i> Remunerações</div>
             <small class="view-help" style="color:var(--color-text-muted)">
               O que fazer aqui: confira os <strong>2 últimos salários</strong> do servidor (folha GIAP). Quando entra um mês novo, o mais antigo sai sozinho.
             </small>
           </div>
           <button type="button" class="btn-secondary" onclick="sincronizarRemuneracoesGiap()" title="Atualiza remunerações e cargos a partir da folha GIAP">
-            <i class="ti ti-refresh"></i> Atualizar da folha
+            <i class="fa-solid fa-rotate"></i> Atualizar da folha
           </button>
         </div>
         <div class="stats-grid" id="remun-kpis" style="margin-bottom:16px"></div>
@@ -1718,15 +1721,15 @@
             <table class="gov-table" id="tabela-remuneracoes">
               <thead>
                 <tr>
-                  <th class="sortable" data-remun-sort="matricula" onclick="sortRemuneracoes('matricula')">Matrícula <i class="ti ti-arrows-sort sort-icon"></i></th>
-                  <th class="sortable" data-remun-sort="nome" onclick="sortRemuneracoes('nome')">Nome <i class="ti ti-arrows-sort sort-icon"></i></th>
-                  <th class="sortable" data-remun-sort="lotacao_nome" onclick="sortRemuneracoes('lotacao_nome')">Lotação <i class="ti ti-arrows-sort sort-icon"></i></th>
-                  <th class="sortable" data-remun-sort="competencia" onclick="sortRemuneracoes('competencia')">Competência <i class="ti ti-arrows-sort sort-icon"></i></th>
-                  <th class="sortable" data-remun-sort="vencimento_base" onclick="sortRemuneracoes('vencimento_base')" style="text-align:right">Venc. base <i class="ti ti-arrows-sort sort-icon"></i></th>
-                  <th class="sortable" data-remun-sort="proventos" onclick="sortRemuneracoes('proventos')" style="text-align:right">Proventos <i class="ti ti-arrows-sort sort-icon"></i></th>
-                  <th class="sortable" data-remun-sort="descontos" onclick="sortRemuneracoes('descontos')" style="text-align:right">Descontos <i class="ti ti-arrows-sort sort-icon"></i></th>
-                  <th class="sortable" data-remun-sort="liquido" onclick="sortRemuneracoes('liquido')" style="text-align:right">Líquido <i class="ti ti-arrows-sort sort-icon"></i></th>
-                  <th class="sortable" data-remun-sort="cargo_origem" onclick="sortRemuneracoes('cargo_origem')">Cargo <i class="ti ti-arrows-sort sort-icon"></i></th>
+                  <th class="sortable" data-remun-sort="matricula" onclick="sortRemuneracoes('matricula')">Matrícula <i class="fa-solid fa-sort sort-icon"></i></th>
+                  <th class="sortable" data-remun-sort="nome" onclick="sortRemuneracoes('nome')">Nome <i class="fa-solid fa-sort sort-icon"></i></th>
+                  <th class="sortable" data-remun-sort="lotacao_nome" onclick="sortRemuneracoes('lotacao_nome')">Lotação <i class="fa-solid fa-sort sort-icon"></i></th>
+                  <th class="sortable" data-remun-sort="competencia" onclick="sortRemuneracoes('competencia')">Competência <i class="fa-solid fa-sort sort-icon"></i></th>
+                  <th class="sortable" data-remun-sort="vencimento_base" onclick="sortRemuneracoes('vencimento_base')" style="text-align:right">Venc. base <i class="fa-solid fa-sort sort-icon"></i></th>
+                  <th class="sortable" data-remun-sort="proventos" onclick="sortRemuneracoes('proventos')" style="text-align:right">Proventos <i class="fa-solid fa-sort sort-icon"></i></th>
+                  <th class="sortable" data-remun-sort="descontos" onclick="sortRemuneracoes('descontos')" style="text-align:right">Descontos <i class="fa-solid fa-sort sort-icon"></i></th>
+                  <th class="sortable" data-remun-sort="liquido" onclick="sortRemuneracoes('liquido')" style="text-align:right">Líquido <i class="fa-solid fa-sort sort-icon"></i></th>
+                  <th class="sortable" data-remun-sort="cargo_origem" onclick="sortRemuneracoes('cargo_origem')">Cargo <i class="fa-solid fa-sort sort-icon"></i></th>
                 </tr>
               </thead>
               <tbody id="tbody-remuneracoes">
@@ -1742,9 +1745,9 @@
         <div id="alerta-licencas-page" class="alerta-licenca-wrap" hidden></div>
         <div class="lic-toolbar-top">
           <div class="lic-toolbar-title">
-            <div class="row-label" style="margin:0"><i class="ti ti-activity"></i> Licenças e Afastamentos</div>
+            <div class="row-label" style="margin:0"><i class="fa-solid fa-notes-medical"></i> Licenças e Afastamentos</div>
           </div>
-          <button class="btn-primary" onclick="abrirModalLicenca()"><i class="ti ti-plus"></i> Registrar Afastamento</button>
+          <button class="btn-primary" onclick="abrirModalLicenca()"><i class="fa-solid fa-plus"></i> Registrar Afastamento</button>
         </div>
         <div class="stats-grid lic-kpis" id="licencas-kpis"></div>
         <div class="toolbar-filters lic-filters">
@@ -1766,7 +1769,7 @@
           </div>
           <div class="filter-field">
             <label>&nbsp;</label>
-            <button id="lic-limpar" class="btn btn-outline" style="padding:8px 14px" title="Limpar filtros"><i class="ti ti-filter-off"></i> Limpar</button>
+            <button id="lic-limpar" class="btn btn-outline" style="padding:8px 14px" title="Limpar filtros"><i class="fa-solid fa-filter-circle-xmark"></i> Limpar</button>
           </div>
           <span class="filter-result-count" id="lic-count"></span>
         </div>
@@ -1799,7 +1802,7 @@
             <div class="row-label" style="margin:0">Histórico de Ações</div>
             <small style="color:var(--color-text-muted)">Registro automático de auditoria das atividades do sistema</small>
           </div>
-          <button class="btn-secondary" onclick="renderLogs()"><i class="ti ti-reload"></i> Atualizar</button>
+          <button class="btn-secondary" onclick="renderLogs()"><i class="fa-solid fa-arrows-rotate"></i> Atualizar</button>
         </div>
         <div class="card">
           <div class="table-container">
@@ -1825,11 +1828,11 @@
       <section id="view-usuarios" class="view-section">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
           <div>
-            <div class="row-label" style="margin:0"><i class="ti ti-user-cog"></i> Usuários do Sistema</div>
+            <div class="row-label" style="margin:0"><i class="fa-solid fa-user-gear"></i> Usuários do Sistema</div>
             <small style="color:var(--color-text-muted)">Acesso exclusivo da coordenadora</small>
           </div>
           <button class="btn-primary" onclick="abrirCadastroUsuario()">
-            <i class="ti ti-user-plus"></i> Cadastrar usuário
+            <i class="fa-solid fa-user-plus"></i> Cadastrar usuário
           </button>
         </div>
         <div class="card">
@@ -1846,7 +1849,7 @@
                 <option value="nome">Ordenar por nome</option>
                 <option value="login">Último login (recente)</option>
               </select>
-              <button class="btn-icon" title="Atualizar" onclick="renderUsuarios()"><i class="ti ti-refresh"></i></button>
+              <button class="btn-icon" title="Atualizar" onclick="renderUsuarios()"><i class="fa-solid fa-rotate"></i></button>
             </div>
             <small id="usr-resumo-login" style="color:var(--color-text-muted)"></small>
           </div>
@@ -1878,11 +1881,11 @@
             <div class="row-label" style="margin:0">Gestão de Lotações</div>
             <small style="color:var(--color-text-muted)">Adicionar, renomear, mover ou inativar coordenações, diretorias e unidades</small>
           </div>
-          <button class="btn-primary" onclick="abrirNovaLotacao(null)"><i class="ti ti-plus"></i> Nova Lotação</button>
+          <button class="btn-primary" onclick="abrirNovaLotacao(null)"><i class="fa-solid fa-plus"></i> Nova Lotação</button>
         </div>
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px">
-            <input type="text" id="lot-busca" placeholder="🔍 Filtrar…" class="form-control" style="max-width:280px">
+            <input type="text" id="lot-busca" placeholder="Filtrar…" class="form-control" style="max-width:280px">
             <div style="display:flex;gap:6px">
               <button class="btn-secondary" onclick="lotExpandirTudo()">Expandir</button>
               <button class="btn-secondary" onclick="lotRecolherTudo()">Recolher</button>
@@ -1903,19 +1906,19 @@
 <nav class="bottom-nav" aria-label="Navegação principal">
   <div class="bottom-nav-inner">
     <a href="#painel" class="bottom-nav-item" data-route="painel">
-      <i class="ti ti-layout-dashboard"></i>
+      <i class="fa-solid fa-gauge-high"></i>
       <span>Painel</span>
     </a>
     <a href="#funcionarios" class="bottom-nav-item" data-route="funcionarios">
-      <i class="ti ti-users"></i>
+      <i class="fa-solid fa-users"></i>
       <span>Funcionários</span>
     </a>
     <a href="#locais" class="bottom-nav-item" data-route="locais">
-      <i class="ti ti-map-pin"></i>
+      <i class="fa-solid fa-location-dot"></i>
       <span>Locais</span>
     </a>
     <a href="#logs" class="bottom-nav-item" data-route="logs">
-      <i class="ti ti-history"></i>
+      <i class="fa-solid fa-clock-rotate-left"></i>
       <span>Histórico</span>
     </a>
   </div>
@@ -1939,13 +1942,13 @@
           <div class="func-foto-row">
             <div class="func-foto-preview" aria-hidden="true">
               <img id="add-foto-img" alt="Prévia da foto" hidden>
-              <span class="func-foto-placeholder" id="add-foto-placeholder"><i class="ti ti-user"></i></span>
+              <span class="func-foto-placeholder" id="add-foto-placeholder"><i class="fa-solid fa-user"></i></span>
             </div>
             <div class="func-foto-actions">
               <input type="file" id="add-foto-file" accept="image/jpeg,image/png,image/webp,image/*" capture="user" hidden>
-              <button type="button" class="btn-secondary" onclick="document.getElementById('add-foto-file').click()"><i class="ti ti-upload"></i> Selecionar foto</button>
-              <button type="button" class="btn-secondary" id="add-foto-webcam-btn"><i class="ti ti-camera"></i> Tirar com webcam</button>
-              <button type="button" class="btn-outline" id="add-foto-remover" style="display:none"><i class="ti ti-trash"></i> Remover foto</button>
+              <button type="button" class="btn-secondary" onclick="document.getElementById('add-foto-file').click()"><i class="fa-solid fa-upload"></i> Selecionar foto</button>
+              <button type="button" class="btn-secondary" id="add-foto-webcam-btn"><i class="fa-solid fa-camera"></i> Tirar com webcam</button>
+              <button type="button" class="btn-outline" id="add-foto-remover" style="display:none"><i class="fa-solid fa-trash-can"></i> Remover foto</button>
               <small class="func-foto-hint">Qualquer JPG/PNG/WebP do celular ou PC · convertido automaticamente para JPG (~180 KB) antes de enviar</small>
               <span class="func-foto-info" id="add-foto-info" aria-live="polite"></span>
             </div>
@@ -1953,7 +1956,7 @@
           <div id="add-foto-webcam-panel" class="func-foto-webcam" hidden>
             <video id="add-foto-video" autoplay playsinline muted></video>
             <div class="func-foto-webcam-btns">
-              <button type="button" class="btn-primary" id="add-foto-capturar"><i class="ti ti-camera"></i> Capturar</button>
+              <button type="button" class="btn-primary" id="add-foto-capturar"><i class="fa-solid fa-camera"></i> Capturar</button>
               <button type="button" class="btn-secondary" id="add-foto-webcam-cancel">Cancelar</button>
             </div>
           </div>
@@ -2079,7 +2082,7 @@
 <div class="modal-overlay" id="modal-remover-servidor">
   <div class="modal-content" style="max-width:520px">
     <div class="modal-header">
-      <div class="modal-title"><i class="ti ti-user-x"></i> Remover servidor</div>
+      <div class="modal-title"><i class="fa-solid fa-user-xmark"></i> Remover servidor</div>
       <button class="modal-close" onclick="closeModal('modal-remover-servidor')" aria-label="Fechar"></button>
     </div>
     <div class="modal-body">
@@ -2142,7 +2145,7 @@
 <div class="modal-overlay" id="modal-feriado">
   <div class="modal-content" style="max-width:520px">
     <div class="modal-header">
-      <div class="modal-title" id="fer-m-titulo"><i class="ti ti-calendar-plus"></i> Novo feriado</div>
+      <div class="modal-title" id="fer-m-titulo"><i class="fa-solid fa-calendar-plus"></i> Novo feriado</div>
       <button class="modal-close" onclick="closeModal('modal-feriado')" aria-label="Fechar"></button>
     </div>
     <form class="modal-body" id="fer-m-form" onsubmit="event.preventDefault(); fpFerSalvar()">
@@ -2150,7 +2153,7 @@
       <div class="form-group full-width">
         <label class="form-label" for="fer-m-data">Data *</label>
         <input type="date" id="fer-m-data" class="form-control" required>
-        <small class="fer-m-nota" id="fer-m-movel" hidden><i class="ti ti-info-circle"></i> Data m&oacute;vel: calculada todo ano a partir da P&aacute;scoa.</small>
+        <small class="fer-m-nota" id="fer-m-movel" hidden><i class="fa-solid fa-circle-info"></i> Data m&oacute;vel: calculada todo ano a partir da P&aacute;scoa.</small>
       </div>
       <div class="form-group full-width">
         <label class="form-label" for="fer-m-nome">Descri&ccedil;&atilde;o *</label>
@@ -2177,11 +2180,11 @@
         <input type="checkbox" id="fer-m-rec">
         <span>Repetir todo ano<br><small>Mesmo dia e m&ecirc;s em todos os anos</small></span>
       </label>
-      <p class="fer-m-nota"><i class="ti ti-info-circle"></i> Ponto facultativo n&atilde;o bloqueia o dia na folha de ponto &mdash; s&oacute; feriados saem marcados.</p>
+      <p class="fer-m-nota"><i class="fa-solid fa-circle-info"></i> Ponto facultativo n&atilde;o bloqueia o dia na folha de ponto &mdash; s&oacute; feriados saem marcados.</p>
     </form>
     <div class="modal-footer">
       <button type="button" class="btn-secondary" onclick="closeModal('modal-feriado')">Cancelar</button>
-      <button type="submit" form="fer-m-form" class="btn-primary" id="fer-m-salvar"><i class="ti ti-device-floppy"></i> Salvar</button>
+      <button type="submit" form="fer-m-form" class="btn-primary" id="fer-m-salvar"><i class="fa-solid fa-floppy-disk"></i> Salvar</button>
     </div>
   </div>
 </div>
@@ -2190,13 +2193,13 @@
 <div class="modal-overlay" id="modal-feriado-excluir">
   <div class="modal-content" style="max-width:460px">
     <div class="modal-header">
-      <div class="modal-title"><i class="ti ti-trash"></i> Excluir feriado</div>
+      <div class="modal-title"><i class="fa-solid fa-trash-can"></i> Excluir feriado</div>
       <button class="modal-close" onclick="closeModal('modal-feriado-excluir')" aria-label="Fechar"></button>
     </div>
     <div class="modal-body">
       <p style="margin:0 0 10px;font-size:14px">Excluir <strong id="fer-x-nome"></strong> (<span id="fer-x-data"></span>)?</p>
       <div class="fp-hor-aviso" id="fer-x-oficial" hidden style="margin:0">
-        <i class="ti ti-alert-triangle"></i> Este &eacute; um feriado oficial. Ele deixa de valer em todos os anos e sai da folha de ponto. Se for s&oacute; para um ano, prefira editar.
+        <i class="fa-solid fa-triangle-exclamation"></i> Este &eacute; um feriado oficial. Ele deixa de valer em todos os anos e sai da folha de ponto. Se for s&oacute; para um ano, prefira editar.
       </div>
       <p id="fer-x-rec" hidden style="margin:0;font-size:13px;color:var(--color-text-sec)">Este feriado se repete todo ano &mdash; ser&aacute; removido de todos os anos.</p>
     </div>
@@ -2211,7 +2214,7 @@
 <div class="modal-overlay" id="modal-editar-saida">
   <div class="modal-content" style="max-width:480px">
     <div class="modal-header">
-      <div class="modal-title"><i class="ti ti-edit"></i> Editar saída</div>
+      <div class="modal-title"><i class="fa-solid fa-pen-to-square"></i> Editar saída</div>
       <button class="modal-close" onclick="closeModal('modal-editar-saida')" aria-label="Fechar"></button>
     </div>
     <div class="modal-body">
@@ -2257,20 +2260,20 @@
           <div class="func-foto-row">
             <div class="func-foto-preview func-foto-preview--edit" aria-hidden="true">
               <img id="edit-foto-img" alt="Foto atual do servidor" hidden>
-              <span class="func-foto-placeholder" id="edit-foto-placeholder"><i class="ti ti-user"></i></span>
+              <span class="func-foto-placeholder" id="edit-foto-placeholder"><i class="fa-solid fa-user"></i></span>
             </div>
             <div class="func-foto-actions">
               <input type="file" id="edit-foto-file" accept="image/jpeg,image/png,image/webp,image/*" capture="user" hidden>
-              <button type="button" class="btn-secondary" onclick="document.getElementById('edit-foto-file').click()"><i class="ti ti-upload"></i> Trocar foto</button>
-              <button type="button" class="btn-secondary" id="edit-foto-webcam-btn"><i class="ti ti-camera"></i> Tirar com webcam</button>
-              <button type="button" class="btn-outline" id="edit-foto-remover" style="display:none"><i class="ti ti-trash"></i> Remover foto</button>
+              <button type="button" class="btn-secondary" onclick="document.getElementById('edit-foto-file').click()"><i class="fa-solid fa-upload"></i> Trocar foto</button>
+              <button type="button" class="btn-secondary" id="edit-foto-webcam-btn"><i class="fa-solid fa-camera"></i> Tirar com webcam</button>
+              <button type="button" class="btn-outline" id="edit-foto-remover" style="display:none"><i class="fa-solid fa-trash-can"></i> Remover foto</button>
               <span class="func-foto-info" id="edit-foto-info" aria-live="polite"></span>
             </div>
           </div>
           <div id="edit-foto-webcam-panel" class="func-foto-webcam" hidden>
             <video id="edit-foto-video" autoplay playsinline muted></video>
             <div class="func-foto-webcam-btns">
-              <button type="button" class="btn-primary" id="edit-foto-capturar"><i class="ti ti-camera"></i> Capturar</button>
+              <button type="button" class="btn-primary" id="edit-foto-capturar"><i class="fa-solid fa-camera"></i> Capturar</button>
               <button type="button" class="btn-secondary" id="edit-foto-webcam-cancel">Cancelar</button>
             </div>
           </div>
@@ -2355,7 +2358,7 @@
           <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
             <input type="text" class="form-control" id="edit-lotacao-atual" readonly style="flex:1;min-width:180px;background:var(--gov-bg-light)">
             <button type="button" class="btn btn-outline" id="btn-edit-remover-lotacao" onclick="removerLotacaoNoEdit()" style="color:var(--gov-orange,#ed8936);border-color:var(--gov-orange,#ed8936);white-space:nowrap" title="Encerra a lotação ativa e envia o servidor para Sem Lotação">
-              <i class="ti ti-map-off"></i> Remover lotação
+              <i class="fa-solid fa-building-circle-xmark"></i> Remover lotação
             </button>
           </div>
           <small style="display:block;color:var(--color-text-muted);font-size:11px;margin-top:4px">A lotação atual vai para o histórico com a data de hoje. O servidor passa a aparecer em <strong>Sem Lotação</strong>.</small>
@@ -2398,14 +2401,14 @@
 
         <div class="form-group full-width" id="edit-remun-wrap" style="border:1px solid var(--gov-border);border-radius:var(--br-md);padding:12px;margin-top:4px;background:#f7fafc">
           <div style="font-weight:700;font-size:13px;color:var(--gov-blue-dark);margin-bottom:8px;display:flex;align-items:center;gap:6px">
-            <i class="ti ti-currency-real"></i> Últimas remunerações (GIAP)
+            <i class="fa-solid fa-brazilian-real-sign"></i> Últimas remunerações (GIAP)
           </div>
           <div id="edit-remun-content" style="font-size:12px;color:var(--color-text-muted)">Carregando…</div>
         </div>
 
         <details class="form-group full-width" id="edit-afast-details" style="border:1px solid var(--gov-border);border-radius:var(--br-md);padding:0;margin-top:4px">
           <summary style="cursor:pointer;padding:12px;font-weight:700;color:var(--gov-blue-dark);font-size:13px;display:flex;align-items:center;gap:8px">
-            <i class="ti ti-activity"></i> Registrar Afastamento / Licença
+            <i class="fa-solid fa-notes-medical"></i> Registrar Afastamento / Licença
           </summary>
           <div class="form-grid" style="padding:0 12px 14px">
             <div class="form-group full-width">
@@ -2445,7 +2448,7 @@
             </div>
             <div class="form-group full-width">
               <button type="button" class="btn-primary" id="btn-edit-afastar" style="width:100%">
-                <i class="ti ti-activity"></i> Registrar Afastamento / Licença
+                <i class="fa-solid fa-notes-medical"></i> Registrar Afastamento / Licença
               </button>
             </div>
           </div>
@@ -2535,7 +2538,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20261108c"></script>
+  <script type="module" src="js/app.js?v=20261108f"></script>
 
 
 
@@ -2543,8 +2546,8 @@
 <div class="modal-overlay" id="modal-ferias">
   <div class="modal-content" style="max-width:640px">
     <div class="modal-header">
-      <div class="modal-title" id="fer-modal-title"><i class="ti ti-beach"></i> Lançamento de Férias do Servidor</div>
-      <button class="modal-close" onclick="closeModal('modal-ferias')"><i class="ti ti-x"></i></button>
+      <div class="modal-title" id="fer-modal-title"><i class="fa-solid fa-umbrella-beach"></i> Lançamento de Férias do Servidor</div>
+      <button class="modal-close" onclick="closeModal('modal-ferias')"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="modal-body">
       <form id="fer-form" class="form-grid" autocomplete="off" onsubmit="return false">
@@ -2626,8 +2629,8 @@
 <div class="modal-overlay" id="modal-ferias-historico">
   <div class="modal-content large">
     <div class="modal-header">
-      <div class="modal-title" id="fer-hist-title"><i class="ti ti-history"></i> Histórico de Férias</div>
-      <button class="modal-close" onclick="closeModal('modal-ferias-historico')"><i class="ti ti-x"></i></button>
+      <div class="modal-title" id="fer-hist-title"><i class="fa-solid fa-clock-rotate-left"></i> Histórico de Férias</div>
+      <button class="modal-close" onclick="closeModal('modal-ferias-historico')"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="modal-body" id="fer-hist-content"><span class="spinner"></span> Carregando…</div>
     <div class="modal-footer">
@@ -2640,8 +2643,8 @@
 <div class="modal-overlay" id="modal-lotacao">
   <div class="modal-content">
     <div class="modal-header">
-      <div class="modal-title"><i class="ti ti-building"></i> Lotação</div>
-      <button class="modal-close" onclick="closeModal('modal-lotacao')"><i class="ti ti-x"></i></button>
+      <div class="modal-title"><i class="fa-solid fa-building"></i> Lotação</div>
+      <button class="modal-close" onclick="closeModal('modal-lotacao')"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="nl-id">
@@ -2684,8 +2687,8 @@
 <div class="modal-overlay" id="modal-mover-lotacao">
   <div class="modal-content">
     <div class="modal-header">
-      <div class="modal-title"><i class="ti ti-arrow-move-right"></i> Mover Lotação</div>
-      <button class="modal-close" onclick="closeModal('modal-mover-lotacao')"><i class="ti ti-x"></i></button>
+      <div class="modal-title"><i class="fa-solid fa-arrow-right-to-bracket"></i> Mover Lotação</div>
+      <button class="modal-close" onclick="closeModal('modal-mover-lotacao')"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="mov-id">
@@ -2711,8 +2714,8 @@
 <div class="modal-overlay" id="modal-cadastrar-pendente">
   <div class="modal-content">
     <div class="modal-header">
-      <div class="modal-title"><i class="ti ti-user-plus"></i> Cadastrar Novo Servidor</div>
-      <button class="modal-close" onclick="closeModal('modal-cadastrar-pendente')"><i class="ti ti-x"></i></button>
+      <div class="modal-title"><i class="fa-solid fa-user-plus"></i> Cadastrar Novo Servidor</div>
+      <button class="modal-close" onclick="closeModal('modal-cadastrar-pendente')"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="cad-pend-id">
@@ -2750,8 +2753,8 @@
 <div class="modal-overlay" id="modal-licenca">
   <div class="modal-content">
     <div class="modal-header">
-      <div class="modal-title"><i class="ti ti-activity"></i> Registrar Afastamento / Licença</div>
-      <button class="modal-close" onclick="closeModal('modal-licenca')"><i class="ti ti-x"></i></button>
+      <div class="modal-title"><i class="fa-solid fa-notes-medical"></i> Registrar Afastamento / Licença</div>
+      <button class="modal-close" onclick="closeModal('modal-licenca')"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="modal-body">
       <div class="form-grid">
@@ -2808,8 +2811,8 @@
 <div class="modal-overlay" id="modal-editar-tipo-licenca">
   <div class="modal-content" style="max-width:680px">
     <div class="modal-header">
-      <div class="modal-title"><i class="ti ti-edit"></i> Editar Licença / Afastamento</div>
-      <button class="modal-close" onclick="closeModal('modal-editar-tipo-licenca')"><i class="ti ti-x"></i></button>
+      <div class="modal-title"><i class="fa-solid fa-pen-to-square"></i> Editar Licença / Afastamento</div>
+      <button class="modal-close" onclick="closeModal('modal-editar-tipo-licenca')"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="edit-licenca-id">
@@ -2863,8 +2866,8 @@
 <div class="modal-overlay" id="modal-licencas-vencidas">
   <div class="modal-content modal-lic-vencidas">
     <div class="modal-header">
-      <div class="modal-title"><i class="ti ti-alert-triangle"></i> Licenças vencidas — retorno à ativa</div>
-      <button class="modal-close" onclick="fecharModalLicencasVencidas()"><i class="ti ti-x"></i></button>
+      <div class="modal-title"><i class="fa-solid fa-triangle-exclamation"></i> Licenças vencidas — retorno à ativa</div>
+      <button class="modal-close" onclick="fecharModalLicencasVencidas()"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="modal-body">
       <p class="modal-lic-vencidas-intro">Estes servidores têm licença com data final já passada, mas o afastamento ainda está ativo no sistema. Confirme o retorno à ativa ou feche para revisar depois.</p>
@@ -2893,8 +2896,8 @@
 <div class="modal-overlay" id="modal-diario-semcas">
   <div class="modal-content modal-diario-semcas">
     <div class="modal-header">
-      <div class="modal-title"><i class="ti ti-news"></i> Diário Oficial — nomeações e exonerações SEMCAS</div>
-      <button class="modal-close" onclick="fecharModalDiarioSemcas()" aria-label="Fechar"><i class="ti ti-x"></i></button>
+      <div class="modal-title"><i class="fa-solid fa-newspaper"></i> Diário Oficial — nomeações e exonerações SEMCAS</div>
+      <button class="modal-close" onclick="fecharModalDiarioSemcas()" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="modal-body">
       <p class="modal-diario-semcas-intro" id="diario-semcas-intro"></p>
@@ -2924,14 +2927,14 @@
 <div class="modal-overlay" id="modal-diario-vincular">
   <div class="modal-content" style="max-width:620px">
     <div class="modal-header">
-      <div class="modal-title"><i class="ti ti-user-search"></i> Localizar servidor no cadastro</div>
-      <button class="modal-close" onclick="closeModal('modal-diario-vincular')" aria-label="Fechar"><i class="ti ti-x"></i></button>
+      <div class="modal-title"><i class="fa-solid fa-magnifying-glass"></i> Localizar servidor no cadastro</div>
+      <button class="modal-close" onclick="closeModal('modal-diario-vincular')" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="diario-vincular-id">
       <p class="modal-diario-semcas-intro">Publicação para <strong id="diario-vincular-nome">—</strong>. Selecione a pessoa correta para habilitar a ação do ato.</p>
       <div class="search-wrap diario-vincular-search">
-        <i class="ti ti-search"></i>
+        <i class="fa-solid fa-magnifying-glass"></i>
         <input type="search" id="diario-vincular-busca" class="form-control" placeholder="Digite nome ou matrícula…" autocomplete="off">
       </div>
       <div id="diario-vincular-resultados" class="diario-match-list" role="listbox"></div>
@@ -2943,8 +2946,8 @@
 <div class="modal-overlay" id="modal-diario-promover">
   <div class="modal-content" style="max-width:540px">
     <div class="modal-header">
-      <div class="modal-title" id="diario-promover-titulo"><i class="ti ti-arrows-exchange"></i> Confirmar mudança de cargo</div>
-      <button class="modal-close" onclick="closeModal('modal-diario-promover')" aria-label="Fechar"><i class="ti ti-x"></i></button>
+      <div class="modal-title" id="diario-promover-titulo"><i class="fa-solid fa-right-left"></i> Confirmar mudança de cargo</div>
+      <button class="modal-close" onclick="closeModal('modal-diario-promover')" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="diario-promover-id">
@@ -2961,7 +2964,7 @@
         <label class="form-label" for="diario-promover-simbologia">Nova simbologia</label>
         <input type="text" id="diario-promover-simbologia" class="form-control" placeholder="Ex.: DAS-5">
       </div>
-      <p class="diario-modal-note"><i class="ti ti-database"></i> O cargo anterior ficará registrado no histórico do sistema e este ato será marcado como processado.</p>
+      <p class="diario-modal-note"><i class="fa-solid fa-database"></i> O cargo anterior ficará registrado no histórico do sistema e este ato será marcado como processado.</p>
     </div>
     <div class="modal-footer">
       <button type="button" class="btn-secondary" onclick="closeModal('modal-diario-promover')">Cancelar</button>
@@ -2974,8 +2977,8 @@
 <div class="modal-overlay" id="modal-cedido">
   <div class="modal-content">
     <div class="modal-header">
-      <div class="modal-title"><i class="ti ti-arrows-left-right"></i> Registrar Cessão / Recebimento</div>
-      <button class="modal-close" onclick="closeModal('modal-cedido')"><i class="ti ti-x"></i></button>
+      <div class="modal-title"><i class="fa-solid fa-arrows-left-right"></i> Registrar Cessão / Recebimento</div>
+      <button class="modal-close" onclick="closeModal('modal-cedido')"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="modal-body">
       <div class="form-grid">
@@ -3020,7 +3023,7 @@
 <div class="modal-overlay" id="modal-editar-usuario">
   <div class="modal-content">
     <div class="modal-header">
-      <div class="modal-title"><i class="ti ti-pencil"></i> Editar Nome</div>
+      <div class="modal-title"><i class="fa-solid fa-pen"></i> Editar Nome</div>
       <button class="modal-close" onclick="closeModal('modal-editar-usuario')" aria-label="Fechar"></button>
     </div>
     <form id="form-editar-usuario">
@@ -3040,7 +3043,7 @@
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal('modal-editar-usuario')">Cancelar</button>
         <button type="submit" class="btn-primary" id="btn-salvar-editar-usuario">
-          <i class="ti ti-check"></i> Salvar nome
+          <i class="fa-solid fa-check"></i> Salvar nome
         </button>
       </div>
     </form>
@@ -3051,7 +3054,7 @@
 <div class="modal-overlay" id="modal-usuario">
   <div class="modal-content">
     <div class="modal-header">
-      <div class="modal-title"><i class="ti ti-user-plus"></i> Cadastrar Usuário</div>
+      <div class="modal-title"><i class="fa-solid fa-user-plus"></i> Cadastrar Usuário</div>
       <button class="modal-close" onclick="closeModal('modal-usuario')" aria-label="Fechar"></button>
     </div>
     <form id="form-usuario">
@@ -3081,7 +3084,7 @@
       <div class="modal-footer">
         <button type="button" class="btn-secondary" onclick="closeModal('modal-usuario')">Cancelar</button>
         <button type="submit" class="btn-primary" id="btn-salvar-usuario">
-          <i class="ti ti-user-plus"></i> Criar usuário
+          <i class="fa-solid fa-user-plus"></i> Criar usuário
         </button>
       </div>
     </form>

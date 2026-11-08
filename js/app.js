@@ -306,7 +306,7 @@ function htmlFotoLista(path) {
   if (url) {
     return `<img class="func-lista-foto" src="${htmlEscape(url)}" alt="" loading="lazy" width="40" height="40">`;
   }
-  return `<span class="func-lista-foto func-lista-foto--empty" aria-hidden="true"><i class="ti ti-user"></i></span>`;
+  return `<span class="func-lista-foto func-lista-foto--empty" aria-hidden="true"><i class="fa-solid fa-user"></i></span>`;
 }
 
 function bindFotoUi(prefix) {
@@ -915,9 +915,9 @@ function atualizarIconesSort() {
     const icon = th.querySelector('.sort-icon');
     if (!icon) return;
     if (th.dataset.sort === state.sort.col) {
-      icon.className = `ti ${state.sort.dir === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} sort-icon active`;
+      icon.className = `${state.sort.dir === 'asc' ? 'fa-solid fa-arrow-up-short-wide' : 'fa-solid fa-arrow-down-wide-short'} sort-icon active`;
     } else {
-      icon.className = 'ti ti-arrows-sort sort-icon';
+      icon.className = 'fa-solid fa-sort sort-icon';
     }
   });
 }
@@ -1647,6 +1647,7 @@ async function carregarResumoDiaPainel() {
         lbl: 'Em férias hoje',
         val: resumo.feriasKpis.em_ferias,
         sub: 'Servidores em gozo de férias',
+        ico: 'fa-umbrella-beach',
         cor: 'var(--gov-green,#107c41)',
         click: () => irParaFeriasComFiltro('em_ferias'),
       },
@@ -1654,6 +1655,7 @@ async function carregarResumoDiaPainel() {
         lbl: 'Em licença / afastamento',
         val: resumo.licTotal,
         sub: 'Afastamentos ativos',
+        ico: 'fa-notes-medical',
         cor: 'var(--gov-orange,#ed7b2f)',
         click: () => irParaLicencasComFiltro('total'),
       },
@@ -1661,6 +1663,7 @@ async function carregarResumoDiaPainel() {
         lbl: 'Licenças vencidas',
         val: resumo.licVencidas,
         sub: 'Aguardando retorno à ativa',
+        ico: 'fa-triangle-exclamation',
         cor: 'var(--gov-red,#c53030)',
         click: () => {
           if (resumo.licVencidas > 0) {
@@ -1676,6 +1679,7 @@ async function carregarResumoDiaPainel() {
         <div class="kpi-card-label">${htmlEscape(c.lbl)}</div>
         <div class="kpi-card-value">${(c.val || 0).toLocaleString('pt-BR')}</div>
         <div class="kpi-card-sub">${htmlEscape(c.sub)}</div>
+        <i class="fa-solid ${c.ico} kpi-card-bg-icon" aria-hidden="true"></i>
       </div>`).join('');
     grid.querySelectorAll('.situacao-dia-card').forEach((el, i) => { el.onclick = cards[i].click; });
   } catch (e) {
@@ -1720,6 +1724,12 @@ async function renderPainel() {
   ajustarLocaisResumo(locais);
   const ctCard = locais.find(l => (l.categoria || '').toUpperCase().includes('TUTELAR'));
 
+  const icoVinc = {
+    'Efetivo':'fa-id-card','Comissionado':'fa-user-tie',
+    'Terceirizado':'fa-briefcase','Serviço Prestado':'fa-file-signature',
+    'Contrato Temporário':'fa-file-contract'
+  };
+
   const corVinc = {
     'Efetivo':'#1351b4','Comissionado':'#b28900',
     'Terceirizado':'#3B6D11','Serviço Prestado':'#534AB7',
@@ -1741,7 +1751,7 @@ async function renderPainel() {
     const cards = [
       {
         lbl:'Total de Servidores', val: totalServ,
-        sub:'Todos os vínculos · ativos', cor:'#071d41',
+        sub:'Todos os vínculos · ativos', cor:'#071d41', ico:'fa-users',
         click: () => irParaFuncionarios(filtrosBase())
       },
       ...vincs.map(v => {
@@ -1752,6 +1762,7 @@ async function renderPainel() {
             ? `inclui ${v.atuacao_terc} com outro vínculo SEMCAS`
             : `${Math.round((v.total/totalServ)*100)||0}% do total`,
           cor: corVinc[v.vinculo] || '#888',
+          ico: icoVinc[v.vinculo] || 'fa-user',
           click: () => irParaFuncionarios(filtrosBase({ vinculo_id: vinculoId }))
         };
       })
@@ -1760,12 +1771,12 @@ async function renderPainel() {
     if (cedKpi) {
       cards.push({
         lbl:'Servidores Cedidos', val: cedKpi.total_cedidos || 0,
-        sub:'Afastados / Emprestados', cor:'var(--gov-yellow)',
+        sub:'Afastados / Emprestados', cor:'var(--gov-yellow)', ico:'fa-arrow-right-from-bracket',
         click: () => { location.hash = '#cedidos'; }
       });
       cards.push({
         lbl:'Servidores Recebidos', val: cedKpi.total_recebidos || 0,
-        sub:'Origem Externa', cor:'var(--gov-green)',
+        sub:'Origem Externa', cor:'var(--gov-green)', ico:'fa-arrow-right-to-bracket',
         click: () => { location.hash = '#cedidos'; }
       });
     }
@@ -1774,6 +1785,7 @@ async function renderPainel() {
       lbl: 'Sem lotação',
       val: totalSemLotacao,
       sub: 'Ativos sem lotação atual',
+      ico: 'fa-building-circle-xmark',
       cor: 'var(--gov-orange,#ed8936)',
       click: () => { location.hash = '#sem-lotacao'; }
     });
@@ -1783,7 +1795,7 @@ async function renderPainel() {
         <div class="kpi-card-label">${htmlEscape(c.lbl)}</div>
         <div class="kpi-card-value">${(c.val||0).toLocaleString('pt-BR')}</div>
         <div class="kpi-card-sub">${htmlEscape(c.sub)}</div>
-        <i class="ti ti-users kpi-card-bg-icon"></i>
+        <i class="fa-solid ${c.ico || 'fa-users'} kpi-card-bg-icon" aria-hidden="true"></i>
       </div>`).join('');
     $$('#stats-grid .kpi-card').forEach((el, i) => { el.onclick = cards[i].click; });
 
@@ -1850,13 +1862,14 @@ async function renderPainel() {
 
   if (kpi) {
     $('stats-estrutura').innerHTML = [
-      { lbl:'Total de Lotações',    val: kpi.total_lotacoes,          sub:'Cadastradas',          cor:'#071d41' },
-      { lbl:'Superintendências',    val: kpi.total_superintendencias, sub:'Topo da estrutura',    cor:'#1351b4' },
-      { lbl:'Coordenações',         val: kpi.total_coordenacoes,      sub:'Nível tático',         cor:'#b28900' },
-      { lbl:'Diretorias Técnicas',  val: kpi.total_diretorias,        sub:'Nível técnico',        cor:'#3B6D11' },
-      { lbl:'Unidades Operacionais',val: (kpi.total_unidades || 0) + (ctCard?.qtd_unidades || 0), sub:'CRAS/CREAS/Abrigos/CT',cor:'#534AB7' },
+      { lbl:'Total de Lotações',    val: kpi.total_lotacoes,          sub:'Cadastradas',          cor:'#071d41', ico:'fa-sitemap' },
+      { lbl:'Superintendências',    val: kpi.total_superintendencias, sub:'Topo da estrutura',    cor:'#1351b4', ico:'fa-landmark' },
+      { lbl:'Coordenações',         val: kpi.total_coordenacoes,      sub:'Nível tático',         cor:'#b28900', ico:'fa-people-group' },
+      { lbl:'Diretorias Técnicas',  val: kpi.total_diretorias,        sub:'Nível técnico',        cor:'#3B6D11', ico:'fa-clipboard-list' },
+      { lbl:'Unidades Operacionais',val: (kpi.total_unidades || 0) + (ctCard?.qtd_unidades || 0), sub:'CRAS/CREAS/Abrigos/CT',cor:'#534AB7', ico:'fa-house-chimney-user' },
     ].map(c => `
-      <div class="estrutura-item" style="border-bottom:3px solid ${c.cor}">
+      <div class="estrutura-item" style="border-top-color:${c.cor}">
+        <i class="fa-solid ${c.ico} estrutura-item-icon" aria-hidden="true"></i>
         <div class="estrutura-item-val">${(c.val||0).toLocaleString('pt-BR')}</div>
         <div class="estrutura-item-lbl">${c.lbl}</div>
         <div class="estrutura-item-sub">${c.sub}</div>
@@ -1879,12 +1892,11 @@ async function renderPainel() {
     });
   }
 
-  const iconeLocal = { 'CRAS':'ti-home-heart','CREAS':'ti-alert-circle','Conselho Tutelar':'ti-shield-check','Conselho':'ti-shield-check','Abrigo':'ti-home-2','Centro POP':'ti-building-community','Outros':'ti-building' };
   $('cards-locais-resumo').innerHTML = locais.map(l => {
-    const ico = Object.entries(iconeLocal).find(([k]) => l.categoria.toUpperCase().includes(k.toUpperCase()))?.[1] || 'ti-building';
+    const ico = iconeTipoLocalHtml(l.categoria);
     return `
     <div class="loc-card" data-cat="${htmlEscape(l.categoria)}">
-      <i class="ti ${ico}"></i>
+      ${ico}
       <div class="loc-card-name">${htmlEscape(l.categoria)}</div>
       <div class="loc-card-units"><strong>${l.qtd_unidades}</strong> unidades &nbsp;·&nbsp; <strong>${l.qtd_funcionarios}</strong> servidores</div>
     </div>`;
@@ -1905,7 +1917,7 @@ async function renderLogs() {
     return `
     <tr>
       <td style="font-size:12px;color:var(--color-text-sec);white-space:nowrap">${new Date(l.created_at).toLocaleString('pt-BR')}</td>
-      <td style="font-size:12px"><i class="ti ti-user"></i> ${htmlEscape(l.usuario || 'Não identificado')}</td>
+      <td style="font-size:12px"><i class="fa-solid fa-user"></i> ${htmlEscape(l.usuario || 'Não identificado')}</td>
       <td><span style="background:var(--gov-blue-light);color:var(--gov-blue-dark);padding:2px 6px;border-radius:4px;font-size:11px;font-weight:bold">${htmlEscape(l.tipo_acao)}</span></td>
       <td><strong>${htmlEscape(l.funcionario_nome || '')}</strong></td>
       <td class="log-detalhes-cell">${det}</td>
@@ -2021,7 +2033,7 @@ function renderUsuariosTabela() {
       <td style="font-size:12px">${u.created_at ? new Date(u.created_at).toLocaleString('pt-BR') : '—'}</td>
       <td style="text-align:center">
         <button class="btn-icon" title="Editar nome" onclick="abrirEditarUsuario('${u.user_id}')">
-          <i class="ti ti-pencil"></i>
+          <i class="fa-solid fa-pen"></i>
         </button>
       </td>
     </tr>
@@ -2484,7 +2496,7 @@ async function carregarFuncionarios() {
       const lic = licMap[f.funcionario_id];
       const rowCls = lic ? ' class="row-afastado"' : '';
       const licBadge = lic
-        ? `<span class="badge-afastado" title="${htmlEscape((lic.tipo_afastamento || 'Licença') + (lic.data_final ? ' — até ' + fmtDt(lic.data_final) : ''))}"><i class="ti ti-activity"></i> Em licença</span>`
+        ? `<span class="badge-afastado" title="${htmlEscape((lic.tipo_afastamento || 'Licença') + (lic.data_final ? ' — até ' + fmtDt(lic.data_final) : ''))}"><i class="fa-solid fa-notes-medical"></i> Em licença</span>`
         : '';
       return `
       <tr${rowCls}>
@@ -2657,6 +2669,22 @@ window.exportarRelatorioFuncionarios = exportarRelatorioFuncionarios;
 const _btnExportarFunc = $('btn-exportar-func');
 if (_btnExportarFunc) _btnExportarFunc.onclick = () => exportarRelatorioFuncionarios();
 
+// Ícone do tipo de unidade: logomarca (CRAS, CREAS, Conselho Tutelar, Abrigo, Centro POP)
+// ou ícone Font Awesome para os demais tipos.
+function iconeTipoLocalHtml(nome) {
+  const n = String(nome || '').toUpperCase();
+  const palavras = n.split(/[^A-Z0-9ÁÉÍÓÚÂÊÔÃÕÇ]+/);
+  const logo = (arq, alt) => `<img class="local-logo" src="img/icones/${arq}.png" alt="${alt}" width="40" height="40" loading="lazy">`;
+  if (palavras.includes('CREAS')) return logo('creas', 'CREAS');
+  if (palavras.includes('CRAS')) return logo('cras', 'CRAS');
+  if (n.includes('TUTELAR') || palavras[0] === 'CT') return logo('conselho-tutelar', 'Conselho Tutelar');
+  if (n.includes('ABRIGO') || n.includes('ACOLHIMENTO')) return logo('abrigo', 'Abrigo');
+  if (palavras.includes('POP')) return logo('centro-pop', 'Centro POP');
+  let fa = 'fa-building';
+  if (n.includes('CONSELHO')) fa = 'fa-scale-balanced';
+  return `<i class="fa-solid ${fa} local-ico" aria-hidden="true"></i>`;
+}
+
 // ╔══════════════════════════════════════════════════════════════╗
 // ║            LOCAIS (drill-down 3 níveis)                       ║
 // ╚══════════════════════════════════════════════════════════════╝
@@ -2669,7 +2697,8 @@ async function renderLocais(resto) {
     $('locais-content').innerHTML = `
       <div class="cards-grid">
         ${locais.map(l => `
-          <div class="big-card" data-cat="${htmlEscape(l.categoria)}">
+          <div class="big-card big-card--ico" data-cat="${htmlEscape(l.categoria)}">
+            ${iconeTipoLocalHtml(l.categoria)}
             <div class="big-card-title">${htmlEscape(l.categoria)}</div>
             <div class="big-card-meta">
               <span><strong>${l.qtd_unidades}</strong> unidades</span>
@@ -2723,7 +2752,8 @@ async function renderLocais(resto) {
     $('locais-content').innerHTML = `
       <div class="cards-grid">
         ${unidades.map(u => `
-          <div class="big-card" data-id="${u.id}">
+          <div class="big-card big-card--ico" data-id="${u.id}">
+            ${iconeTipoLocalHtml(u.nome)}
             <div class="big-card-title">${htmlEscape(u.nome)}</div>
             <div class="big-card-meta">
               <span><strong>${u.funcionarios_direto ?? 0}</strong> servidores</span>
@@ -4146,7 +4176,7 @@ window.verHistorico = async (id) => {
   const fotoUrl = funcRes.data?.foto_url ? urlPublicaFoto(funcRes.data.foto_url) : null;
   const fotoHtml = fotoUrl
     ? `<img class="hist-foto" src="${htmlEscape(fotoUrl)}" alt="Foto de ${htmlEscape(nome)}" loading="lazy">`
-    : `<div class="hist-foto hist-foto--empty" aria-hidden="true"><i class="ti ti-user"></i></div>`;
+    : `<div class="hist-foto hist-foto--empty" aria-hidden="true"><i class="fa-solid fa-user"></i></div>`;
   const mat = funcRes.data?.matricula ? `<div class="hist-mat">Mat.: ${htmlEscape(funcRes.data.matricula)}</div>` : '';
 
   $('hist-content').innerHTML = `
@@ -4166,7 +4196,7 @@ window.verHistorico = async (id) => {
           const desde = new Date(ultima.data_fim + 'T00:00:00').toLocaleDateString('pt-BR');
           extra = `<li class="inactive" style="border-left-color:var(--gov-orange)">
             <div class="periodo"><strong>ATUAL</strong> · desde ${desde}</div>
-            <div class="lot-nome" style="color:var(--gov-orange)"><i class="ti ti-map-off"></i> Sem Lotação</div>
+            <div class="lot-nome" style="color:var(--gov-orange)"><i class="fa-solid fa-building-circle-xmark"></i> Sem Lotação</div>
             <div class="meta">Aguardando alocação · última lotação: ${htmlEscape(ultima.lotacao_nome || '—')}</div>
           </li>`;
         }
@@ -4295,8 +4325,8 @@ function fpCombo({ input, lista, fonte, texto, html, aoEscolher, max = 80, multi
     });
   };
   const textoTodos = () => atuais.every(selecionado)
-    ? `<i class="ti ti-square-minus"></i> Desmarcar os ${atuais.length} resultados`
-    : `<i class="ti ti-checks"></i> Marcar todos os ${atuais.length} resultados`;
+    ? `<i class="fa-regular fa-square-minus"></i> Desmarcar os ${atuais.length} resultados`
+    : `<i class="fa-solid fa-check-double"></i> Marcar todos os ${atuais.length} resultados`;
   // Reflete o estado atual de seleção sem redesenhar a lista (mantém rolagem e item ativo)
   const sincronizar = () => {
     if (!multi || lista.hidden) return;
@@ -4749,8 +4779,8 @@ function fpShPintarLista() {
       <td>${htmlEscape(fpShTexto(h[0], h[1]))}</td>
       <td>${htmlEscape(fpShTexto(h[2], h[3]))}</td>
       <td class="fp-sh-acoes-linha">
-        ${s ? '<button type="button" class="btn btn-outline fp-btn-xs" data-sh-acao="editar"><i class="ti ti-pencil"></i> Editar</button>' : ''}
-        <button type="button" class="btn btn-outline fp-btn-xs" data-sh-acao="remover" title="Voltar ao horário da função"><i class="ti ti-trash"></i></button>
+        ${s ? '<button type="button" class="btn btn-outline fp-btn-xs" data-sh-acao="editar"><i class="fa-solid fa-pen"></i> Editar</button>' : ''}
+        <button type="button" class="btn btn-outline fp-btn-xs" data-sh-acao="remover" title="Voltar ao horário da função"><i class="fa-solid fa-trash-can"></i></button>
       </td></tr>`).join('');
 }
 
@@ -4824,7 +4854,7 @@ function fpRenderHorarios() {
     const n = g.servidores.length;
     const aberto = _fpHorAbertos.has(g.chave);
     const opcoes = g.prestado
-      ? '<span class="fp-hor-fixo" title="Serviço Prestado tem sempre o horário Padrão"><i class="ti ti-lock"></i> Sempre Padrão</span>'
+      ? '<span class="fp-hor-fixo" title="Serviço Prestado tem sempre o horário Padrão"><i class="fa-solid fa-lock"></i> Sempre Padrão</span>'
       : `<div class="fp-hor-opcoes" role="radiogroup" aria-label="Horário de ${htmlEscape(`${g.funcao} – ${g.vinculo}`)}">
         ${Object.entries(FP_HORARIOS).map(([v, h]) => `<label class="fp-hor-op fp-hor-op-${v}">
           <input type="radio" name="fp-hor-${i}" value="${v}"${tipo === v ? ' checked' : ''}><span>${h.nome}</span></label>`).join('')}
@@ -4833,7 +4863,7 @@ function fpRenderHorarios() {
         data-busca="${htmlEscape(fpNorm(`${g.funcao} ${g.vinculo} ${g.servidores.map(s => s.nome).join(' ')}`))}">
       <div class="fp-hor-cargo-linha">
         <button type="button" class="fp-hor-cargo-info" aria-expanded="${aberto}">
-          <i class="ti ti-chevron-right fp-hor-seta" aria-hidden="true"></i>
+          <i class="fa-solid fa-chevron-right fp-hor-seta" aria-hidden="true"></i>
           <span style="min-width:0">
             <span class="fp-hor-cargo-nome">${htmlEscape(g.funcao)} <span class="fp-hor-vinc">– ${htmlEscape(g.vinculo)}</span></span>
             <span class="fp-hor-cargo-meta">${n} servidor${n === 1 ? '' : 'es'} · clique para ver a lista</span>
@@ -4860,7 +4890,7 @@ function fpPintarServidoresGrupo(linha, g) {
   box.innerHTML = `
     <div class="fp-hor-srvs-cab">
       <span>${srvs.length} servidor${srvs.length === 1 ? '' : 'es'}</span>
-      <button type="button" class="btn btn-outline fp-btn-xs" data-acao="funcionarios"><i class="ti ti-users"></i> Ver em Funcionários</button>
+      <button type="button" class="btn btn-outline fp-btn-xs" data-acao="funcionarios"><i class="fa-solid fa-users"></i> Ver em Funcionários</button>
     </div>
     <div class="table-container"><table class="gov-table fp-hor-tabela">
       <thead><tr><th>Nome</th><th>Vínculo</th><th>Função</th><th>Unidade</th></tr></thead>
@@ -5061,7 +5091,7 @@ function fpFerPrevia() {
   _fpFerUi.previa = !_fpFerUi.previa;
   const btn = $('fer-btn-previa');
   btn.classList.toggle('ativo', _fpFerUi.previa);
-  btn.querySelector('i').className = _fpFerUi.previa ? 'ti ti-eye-off' : 'ti ti-file-text';
+  btn.querySelector('i').className = _fpFerUi.previa ? 'fa-solid fa-eye-slash' : 'fa-solid fa-file-lines';
   $('fp-paper-wrap').hidden = !_fpFerUi.previa;
   if (_fpFerUi.previa) {
     fpFerSincronizarPrevia();
@@ -5113,17 +5143,17 @@ function fpRenderFeriados() {
   cont.innerHTML = pagina.length ? pagina.map(({ f, date }) => {
     const idx = _fpFeriados.indexOf(f);
     const editavel = _fpFerTabelaOk || f.id;
-    const extra = f.regra ? '<i class="ti ti-refresh fer-rec" title="Data móvel (Páscoa), repete todo ano"></i>'
-      : f.recorrente ? '<i class="ti ti-repeat fer-rec" title="Repete todo ano"></i>' : '';
+    const extra = f.regra ? '<i class="fa-solid fa-rotate fer-rec" title="Data móvel (Páscoa), repete todo ano"></i>'
+      : f.recorrente ? '<i class="fa-solid fa-repeat fer-rec" title="Repete todo ano"></i>' : '';
     return `<tr>
-      <td><span class="fer-data"><i class="ti ti-calendar"></i>${fpFerBr(date)}</span></td>
+      <td><span class="fer-data"><i class="fa-solid fa-calendar"></i>${fpFerBr(date)}</span></td>
       <td class="fer-nome">${htmlEscape(f.nome)} ${extra}${f.oficial ? '<span class="fer-oficial" title="Feriado oficial">Oficial</span>' : ''}</td>
       <td><span class="fer-tag fer-tag-${f.abrangencia}">${FER_ABR[f.abrangencia] || f.abrangencia}</span></td>
       <td><span class="fer-tag fer-tag-${f.tipo}">${FER_TIPO[f.tipo] || f.tipo}</span></td>
       <td class="fer-col-acoes">${editavel ? `
-        <button type="button" class="fer-acao fer-acao-edit" onclick="fpFerEditar(${idx})" title="Editar" aria-label="Editar ${htmlEscape(f.nome)}"><i class="ti ti-pencil"></i></button>
-        <button type="button" class="fer-acao fer-acao-del" onclick="fpFerExcluir(${idx}, '${date}')" title="Excluir" aria-label="Excluir ${htmlEscape(f.nome)}"><i class="ti ti-trash"></i></button>`
-        : '<span class="fer-bloq" title="Rode a migração para editar os oficiais"><i class="ti ti-lock"></i></span>'}</td>
+        <button type="button" class="fer-acao fer-acao-edit" onclick="fpFerEditar(${idx})" title="Editar" aria-label="Editar ${htmlEscape(f.nome)}"><i class="fa-solid fa-pen"></i></button>
+        <button type="button" class="fer-acao fer-acao-del" onclick="fpFerExcluir(${idx}, '${date}')" title="Excluir" aria-label="Excluir ${htmlEscape(f.nome)}"><i class="fa-solid fa-trash-can"></i></button>`
+        : '<span class="fer-bloq" title="Rode a migração para editar os oficiais"><i class="fa-solid fa-lock"></i></span>'}</td>
     </tr>`;
   }).join('') : `<tr><td colspan="5" class="fer-vazio">Nenhum feriado encontrado para os filtros escolhidos.</td></tr>`;
 
@@ -5131,15 +5161,15 @@ function fpRenderFeriados() {
     ? `Mostrando ${ini + 1} a ${ini + pagina.length} de ${total} registro${total === 1 ? '' : 's'}`
     : 'Mostrando 0 registros';
   const p = _fpFerUi.pag;
-  let pag = `<button type="button" class="fer-pag-btn" ${p <= 1 ? 'disabled' : ''} onclick="fpFerPagina(${p - 1})"><i class="ti ti-chevron-left"></i> Anterior</button>`;
+  let pag = `<button type="button" class="fer-pag-btn" ${p <= 1 ? 'disabled' : ''} onclick="fpFerPagina(${p - 1})"><i class="fa-solid fa-chevron-left"></i> Anterior</button>`;
   for (let i = 1; i <= paginas; i++)
     pag += `<button type="button" class="fer-pag-btn fer-pag-num ${i === p ? 'ativo' : ''}" onclick="fpFerPagina(${i})">${i}</button>`;
-  pag += `<button type="button" class="fer-pag-btn" ${p >= paginas ? 'disabled' : ''} onclick="fpFerPagina(${p + 1})">Próxima <i class="ti ti-chevron-right"></i></button>`;
+  pag += `<button type="button" class="fer-pag-btn" ${p >= paginas ? 'disabled' : ''} onclick="fpFerPagina(${p + 1})">Próxima <i class="fa-solid fa-chevron-right"></i></button>`;
   $('fer-pag').innerHTML = pag;
 }
 
 function fpFerAbrirForm(f, dataAno) {
-  $('fer-m-titulo').innerHTML = f ? '<i class="ti ti-edit"></i> Editar feriado' : '<i class="ti ti-calendar-plus"></i> Novo feriado';
+  $('fer-m-titulo').innerHTML = f ? '<i class="fa-solid fa-pen-to-square"></i> Editar feriado' : '<i class="fa-solid fa-calendar-plus"></i> Novo feriado';
   $('fer-m-id').value = f ? _fpFeriados.indexOf(f) : '';
   $('fer-m-data').value = dataAno || '';
   $('fer-m-data').disabled = !!f?.regra;
@@ -5316,7 +5346,7 @@ function fpRenderUnidadesSel() {
   $('fp-und-sel-chips').innerHTML = unidades.map(u =>
     `<span class="fp-chip" data-chave="${htmlEscape(u.chave)}" title="${htmlEscape(u.caminho ? `${u.caminho} › ${u.nome}` : u.nome)}">` +
       `<span class="fp-chip-nome">${htmlEscape(u.nome)}</span><span class="fp-chip-qtd">${u.servidores.length}</span>` +
-      `<button type="button" class="fp-chip-x" aria-label="Remover ${htmlEscape(u.nome)}"><i class="ti ti-x"></i></button>` +
+      `<button type="button" class="fp-chip-x" aria-label="Remover ${htmlEscape(u.nome)}"><i class="fa-solid fa-xmark"></i></button>` +
     `</span>`).join('');
 
   $('fp-und-painel').hidden = !temAlguma;
@@ -5332,7 +5362,7 @@ function fpRenderUnidadesSel() {
         <div class="fp-und-acoes">
           <button type="button" class="fp-link" data-grupo-acao="todos">Marcar</button>
           <button type="button" class="fp-link" data-grupo-acao="nenhum">Desmarcar</button>
-          <button type="button" class="fp-link fp-link-perigo" data-grupo-acao="remover" title="Tirar esta unidade da seleção"><i class="ti ti-x"></i> Remover</button>
+          <button type="button" class="fp-link fp-link-perigo" data-grupo-acao="remover" title="Tirar esta unidade da seleção"><i class="fa-solid fa-xmark"></i> Remover</button>
         </div>
       </div>
       <div class="fp-und-grupo-lista">${u.servidores.map(s => {
@@ -5755,9 +5785,9 @@ function atualizarIconesSortRemun() {
     const icon = th.querySelector('.sort-icon');
     if (!icon) return;
     if (th.dataset.remunSort === s.col) {
-      icon.className = `ti ${s.dir === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} sort-icon active`;
+      icon.className = `${s.dir === 'asc' ? 'fa-solid fa-arrow-up-short-wide' : 'fa-solid fa-arrow-down-wide-short'} sort-icon active`;
     } else {
-      icon.className = 'ti ti-arrows-sort sort-icon';
+      icon.className = 'fa-solid fa-sort sort-icon';
     }
   });
 }
@@ -6123,10 +6153,10 @@ function pintarTabelaSemLotacao(data) {
       <td style="font-size:12px">${fmtDt(f.data_admissao)}</td>
       <td style="text-align:center">
         <button class="btn-primary" style="padding:6px 10px;font-size:12px" onclick="alocarServidorSemLotacao(${f.funcionario_id})">
-          <i class="ti ti-map-pin"></i> Alocar
+          <i class="fa-solid fa-location-dot"></i> Alocar
         </button>
         <button class="btn-icon" style="margin-left:4px" title="Ver histórico" onclick="verHistorico(${f.funcionario_id})">
-          <i class="ti ti-history"></i>
+          <i class="fa-solid fa-clock-rotate-left"></i>
         </button>
       </td>
     </tr>
@@ -6221,7 +6251,7 @@ async function renderExonerados() {
           onclick="abrirEditarSaida(${Number(f.funcionario_id)})"
           title="Editar tipo, data e motivo"
         >
-          <i class="ti ti-edit"></i> Editar
+          <i class="fa-solid fa-pen-to-square"></i> Editar
         </button>
         <button
           type="button"
@@ -6230,7 +6260,7 @@ async function renderExonerados() {
           onclick="reativarExonerado(${Number(f.funcionario_id)})"
           title="Reativar e devolver à última lotação"
         >
-          <i class="ti ti-user-check"></i> Reativar
+          <i class="fa-solid fa-user-check"></i> Reativar
         </button>
       </td>
     </tr>`;
@@ -6771,7 +6801,7 @@ function giapFolhaHtmlAcoes(r) {
   const c = r._correcao || giapFolhaDetectarCorrecoes(r);
   if (c.sem_vinculo) {
     const rowKey = JSON.stringify(r._rowKey || '');
-    return `<button type="button" class="btn-primary" style="padding:4px 8px;font-size:11px;white-space:nowrap" title="Verificar matrícula e nome antes de abrir o cadastro" onclick='giapAdicionarServidor(${rowKey})'><i class="ti ti-user-plus"></i> Adicionar servidor</button>`;
+    return `<button type="button" class="btn-primary" style="padding:4px 8px;font-size:11px;white-space:nowrap" title="Verificar matrícula e nome antes de abrir o cadastro" onclick='giapAdicionarServidor(${rowKey})'><i class="fa-solid fa-user-plus"></i> Adicionar servidor</button>`;
   }
   const matKey = JSON.stringify(c.matG || String(r.matricula ?? '').trim());
   const btns = [];
@@ -8010,8 +8040,8 @@ function giapFaltandoRender() {
     const n = rastreioStats?.demitidos || 0;
     btnExo.style.display = rastreioFeito && n > 0 ? '' : 'none';
     btnExo.innerHTML = n > 0
-      ? `<i class="ti ti-user-off"></i> Exonerar sugeridos (${n})`
-      : `<i class="ti ti-user-off"></i> Exonerar sugeridos`;
+      ? `<i class="fa-solid fa-user-slash"></i> Exonerar sugeridos (${n})`
+      : `<i class="fa-solid fa-user-slash"></i> Exonerar sugeridos`;
   }
   if ($('giap-faltando-page')) {
     $('giap-faltando-page').textContent = `${p} / ${pages}`;
@@ -8392,7 +8422,7 @@ function audAtualizarKpis() {
   const btnEx = $('aud-btn-exonerar');
   if (btnEx) {
     btnEx.style.display = dem > 0 ? '' : 'none';
-    btnEx.innerHTML = `<i class="ti ti-user-off"></i> Exonerar sugeridos (${dem})`;
+    btnEx.innerHTML = `<i class="fa-solid fa-user-slash"></i> Exonerar sugeridos (${dem})`;
   }
   const badge = $('badge-giap-rastreio');
   if (badge) {
@@ -9475,16 +9505,16 @@ function ferStatusClass(st) {
 }
 
 function ferStatusIcon(st) {
-  if (st === 'Em Gozo') return 'ti-beach';
-  if (st === 'Pendente') return 'ti-alert-circle';
-  if (st === 'Concluído') return 'ti-circle-check';
-  if (st === 'Cancelado') return 'ti-ban';
-  return 'ti-calendar-event';
+  if (st === 'Em Gozo') return 'fa-solid fa-umbrella-beach';
+  if (st === 'Pendente') return 'fa-solid fa-circle-exclamation';
+  if (st === 'Concluído') return 'fa-regular fa-circle-check';
+  if (st === 'Cancelado') return 'fa-solid fa-ban';
+  return 'fa-solid fa-calendar-day';
 }
 
 function ferStatusHtml(status) {
   const cls = ferStatusClass(status);
-  return `<span class="fer-status ${cls}"><i class="ti ${ferStatusIcon(status)}"></i> ${htmlEscape(ferStatusLabel(status))}</span>`;
+  return `<span class="fer-status ${cls}"><i class="${ferStatusIcon(status)}"></i> ${htmlEscape(ferStatusLabel(status))}</span>`;
 }
 
 function ferLinkTipo(url) {
@@ -9498,13 +9528,13 @@ function ferLinkHtml(url) {
   if (!url) return '<span class="fer-vazio">Sem documento</span>';
   const tipo = ferLinkTipo(url);
   const meta = {
-    email: { icon: 'ti-mail', label: 'E-mail' },
-    sei: { icon: 'ti-file-certificate', label: 'SEI' },
-    link: { icon: 'ti-link', label: 'Link' },
+    email: { icon: 'fa-solid fa-envelope', label: 'E-mail' },
+    sei: { icon: 'fa-solid fa-file-signature', label: 'SEI' },
+    link: { icon: 'fa-solid fa-link', label: 'Link' },
   }[tipo];
   let href = url;
   if (tipo === 'email' && !url.startsWith('mailto:')) href = `mailto:${url}`;
-  return `<a class="fer-doc-link ${tipo}" href="${htmlEscape(href)}" target="_blank" rel="noopener" title="${htmlEscape(url)}"><i class="ti ${meta.icon}"></i> ${meta.label}</a>`;
+  return `<a class="fer-doc-link ${tipo}" href="${htmlEscape(href)}" target="_blank" rel="noopener" title="${htmlEscape(url)}"><i class="${meta.icon}"></i> ${meta.label}</a>`;
 }
 
 function ferFotoHtml(path) {
@@ -9512,7 +9542,7 @@ function ferFotoHtml(path) {
   if (url) {
     return `<img class="fer-serv-foto" src="${htmlEscape(url)}" alt="" loading="lazy" width="36" height="36">`;
   }
-  return `<span class="fer-serv-foto--empty" aria-hidden="true"><i class="ti ti-user"></i></span>`;
+  return `<span class="fer-serv-foto--empty" aria-hidden="true"><i class="fa-solid fa-user"></i></span>`;
 }
 
 function ferServidorCell(r) {
@@ -9521,9 +9551,9 @@ function ferServidorCell(r) {
 
 function ferAcoesHtml(r) {
   return `<div class="fer-actions">
-    <button class="btn-icon" title="Editar" onclick="ferEditarRegistro(${r.id})"><i class="ti ti-pencil"></i></button>
-    <button class="btn-icon" title="Histórico" onclick="ferVerHistorico(${r.funcionario_id})"><i class="ti ti-history"></i></button>
-    <button class="btn-icon" title="Cancelar" style="color:var(--gov-red)" onclick="cancelarFerias(${r.id})"><i class="ti ti-x"></i></button>
+    <button class="btn-icon" title="Editar" onclick="ferEditarRegistro(${r.id})"><i class="fa-solid fa-pen"></i></button>
+    <button class="btn-icon" title="Histórico" onclick="ferVerHistorico(${r.funcionario_id})"><i class="fa-solid fa-clock-rotate-left"></i></button>
+    <button class="btn-icon" title="Cancelar" style="color:var(--gov-red)" onclick="cancelarFerias(${r.id})"><i class="fa-solid fa-xmark"></i></button>
   </div>`;
 }
 
@@ -9811,9 +9841,9 @@ function ferAtualizarIconesSort() {
     const icon = th.querySelector('.sort-icon');
     if (!icon) return;
     if (th.dataset.ferSort === _ferV2.sort.col) {
-      icon.className = `ti ${_ferV2.sort.dir === 'asc' ? 'ti-sort-ascending' : 'ti-sort-descending'} sort-icon active`;
+      icon.className = `${_ferV2.sort.dir === 'asc' ? 'fa-solid fa-arrow-up-short-wide' : 'fa-solid fa-arrow-down-wide-short'} sort-icon active`;
     } else {
-      icon.className = 'ti ti-arrows-sort sort-icon';
+      icon.className = 'fa-solid fa-sort sort-icon';
     }
   });
 }
@@ -10055,7 +10085,7 @@ function ferRenderPendencias(data) {
       <td>${htmlEscape(r.funcao || '—')}</td>
       <td><strong style="color:var(--gov-orange)">${htmlEscape(r.pendente !== '—' ? r.pendente : r.aquisitivo)}</strong></td>
       <td>${ferLinkHtml(r.email)}</td>
-      <td><button class="btn-primary" style="font-size:11px;padding:4px 10px" onclick="ferEditarRegistro(${r.id})"><i class="ti ti-calendar-plus"></i> Programar</button></td>
+      <td><button class="btn-primary" style="font-size:11px;padding:4px 10px" onclick="ferEditarRegistro(${r.id})"><i class="fa-solid fa-calendar-plus"></i> Programar</button></td>
     </tr>`).join('');
 }
 
@@ -10080,7 +10110,7 @@ function ferRenderHistorico(data) {
         <td>${htmlEscape(r.tipo || '—')}</td>
         <td>${ferStatusHtml(r.status)}</td>
         <td>${ferLinkHtml(r.email)}</td>
-        <td style="text-align:center"><button class="btn-icon" title="Ver histórico do servidor" onclick="ferVerHistorico(${r.funcionario_id})"><i class="ti ti-history"></i></button></td>
+        <td style="text-align:center"><button class="btn-icon" title="Ver histórico do servidor" onclick="ferVerHistorico(${r.funcionario_id})"><i class="fa-solid fa-clock-rotate-left"></i></button></td>
       </tr>`;
     }).join('');
   }
@@ -10270,7 +10300,7 @@ function ferLimparModal() {
   if ($('fer-tipo')) $('fer-tipo').value = 'regular';
   if ($('fer-status')) $('fer-status').value = 'Pendente';
   if ($('fer-suggest')) $('fer-suggest').innerHTML = '';
-  if ($('fer-modal-title')) $('fer-modal-title').innerHTML = '<i class="ti ti-beach"></i> Lançamento de Férias do Servidor';
+  if ($('fer-modal-title')) $('fer-modal-title').innerHTML = '<i class="fa-solid fa-umbrella-beach"></i> Lançamento de Férias do Servidor';
 }
 
 window.abrirAgendarFerias = () => {
@@ -10295,7 +10325,7 @@ window.ferEditarRegistro = function ferEditarRegistro(id) {
   const r = _ferV2.rows.find((x) => x.id === id);
   if (!r) return;
   ferLimparModal();
-  if ($('fer-modal-title')) $('fer-modal-title').innerHTML = '<i class="ti ti-beach"></i> Editar Registro de Férias';
+  if ($('fer-modal-title')) $('fer-modal-title').innerHTML = '<i class="fa-solid fa-umbrella-beach"></i> Editar Registro de Férias';
   $('fer-edit-id').value = r.id;
   $('fer-func-id').value = r.funcionario_id;
   $('fer-search').value = r.servidor;
@@ -10331,7 +10361,7 @@ window.ferVerHistorico = async function ferVerHistorico(funcionarioId, nome) {
   const displayNome = nome || row?.servidor || 'Servidor';
   const title = $('fer-hist-title');
   const body = $('fer-hist-content');
-  if (title) title.innerHTML = `<i class="ti ti-history"></i> Histórico de Férias — ${htmlEscape(displayNome)}`;
+  if (title) title.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> Histórico de Férias — ${htmlEscape(displayNome)}`;
   if (body) body.innerHTML = '<span class="spinner"></span> Carregando…';
   openModal('modal-ferias-historico');
   let res = await sb.from('funcionario_ferias')
@@ -10642,7 +10672,7 @@ function renderTabelaPendentes() {
     const sugs = sugestoesCache?.get(p) || [];
     const sugHtml = sugs.length === 0
       ? (p.status === 'pendente'
-          ? '<div style="font-size:12px;background:var(--gov-blue-light);color:var(--gov-blue-dark);padding:6px 8px;border-radius:4px"><i class="ti ti-user-plus"></i> Sem correspondência no sistema — cadastre como <strong>novo servidor</strong></div>'
+          ? '<div style="font-size:12px;background:var(--gov-blue-light);color:var(--gov-blue-dark);padding:6px 8px;border-radius:4px"><i class="fa-solid fa-user-plus"></i> Sem correspondência no sistema — cadastre como <strong>novo servidor</strong></div>'
           : '<small style="color:var(--color-text-muted)">Nenhuma sugestão automática</small>')
       : sugs.map(s => `<div style="font-size:12px;padding:4px 0; border-bottom: 1px dashed #E5E7EB; margin-bottom: 2px;">
           <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -10660,8 +10690,8 @@ function renderTabelaPendentes() {
       'descartado':      '<span style="background:#E5E7EB;color:#4B5563;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">DESCARTADO</span>',
     }[p.status];
     const acoes = p.status === 'pendente' ? `
-      <button class="${sugs.length === 0 ? 'btn-primary' : 'btn-secondary'}" style="font-size:11px;padding:4px 8px" onclick="abrirCadastrarPendente(${p.id})"><i class="ti ti-plus"></i> Novo</button>
-      <button class="btn-icon" title="Descartar" onclick="descartarPendente(${p.id})"><i class="ti ti-x"></i></button>
+      <button class="${sugs.length === 0 ? 'btn-primary' : 'btn-secondary'}" style="font-size:11px;padding:4px 8px" onclick="abrirCadastrarPendente(${p.id})"><i class="fa-solid fa-plus"></i> Novo</button>
+      <button class="btn-icon" title="Descartar" onclick="descartarPendente(${p.id})"><i class="fa-solid fa-xmark"></i></button>
     ` : `<small style="color:var(--color-text-muted)">Resolvido</small>`;
     return `<tr>
       <td style="font-family:monospace">${htmlEscape(p.matricula)}</td>
@@ -10733,7 +10763,7 @@ async function carregarAuditoria() {
       const lotacoesHtml = grupo.map(f => `
         <div style="background:var(--gov-bg-light); border:1px solid var(--gov-border); border-radius:4px; padding:6px 10px; margin-bottom:6px;">
           <div style="font-size:11px; color:var(--color-text-sec); margin-bottom:2px;">Matrícula: <strong>${htmlEscape(f.matricula || 'N/A')}</strong></div>
-          <div style="font-weight:500; color:var(--gov-blue-dark);"><i class="ti ti-map-pin"></i> ${f.lotacao_nome ? htmlEscape(f.lotacao_nome) : '<span style="color:var(--gov-red)">Sem Lotação</span>'}</div>
+          <div style="font-weight:500; color:var(--gov-blue-dark);"><i class="fa-solid fa-location-dot"></i> ${f.lotacao_nome ? htmlEscape(f.lotacao_nome) : '<span style="color:var(--gov-red)">Sem Lotação</span>'}</div>
         </div>
       `).join('');
       
@@ -10848,16 +10878,16 @@ async function renderLotacoes() {
     const t = n.funcionarios_total;
     const podeInativar = (t === 0) && !tem;
     return `<div class="org-node" data-id="${n.id}" data-nome="${htmlEscape(n.nome).replace(/"/g,'&quot;')}" data-filhos="${tem}" style="padding-left:${8+depth*16}px">
-      <span class="toggle ${tem?'':'empty'}"><i class="ti ti-chevron-right"></i></span>
+      <span class="toggle ${tem?'':'empty'}"><i class="fa-solid fa-chevron-right"></i></span>
       <span class="tipo-tag" style="font-size:9px;padding:2px 6px;background:var(--gov-bg-light);color:var(--color-text-sec);border-radius:4px;text-transform:uppercase;font-weight:600">${n.tipo}</span>
       <span style="flex:1;font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(n.nome)}</span>
       <span class="badge-count ${t===0?'zero':''}" style="background:${t===0?'#ddd':'var(--gov-blue-primary)'};color:${t===0?'#888':'#fff'};padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">${t}</span>
       <div class="table-actions" style="display:flex;gap:4px;margin-left:6px" onclick="event.stopPropagation()">
-        <button class="btn-icon" title="Adicionar filho" onclick="abrirNovaLotacao(${n.id})"><i class="ti ti-plus"></i></button>
-        <button class="btn-icon" title="Editar" onclick="abrirEditarLotacao(${n.id})"><i class="ti ti-pencil"></i></button>
-        <button class="btn-icon" title="Mover" onclick="abrirMoverLotacao(${n.id})"><i class="ti ti-arrow-move-right"></i></button>
-        <button class="btn-icon" title="Ver servidores" aria-label="Ver servidores da lotação" onclick="verServidoresPorLotacao(${n.id})"><i class="ti ti-eye"></i></button>
-        ${podeInativar ? `<button class="btn-icon" title="Inativar" onclick="inativarLotacao(${n.id})"><i class="ti ti-trash"></i></button>` : ''}
+        <button class="btn-icon" title="Adicionar filho" onclick="abrirNovaLotacao(${n.id})"><i class="fa-solid fa-plus"></i></button>
+        <button class="btn-icon" title="Editar" onclick="abrirEditarLotacao(${n.id})"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn-icon" title="Mover" onclick="abrirMoverLotacao(${n.id})"><i class="fa-solid fa-arrow-right-to-bracket"></i></button>
+        <button class="btn-icon" title="Ver servidores" aria-label="Ver servidores da lotação" onclick="verServidoresPorLotacao(${n.id})"><i class="fa-solid fa-eye"></i></button>
+        ${podeInativar ? `<button class="btn-icon" title="Inativar" onclick="inativarLotacao(${n.id})"><i class="fa-solid fa-trash-can"></i></button>` : ''}
       </div>
     </div>` + (tem ? `<div class="org-children" data-parent="${n.id}">${n.filhos.map(c => render(c, depth+1)).join('')}</div>` : '');
   }
@@ -10866,7 +10896,7 @@ async function renderLotacoes() {
     .map(s => `
       <div class="org-nivel-header" style="${ORG_NIVEL_HEADER_STYLE}">
         <span>${htmlEscape(s.titulo)}</span>
-        ${s.raizId ? `<button class="btn-icon" title="Adicionar lotação neste nível" onclick="abrirNovaLotacao(${s.raizId})"><i class="ti ti-plus"></i></button>` : ''}
+        ${s.raizId ? `<button class="btn-icon" title="Adicionar lotação neste nível" onclick="abrirNovaLotacao(${s.raizId})"><i class="fa-solid fa-plus"></i></button>` : ''}
       </div>
       ${s.itens.map(r => render(r, 0)).join('')}`)
     .join('');
@@ -10878,7 +10908,7 @@ async function renderLotacoes() {
       const tog = node.querySelector('.toggle i');
       if (!kids) return;
       const open = kids.classList.toggle('open');
-      tog.className = open ? 'ti ti-chevron-down' : 'ti ti-chevron-right';
+      tog.className = open ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-right';
     };
   });
 }
@@ -11131,7 +11161,7 @@ function montarHtmlAlertaLicenca(info, { compacto = false } = {}) {
 
   return `
     <div class="alerta-licenca${urgente ? ' urgente' : ''}" role="status">
-      <i class="ti ti-alert-triangle"></i>
+      <i class="fa-solid fa-triangle-exclamation"></i>
       <div class="alerta-licenca-body">
         <p class="alerta-licenca-title">${urgente ? 'Atenção: licenças com vencimento crítico' : 'Licenças próximas do vencimento'}</p>
         <p class="alerta-licenca-msg">${partes.join(' · ')}.${exemplos ? ` Ex.: ${exemplos}.` : ''}</p>
@@ -11469,14 +11499,14 @@ function renderTabelaLicencas(lista) {
       </div>
       <div class="lic-pag-nav">
         <button type="button" class="btn-secondary lic-pag-btn" ${page <= 1 ? 'disabled' : ''} onclick="licIrPagina(${page - 1})" title="Página anterior">
-          <i class="ti ti-chevron-left"></i><span class="lic-pag-lbl"> Anterior</span>
+          <i class="fa-solid fa-chevron-left"></i><span class="lic-pag-lbl"> Anterior</span>
         </button>
         <span class="lic-pag-info">
           <strong>${de}–${ate}</strong> de <strong>${data.length}</strong>
           <span class="lic-pag-page">Página ${page} de ${totalPages}</span>
         </span>
         <button type="button" class="btn-primary lic-pag-btn" ${page >= totalPages ? 'disabled' : ''} onclick="licIrPagina(${page + 1})" title="Próxima página">
-          <span class="lic-pag-lbl">Próxima </span><i class="ti ti-chevron-right"></i>
+          <span class="lic-pag-lbl">Próxima </span><i class="fa-solid fa-chevron-right"></i>
         </button>
       </div>`;
 
@@ -11540,7 +11570,7 @@ function renderTabelaLicencas(lista) {
       const badge = document.createElement('span');
       badge.className = 'badge';
       badge.style.cssText = 'background:#fff9e6;color:var(--gov-orange)';
-      badge.innerHTML = '<i class="ti ti-activity"></i> ';
+      badge.innerHTML = '<i class="fa-solid fa-notes-medical"></i> ';
       badge.appendChild(document.createTextNode(l.tipo_afastamento || '—'));
       tdTipo.appendChild(badge);
       tr.appendChild(tdTipo);
@@ -11550,7 +11580,7 @@ function renderTabelaLicencas(lista) {
       if (l.precisa_definir_lotacao) {
         const p1 = document.createElement('div');
         p1.style.cssText = 'font-size:12px;color:var(--gov-orange);font-weight:700';
-        p1.innerHTML = '<i class="ti ti-alert-circle"></i> Pendente de lotação';
+        p1.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> Pendente de lotação';
         const p2 = document.createElement('div');
         p2.style.cssText = 'font-size:11px;color:var(--color-text-muted)';
         p2.textContent = l.lotacao_nome || 'Sem lotação original';
@@ -11577,13 +11607,13 @@ function renderTabelaLicencas(lista) {
         v.style.cssText = 'font-size:11px;font-weight:700';
         if (dias < 0) {
           v.style.color = 'var(--gov-red)';
-          v.innerHTML = `<i class="ti ti-alert-triangle"></i> Vencida há ${Math.abs(dias)} dia(s)`;
+          v.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Vencida há ${Math.abs(dias)} dia(s)`;
         } else if (dias <= LIC_URGENTE_DIAS) {
           v.style.color = 'var(--gov-red)';
-          v.innerHTML = `<i class="ti ti-clock"></i> ${dias === 0 ? 'Vence hoje' : `Vence em ${dias} dia(s)`}`;
+          v.innerHTML = `<i class="fa-regular fa-clock"></i> ${dias === 0 ? 'Vence hoje' : `Vence em ${dias} dia(s)`}`;
         } else if (dias <= LIC_AVISO_DIAS) {
           v.style.cssText = 'font-size:11px;font-weight:600;color:var(--gov-orange)';
-          v.innerHTML = `<i class="ti ti-clock"></i> Vence em ${dias} dia(s)`;
+          v.innerHTML = `<i class="fa-regular fa-clock"></i> Vence em ${dias} dia(s)`;
         }
         if (v.innerHTML) tdPer.appendChild(v);
       }
@@ -11606,7 +11636,7 @@ function renderTabelaLicencas(lista) {
       wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;align-items:center';
       const st = document.createElement('span');
       st.style.cssText = 'color:var(--gov-orange);font-weight:600;font-size:12px;margin-right:4px';
-      st.innerHTML = '<i class="ti ti-clock"></i> Afastado';
+      st.innerHTML = '<i class="fa-regular fa-clock"></i> Afastado';
       wrap.appendChild(st);
 
       const fid = Number(l.funcionario_id) || 0;
@@ -11618,7 +11648,7 @@ function renderTabelaLicencas(lista) {
         b.className = 'btn-primary';
         b.style.cssText = 'padding:5px 8px;font-size:12px';
         b.title = 'Definir lotação original';
-        b.innerHTML = '<i class="ti ti-building"></i> Lotação';
+        b.innerHTML = '<i class="fa-solid fa-building"></i> Lotação';
         b.addEventListener('click', () => definirLotacaoLicenca(fid));
         wrap.appendChild(b);
       } else {
@@ -11627,7 +11657,7 @@ function renderTabelaLicencas(lista) {
         b.className = 'btn-secondary';
         b.style.cssText = 'padding:5px 8px;font-size:12px';
         b.title = 'Enviar para Sem Lotação';
-        b.innerHTML = '<i class="ti ti-map-off"></i> Sem Lotação';
+        b.innerHTML = '<i class="fa-solid fa-building-circle-xmark"></i> Sem Lotação';
         b.addEventListener('click', () => enviarLicencaParaSemLotacao(fid, lid));
         wrap.appendChild(b);
       }
@@ -11636,7 +11666,7 @@ function renderTabelaLicencas(lista) {
         b.type = 'button';
         b.className = 'btn-icon';
         b.title = 'Editar';
-        b.innerHTML = '<i class="ti ti-edit"></i>';
+        b.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
         b.addEventListener('click', () => abrirEditarTipoLicenca(lid));
         wrap.appendChild(b);
       }
@@ -11645,7 +11675,7 @@ function renderTabelaLicencas(lista) {
         b.type = 'button';
         b.className = 'btn-icon';
         b.title = 'Retornar à Ativa';
-        b.innerHTML = '<i class="ti ti-arrow-back-up"></i>';
+        b.innerHTML = '<i class="fa-solid fa-arrow-rotate-left"></i>';
         b.addEventListener('click', () => retornarAtiva(lid, fid));
         wrap.appendChild(b);
       }
@@ -11654,7 +11684,7 @@ function renderTabelaLicencas(lista) {
         b.type = 'button';
         b.className = 'btn-icon';
         b.title = 'Histórico';
-        b.innerHTML = '<i class="ti ti-history"></i>';
+        b.innerHTML = '<i class="fa-solid fa-clock-rotate-left"></i>';
         b.addEventListener('click', () => verHistorico(fid));
         wrap.appendChild(b);
       }
@@ -12044,10 +12074,10 @@ function abrirModalDiarioSemcas(atos) {
     `Publicado no Diário Oficial: ${partes.join(' e ')} envolvendo a SEMCAS — ${edicoes}.`;
   $('tbody-diario-semcas').innerHTML = lista.map((a) => {
     const tipo = a.acao === 'nomeacao'
-      ? '<span class="badge badge-nomeacao"><i class="ti ti-user-plus"></i> Nomeação</span>'
+      ? '<span class="badge badge-nomeacao"><i class="fa-solid fa-user-plus"></i> Nomeação</span>'
       : (a.acao === 'promocao'
-        ? '<span class="badge badge-promocao"><i class="ti ti-trending-up"></i> Promoção</span>'
-        : '<span class="badge badge-exoneracao"><i class="ti ti-user-minus"></i> Exoneração</span>');
+        ? '<span class="badge badge-promocao"><i class="fa-solid fa-arrow-trend-up"></i> Promoção</span>'
+        : '<span class="badge badge-exoneracao"><i class="fa-solid fa-user-minus"></i> Exoneração</span>');
     const cargo = a.cargo
       ? `${htmlEscape(a.cargo)}${a.simbologia ? ` <small style="color:var(--color-text-muted)">(${htmlEscape(a.simbologia)})</small>` : ''}`
       : '<span style="color:var(--color-text-muted)">ver ato</span>';
@@ -12111,10 +12141,10 @@ let _diarioCargaSeq = 0;
 
 function diarioTipoInfo(acao) {
   return {
-    nomeacao: { label: 'Nomeação', icon: 'ti-user-plus', classe: 'badge-nomeacao' },
-    promocao: { label: 'Promoção', icon: 'ti-trending-up', classe: 'badge-promocao' },
-    exoneracao: { label: 'Exoneração', icon: 'ti-user-minus', classe: 'badge-exoneracao' }
-  }[acao] || { label: acao || 'Ato', icon: 'ti-file-text', classe: '' };
+    nomeacao: { label: 'Nomeação', icon: 'fa-solid fa-user-plus', classe: 'badge-nomeacao' },
+    promocao: { label: 'Promoção', icon: 'fa-solid fa-arrow-trend-up', classe: 'badge-promocao' },
+    exoneracao: { label: 'Exoneração', icon: 'fa-solid fa-user-minus', classe: 'badge-exoneracao' }
+  }[acao] || { label: acao || 'Ato', icon: 'fa-solid fa-file-lines', classe: '' };
 }
 
 function diarioNormalizar(txt) {
@@ -12301,28 +12331,28 @@ function diarioAcoesHtml(e) {
   const ativo = e.funcionario_ativo !== false && pareado?.funcionario_ativo !== false;
   const botoes = [];
   if (!temCadastro) {
-    botoes.push(`<button type="button" class="btn-secondary" onclick="diarioAbrirVinculo(${e.id})"><i class="ti ti-user-search"></i> Localizar</button>`);
+    botoes.push(`<button type="button" class="btn-secondary" onclick="diarioAbrirVinculo(${e.id})"><i class="fa-solid fa-magnifying-glass"></i> Localizar</button>`);
   }
   if (pareado && e.acao === 'exoneracao') {
-    botoes.push('<span class="diario-publicacao-meta"><i class="ti ti-link"></i> Vinculado ao novo cargo</span>');
+    botoes.push('<span class="diario-publicacao-meta"><i class="fa-solid fa-link"></i> Vinculado ao novo cargo</span>');
   } else if (pareado && e.acao === 'nomeacao' && temCadastro && !ativo) {
-    botoes.push(`<button type="button" class="btn-primary" onclick="diarioReativarNomeacao(${e.id})"><i class="ti ti-user-check"></i> Reativar</button>`);
+    botoes.push(`<button type="button" class="btn-primary" onclick="diarioReativarNomeacao(${e.id})"><i class="fa-solid fa-user-check"></i> Reativar</button>`);
   } else if (pareado && e.acao === 'nomeacao' && temCadastro) {
-    botoes.push(`<button type="button" class="btn-primary" onclick="diarioAbrirPromocao(${e.id})"><i class="ti ti-arrows-exchange"></i> Alterar cargo</button>`);
+    botoes.push(`<button type="button" class="btn-primary" onclick="diarioAbrirPromocao(${e.id})"><i class="fa-solid fa-right-left"></i> Alterar cargo</button>`);
   } else if (e.acao === 'nomeacao') {
     if (!temCadastro) {
-      botoes.push(`<button type="button" class="btn-primary" onclick="diarioCadastrarNomeacao(${e.id})"><i class="ti ti-user-plus"></i> Adicionar servidor</button>`);
+      botoes.push(`<button type="button" class="btn-primary" onclick="diarioCadastrarNomeacao(${e.id})"><i class="fa-solid fa-user-plus"></i> Adicionar servidor</button>`);
     } else if (!ativo) {
       // Já foi servidor e está inativo: volta ao quadro com o cargo do ato
-      botoes.push(`<button type="button" class="btn-primary" onclick="diarioReativarNomeacao(${e.id})"><i class="ti ti-user-check"></i> Reativar</button>`);
+      botoes.push(`<button type="button" class="btn-primary" onclick="diarioReativarNomeacao(${e.id})"><i class="fa-solid fa-user-check"></i> Reativar</button>`);
     } else {
       // Ativo com cargo diferente do ato (igual o sistema já fecha sozinho)
-      botoes.push(`<button type="button" class="btn-primary" onclick="diarioAbrirPromocao(${e.id})"><i class="ti ti-arrows-exchange"></i> Alterar cargo</button>`);
+      botoes.push(`<button type="button" class="btn-primary" onclick="diarioAbrirPromocao(${e.id})"><i class="fa-solid fa-right-left"></i> Alterar cargo</button>`);
     }
   } else if (e.acao === 'promocao' && temCadastro) {
-    botoes.push(`<button type="button" class="btn-primary" onclick="diarioAbrirPromocao(${e.id})"><i class="ti ti-trending-up"></i> Promover</button>`);
+    botoes.push(`<button type="button" class="btn-primary" onclick="diarioAbrirPromocao(${e.id})"><i class="fa-solid fa-arrow-trend-up"></i> Promover</button>`);
   } else if (e.acao === 'exoneracao' && temCadastro && ativo) {
-    botoes.push(`<button type="button" class="btn-primary" style="background:var(--gov-red)" onclick="diarioExonerar(${e.id})"><i class="ti ti-user-off"></i> Exonerar</button>`);
+    botoes.push(`<button type="button" class="btn-primary" style="background:var(--gov-red)" onclick="diarioExonerar(${e.id})"><i class="fa-solid fa-user-slash"></i> Exonerar</button>`);
   }
   return botoes.join('');
 }
@@ -12338,25 +12368,25 @@ function diarioRenderTabela(lista) {
     const pareado = diarioEventoPareado(e);
     const tipo = pareado
       ? (e.acao === 'exoneracao'
-        ? { label: 'Saída do cargo', icon: 'ti-briefcase-off', classe: 'badge-movimentacao' }
-        : { label: 'Novo cargo', icon: 'ti-arrows-exchange', classe: 'badge-movimentacao' })
+        ? { label: 'Saída do cargo', icon: 'fa-solid fa-briefcase', classe: 'badge-movimentacao' }
+        : { label: 'Novo cargo', icon: 'fa-solid fa-right-left', classe: 'badge-movimentacao' })
       : diarioTipoInfo(e.acao);
     const dadosCargo = diarioSepararCargoSimbologia(e);
     const cadastro = e.funcionario_id
-      ? `<div class="diario-servidor-match"><strong><i class="ti ti-circle-check-filled"></i> ${htmlEscape(e.funcionario_nome || e.nome || 'Servidor')}</strong><small>${htmlEscape(e.funcionario_matricula ? `Matrícula ${e.funcionario_matricula}` : 'Sem matrícula')}${e.funcionario_ativo === false ? ' · inativo' : ''}</small></div>`
-      : `<div class="diario-sem-match"><span><i class="ti ti-alert-circle"></i> Nome não localizado</span></div>`;
+      ? `<div class="diario-servidor-match"><strong><i class="fa-solid fa-circle-check"></i> ${htmlEscape(e.funcionario_nome || e.nome || 'Servidor')}</strong><small>${htmlEscape(e.funcionario_matricula ? `Matrícula ${e.funcionario_matricula}` : 'Sem matrícula')}${e.funcionario_ativo === false ? ' · inativo' : ''}</small></div>`
+      : `<div class="diario-sem-match"><span><i class="fa-solid fa-circle-exclamation"></i> Nome não localizado</span></div>`;
     const cargo = dadosCargo.cargo || dadosCargo.simbologia
       ? `<div class="diario-cargo">${dadosCargo.cargo ? `<span>${htmlEscape(dadosCargo.cargo)}</span>` : ''}${dadosCargo.simbologia ? `<span class="diario-simbologia">${htmlEscape(dadosCargo.simbologia)}</span>` : ''}</div>`
       : '<span class="diario-publicacao-meta">Não informado no ato</span>';
     const status = e.status === 'processado'
-      ? '<span class="diario-status diario-status--processado"><i class="ti ti-check"></i> Processado</span>'
-      : '<span class="diario-status diario-status--pendente"><i class="ti ti-clock"></i> Pendente</span>';
+      ? '<span class="diario-status diario-status--processado"><i class="fa-solid fa-check"></i> Processado</span>'
+      : '<span class="diario-status diario-status--pendente"><i class="fa-regular fa-clock"></i> Pendente</span>';
     const notaPareada = pareado
       ? `<small class="diario-pair-note">${e.acao === 'exoneracao' ? 'Não inativa: há nomeação na mesma edição' : 'Mudança de cargo na mesma edição'}</small>`
       : '';
     return `<tr class="${pareado ? 'diario-row-pareada' : ''}">
       <td data-label="Nº do ato"><span class="diario-ato-numero">${htmlEscape(diarioNumeroEdicao(e.edicao))}</span></td>
-      <td data-label="Movimentação"><span class="badge ${tipo.classe}"><i class="ti ${tipo.icon}"></i> ${tipo.label}</span></td>
+      <td data-label="Movimentação"><span class="badge ${tipo.classe}"><i class="${tipo.icon}"></i> ${tipo.label}</span></td>
       <td data-label="Servidor"><div class="diario-servidor-publicado"><strong>${htmlEscape(e.nome || 'Ver ato original')}</strong>${cadastro}</div></td>
       <td data-label="Cargo / simbologia">${cargo}</td>
       <td data-label="Publicação">${fmtDataBr(e.data_ato)}<br><small class="diario-publicacao-meta">Edição ${htmlEscape(e.edicao || '—')} · <a href="${htmlEscape(e.link)}" target="_blank" rel="noopener">abrir ato</a></small></td>
@@ -12406,7 +12436,7 @@ function diarioRenderFiltrosAtivos() {
   ].filter(([, valor]) => valor);
   container.hidden = valores.length === 0;
   container.innerHTML = valores.map(([campo, valor, rotulo]) =>
-    `<span class="diario-filter-chip">${htmlEscape(rotulo)}: ${htmlEscape(valor)}<button type="button" onclick="diarioRemoverFiltro('${campo}')" aria-label="Remover filtro ${htmlEscape(rotulo)}"><i class="ti ti-x"></i></button></span>`
+    `<span class="diario-filter-chip">${htmlEscape(rotulo)}: ${htmlEscape(valor)}<button type="button" onclick="diarioRemoverFiltro('${campo}')" aria-label="Remover filtro ${htmlEscape(rotulo)}"><i class="fa-solid fa-xmark"></i></button></span>`
   ).join('');
 }
 
@@ -12559,8 +12589,8 @@ window.diarioAbrirPromocao = function diarioAbrirPromocao(id) {
   $('diario-promover-cargo').value = cargoExistente || dadosCargo.cargo || '';
   $('diario-promover-simbologia').value = dadosCargo.simbologia || '';
   $('diario-promover-titulo').innerHTML = pareado
-    ? '<i class="ti ti-arrows-exchange"></i> Confirmar mudança de cargo'
-    : '<i class="ti ti-trending-up"></i> Confirmar promoção de cargo';
+    ? '<i class="fa-solid fa-right-left"></i> Confirmar mudança de cargo'
+    : '<i class="fa-solid fa-arrow-trend-up"></i> Confirmar promoção de cargo';
   $('diario-btn-confirmar-promocao').textContent = pareado ? 'Confirmar alteração' : 'Confirmar promoção';
   openModal('modal-diario-promover');
 };
@@ -12926,7 +12956,7 @@ function renderTabelaCedidos() {
         </td>
         <td>
           <span class="badge" style="background:${c.tipo === 'CEDIDO' ? '#fff4d6' : '#dcf0e3'}; color:${c.tipo === 'CEDIDO' ? '#8a6d00' : 'var(--gov-green)'}">
-            <i class="ti ${c.tipo === 'CEDIDO' ? 'ti-arrow-up-right' : 'ti-arrow-down-left'}"></i> ${htmlEscape(c.tipo)}
+            <i class="${c.tipo === 'CEDIDO' ? 'fa-solid fa-arrow-up-right-from-square' : 'fa-solid fa-arrow-down'}"></i> ${htmlEscape(c.tipo)}
           </span>
         </td>
         <td>
@@ -12939,8 +12969,8 @@ function renderTabelaCedidos() {
         </td>
         <td style="font-size:12px;color:var(--color-text-muted)">${c.data_inicio ? fmtDt(c.data_inicio) : fmtDt(c.created_at)}</td>
         <td style="text-align:center">
-          <button class="btn-icon" style="color:var(--gov-blue-primary)" title="Editar" onclick="editarCedencia(${c.id})"><i class="ti ti-pencil"></i></button>
-          <button class="btn-icon" style="color:var(--gov-red)" title="Excluir" onclick="excluirCedencia(${c.id})"><i class="ti ti-trash"></i></button>
+          <button class="btn-icon" style="color:var(--gov-blue-primary)" title="Editar" onclick="editarCedencia(${c.id})"><i class="fa-solid fa-pen"></i></button>
+          <button class="btn-icon" style="color:var(--gov-red)" title="Excluir" onclick="excluirCedencia(${c.id})"><i class="fa-solid fa-trash-can"></i></button>
         </td>
       </tr>
     `).join('');
