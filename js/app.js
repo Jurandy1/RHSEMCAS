@@ -12322,9 +12322,8 @@ function diarioRenderPaginacao() {
 }
 
 function diarioAcoesHtml(e) {
-  if (e.status === 'processado') {
-    return `<span class="diario-publicacao-meta">${htmlEscape(e.resultado || 'Processado')}</span>`;
-  }
+  // Processado: a coluna Situação já informa e o servidor localizado aparece na coluna Servidor
+  if (e.status === 'processado') return '';
   const pareado = diarioEventoPareado(e);
   const funcionarioId = e.funcionario_id || pareado?.funcionario_id || null;
   const temCadastro = !!funcionarioId;

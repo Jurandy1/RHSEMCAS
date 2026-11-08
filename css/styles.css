@@ -3526,3 +3526,17 @@
 }
 .big-card--ico > .local-logo,
 .big-card--ico > .local-ico { grid-row: span 2; }
+
+/* Diário Oficial: linha conferida automaticamente não mostra a célula de ações vazia no celular */
+@media (max-width: 640px) {
+  #tbody-diario-oficial td:has(> .diario-actions:empty) { display: none; }
+}
+
+/* Campo de busca com lupa dentro (Diário Oficial e vincular servidor) */
+.search-wrap { position: relative; }
+.search-wrap > i {
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  color: #6b7a8c; font-size: 14px; pointer-events: none;
+}
+.search-wrap > .form-control,
+.search-wrap > input { width: 100%; padding-left: 36px; }
