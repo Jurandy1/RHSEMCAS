@@ -1217,38 +1217,83 @@
       font-size: 11px; font-weight: 800; line-height: 1;
     }
     .diario-page-head {
-      display: flex; align-items: flex-start; justify-content: space-between;
-      gap: 16px; margin-bottom: 18px;
+      display: flex; align-items: center; justify-content: space-between; gap: 28px;
+      padding: 4px 0 18px; margin-bottom: 16px; border-bottom: 1px solid #d7dee7;
     }
-    .diario-kpis {
-      display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr));
-      gap: 12px; margin-bottom: 16px;
+    .diario-page-title { display: flex; align-items: center; gap: 13px; min-width: 0; }
+    .diario-page-icon {
+      width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center;
+      border: 1px solid #b8c9dc; border-radius: 6px; color: #1351b4; background: #edf5ff; font-size: 22px;
     }
-    .diario-kpi {
-      position: relative; overflow: hidden; display: grid; gap: 3px;
-      padding: 15px 16px; background: #fff; border: 1px solid var(--gov-border);
-      border-left: 4px solid var(--gov-orange, #ed7b2f); border-radius: 8px;
-      box-shadow: var(--shadow-sm);
+    .diario-eyebrow { margin: 0 0 2px !important; color: #526579 !important; font-size: 10px !important; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .diario-page-title h2 { margin: 0; color: #071d41; font: 800 22px/1.15 var(--font-heading); letter-spacing: -.015em; }
+    .diario-page-title p:not(.diario-eyebrow) { margin: 4px 0 0; color: #40566d; font-size: 12px; line-height: 1.4; }
+    .diario-operation { min-width: 285px; display: grid; gap: 3px; padding-left: 18px; border-left: 1px solid #d7dee7; color: #40566d; font-size: 11px; }
+    .diario-operation-status { display: flex; align-items: center; gap: 7px; color: #135d2d; font-size: 12px; }
+    .diario-status-dot { width: 8px; height: 8px; border-radius: 50%; background: #168821; box-shadow: 0 0 0 3px #e3f5e5; }
+    .diario-operation small { color: #66788a; font-size: 10px; }
+    .diario-summary {
+      display: flex; align-items: center; margin-bottom: 12px; padding: 9px 0;
+      border-top: 1px solid #d7dee7; border-bottom: 1px solid #d7dee7;
     }
-    .diario-kpi span { color: var(--color-text-sec); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
-    .diario-kpi strong { color: var(--gov-blue-dark); font: 800 28px/1.1 var(--font-heading); }
-    .diario-kpi small { color: var(--color-text-muted); font-size: 11px; }
-    .diario-kpi--green { border-left-color: var(--gov-green, #168821); }
-    .diario-kpi--blue { border-left-color: var(--gov-blue-primary, #1351b4); }
-    .diario-kpi--red { border-left-color: var(--gov-red, #e52207); }
-    .diario-filter-bar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
-    .diario-filter-bar .search-wrap { flex: 1; min-width: 240px; }
-    .diario-filter-bar select { width: auto; min-width: 180px; }
-    .diario-table td { vertical-align: middle; }
+    .diario-summary-item {
+      display: flex; align-items: baseline; gap: 8px; min-width: 0; padding: 0 20px;
+      border-right: 1px solid #d7dee7;
+    }
+    .diario-summary-item:first-child { padding-left: 0; }
+    .diario-summary-item:last-child { border-right: 0; }
+    .diario-summary-item span { color: #526579; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .035em; }
+    .diario-summary-item strong { color: #071d41; font: 800 15px/1 var(--font-heading); }
+    .diario-tabs { display: flex; gap: 0; margin-bottom: 14px; border-bottom: 1px solid #b8c2cc; }
+    .diario-tab {
+      min-height: 43px; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 0 18px;
+      border: 0; border-bottom: 3px solid transparent; background: transparent; color: #334e68;
+      font: 700 12px/1 var(--font-body); cursor: pointer; transition: color .15s, background .15s, border-color .15s;
+    }
+    .diario-tab:hover { color: #1351b4; background: #f3f7fb; }
+    .diario-tab:focus-visible { outline: 3px solid #ffcd07; outline-offset: -3px; }
+    .diario-tab.active { color: #1351b4; border-bottom-color: #1351b4; background: #f8fbff; }
+    .diario-tab i { font-size: 16px; }
+    .diario-tab b { min-width: 20px; height: 20px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; background: #e8eef5; color: #334e68; font-size: 10px; }
+    .diario-tab.active b { background: #dbe8fb; color: #0c326f; }
+    .diario-filter-shell { margin-bottom: 16px; border: 1px solid #ccd5df; border-radius: 5px; background: #fff; }
+    .diario-filter-toolbar { display: grid; grid-template-columns: minmax(260px, 1fr) auto auto; gap: 10px; align-items: end; padding: 13px; }
+    .diario-filter-search label, .diario-filter-field label { display: block; margin: 0 0 5px; color: #334e68; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .035em; }
+    .diario-filter-search .form-control { height: 40px; background: #fff; font-size: 12px; }
+    .diario-more-filters, .diario-filter-button { height: 40px; padding: 0 14px; white-space: nowrap; }
+    .diario-more-filters { display: inline-flex; align-items: center; gap: 7px; }
+    .diario-filter-chevron { transition: transform .18s ease; }
+    .diario-more-filters[aria-expanded="true"] .diario-filter-chevron { transform: rotate(180deg); }
+    .diario-filter-panel { display: grid; grid-template-columns: minmax(150px, .7fr) minmax(150px, .7fr) minmax(300px, 1.4fr) auto; gap: 10px; align-items: end; padding: 13px; border-top: 1px solid #d7dee7; background: #f7f9fb; }
+    .diario-filter-panel[hidden] { display: none; }
+    .diario-filter-field { min-width: 0; }
+    .diario-filter-field .form-control { height: 40px; background: #fff; font-size: 12px; }
+    .diario-date-range { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 7px; }
+    .diario-date-range span { color: var(--color-text-muted); font-size: 11px; }
+    .diario-clear-button { height: 40px; padding: 0 13px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+    .diario-active-filters { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 13px 12px; }
+    .diario-filter-chip { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 3px 5px 3px 9px; border-radius: 13px; background: #e8eef5; color: #243b53; font-size: 10px; }
+    .diario-filter-chip button { width: 19px; height: 19px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; }
+    .diario-filter-chip button:hover { background: #ccd8e5; }
+    .diario-table-wrap { border: 1px solid #c5ced8; border-radius: 5px; overflow: auto; background: #fff; }
+    .diario-table { margin: 0; }
+    .diario-table thead th { position: sticky; top: 0; z-index: 1; padding: 10px 11px; background: #e9eef3; color: #243b53; border-bottom: 1px solid #aeb9c5; font-size: 10px; letter-spacing: .025em; }
+    .diario-table td { padding: 11px; vertical-align: middle; border-bottom-color: #e1e6eb; font-size: 11px; line-height: 1.35; }
+    .diario-table tbody tr:hover td { background: #f8fafc; }
+    .diario-ato-numero { font-weight: 800; color: #173b60; white-space: nowrap; }
+    .diario-servidor-publicado { display: grid; gap: 5px; }
+    .diario-servidor-publicado > strong { color: #102b47; font-size: 11px; }
     .diario-servidor-match { display: grid; gap: 2px; }
-    .diario-servidor-match strong { color: var(--gov-green, #168821); }
+    .diario-servidor-match strong { color: #176b36; font-size: 11px; }
     .diario-servidor-match small, .diario-publicacao-meta { color: var(--color-text-muted); }
-    .diario-sem-match { display: grid; gap: 5px; color: var(--gov-orange, #b45309); font-size: 12px; }
+    .diario-sem-match { display: grid; gap: 5px; color: var(--gov-orange, #b45309); font-size: 11px; }
+    .diario-cargo { display: grid; gap: 5px; color: #243b53; }
+    .diario-simbologia { width: max-content; display: inline-flex; padding: 2px 7px; border: 1px solid #b8c9dc; border-radius: 3px; background: #f4f8fc; color: #164c83; font-size: 10px; font-weight: 800; }
     .diario-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-    .diario-actions .btn-primary, .diario-actions .btn-secondary, .diario-actions .btn-outline { padding: 6px 9px; font-size: 11px; white-space: nowrap; }
-    .diario-status { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 4px 8px; font-size: 11px; font-weight: 700; }
-    .diario-status--pendente { background: #fff3cd; color: #7a4d00; }
-    .diario-status--processado { background: #e3f5e5; color: #116b1b; }
+    .diario-actions .btn-primary, .diario-actions .btn-secondary, .diario-actions .btn-outline { min-height: 30px; padding: 5px 8px; border-radius: 4px; font-size: 10px; white-space: nowrap; }
+    .diario-status { display: inline-flex; align-items: center; gap: 5px; border-radius: 3px; padding: 4px 7px; border: 1px solid transparent; font-size: 10px; font-weight: 700; }
+    .diario-status--pendente { background: #fff7db; border-color: #f5d565; color: #674d00; }
+    .diario-status--processado { background: #eaf6ec; border-color: #a6d9ae; color: #135d2d; }
     .diario-row-pareada td { background: rgba(19, 81, 180, .035); }
     .diario-pair-note { display: block; margin-top: 5px; color: #164c83; font-size: 10px; line-height: 1.25; }
     .diario-match-list { display: grid; gap: 8px; max-height: 330px; overflow-y: auto; margin-top: 12px; }
@@ -1263,12 +1308,52 @@
     .diario-promocao-resumo div { display: grid; gap: 2px; }
     .diario-promocao-resumo span { color: var(--color-text-muted); font-size: 11px; text-transform: uppercase; font-weight: 700; }
     .diario-modal-note { margin: 14px 0 0; color: var(--color-text-muted); font-size: 12px; line-height: 1.45; }
+    #view-diario-oficial .pagination { padding: 12px 13px; background: #fff; border-top: 1px solid #d7dee7; }
+    #view-diario-oficial .page-info { color: #40566d; font-size: 11px; }
+    #view-diario-oficial .page-btn { min-width: 34px; height: 34px; border-radius: 4px; }
+    @media (max-width: 1100px) {
+      .diario-page-head { align-items: flex-start; }
+      .diario-filter-panel { grid-template-columns: 1fr 1fr; }
+      .diario-filter-periodo { grid-column: 1 / -1; }
+    }
     @media (max-width: 900px) {
-      .diario-kpis { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
-      .diario-page-head, .diario-filter-bar { align-items: stretch; flex-direction: column; }
-      .diario-filter-bar select { width: 100%; }
-      .diario-table-wrap { overflow-x: auto; }
-      .diario-table { min-width: 1050px; }
+      .diario-page-head { flex-direction: column; gap: 14px; }
+      .diario-operation { width: 100%; padding: 12px 0 0; border-left: 0; border-top: 1px solid #d7dee7; }
+      .diario-filter-toolbar { grid-template-columns: 1fr auto; }
+      .diario-filter-search { grid-column: 1 / -1; }
+      .diario-table { min-width: 980px; }
+    }
+    @media (max-width: 640px) {
+      .diario-page-title { align-items: flex-start; }
+      .diario-page-icon { width: 38px; height: 38px; font-size: 19px; }
+      .diario-summary { align-items: stretch; padding: 8px 0; }
+      .diario-summary-item { flex: 1 1 0; align-items: center; justify-content: space-between; gap: 5px; padding: 0 9px; }
+      .diario-summary-item:first-child { padding-left: 0; }
+      .diario-summary-item:last-child { padding-right: 0; }
+      .diario-summary-item span { font-size: 8px; line-height: 1.2; }
+      .diario-summary-item strong { font-size: 14px; }
+      .diario-tabs { overflow-x: auto; }
+      .diario-tabs { scrollbar-width: none; }
+      .diario-tabs::-webkit-scrollbar { display: none; }
+      .diario-tab { flex: 0 0 auto; padding: 0 13px; }
+      .diario-tab i { display: none; }
+      .diario-filter-toolbar, .diario-filter-panel { grid-template-columns: 1fr; }
+      .diario-filter-search, .diario-filter-periodo { grid-column: auto; }
+      .diario-date-range { grid-template-columns: 1fr; }
+      .diario-date-range span { display: none; }
+      .diario-more-filters, .diario-filter-button, .diario-clear-button { width: 100%; }
+      .diario-table-wrap { border: 0; overflow: visible; background: transparent; }
+      .diario-table, .diario-table tbody { display: block; min-width: 0; width: 100%; }
+      .diario-table thead { display: none; }
+      .diario-table tbody tr { display: block; margin-bottom: 10px; border: 1px solid #c5ced8; border-left: 4px solid #1351b4; border-radius: 5px; background: #fff; }
+      .diario-table tbody tr.diario-row-pareada { border-left-color: #2f5f98; }
+      .diario-table tbody td { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 9px; padding: 9px 11px; border-bottom: 1px solid #e7ebef; background: transparent !important; }
+      .diario-table tbody td::before { content: attr(data-label); color: #526579; font-size: 9px; font-weight: 800; letter-spacing: .035em; text-transform: uppercase; }
+      .diario-table tbody td:last-child { border-bottom: 0; }
+      .diario-table tbody td.diario-empty-cell { display: block; }
+      .diario-table tbody td.diario-empty-cell::before { display: none; }
+      .diario-actions { align-items: center; }
+      #view-diario-oficial .pagination { flex-direction: column; gap: 10px; border: 1px solid #c5ced8; border-radius: 5px; }
     }
     .stat { position: relative; }
 
@@ -2889,4 +2974,318 @@
 @media (max-width: 640px) {
   .fer-kpis { grid-template-columns: 1fr; }
   .fer-kpi + .fer-kpi { border-left: none; border-top: 1px solid var(--gov-border); }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   PADRÃO INSTITUCIONAL DO SISTEMA
+   Superfícies sóbrias, indicadores compactos e comportamento administrativo.
+   ────────────────────────────────────────────────────────────────────────── */
+.content-area { background: #f6f7f9; }
+
+.btn-primary,
+.btn-secondary,
+.btn-outline,
+.btn {
+  border-radius: 4px !important;
+  box-shadow: none !important;
+}
+.btn-primary { padding: 9px 15px; }
+.btn-primary:hover { box-shadow: none; }
+
+.card,
+.table-container,
+.toolbar-filters,
+.chart-card,
+#view-ferias.ferias-v2 .fer-v2-panel {
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.table-container { border-color: #c5ced8; }
+.gov-table th { background: #e9eef3; border-bottom-width: 1px; border-bottom-color: #8ca3ba; }
+.gov-table td { padding-top: 11px; padding-bottom: 11px; }
+
+.toolbar-filters {
+  padding: 12px;
+  border-color: #cbd4de;
+  background: #fff;
+}
+.toolbar-filters input,
+.toolbar-filters select,
+.ms-btn,
+.form-control { border-radius: 3px; }
+
+.row-label {
+  padding-left: 0;
+  border-left: 0;
+  font-size: 18px;
+  margin-bottom: 12px;
+}
+.row-label i { color: #1351b4; font-size: 18px; }
+#view-cedidos .row-label,
+#view-licencas .row-label,
+#view-remuneracoes .row-label,
+#view-lotacoes .row-label { display: none; }
+
+.dash-section-header .dash-icon {
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #1351b4;
+  font-size: 18px;
+}
+.dash-section-header { gap: 8px; margin-top: 24px; }
+.dash-section-header .dash-line { background: #d1d9e2; }
+
+/* Indicadores: células de resumo, não cards independentes. */
+.kpi-grid,
+.stats-grid,
+#view-ferias.ferias-v2 .fer-v2-summary {
+  display: grid;
+  gap: 0;
+  border-top: 1px solid #cbd4de;
+  border-bottom: 1px solid #cbd4de;
+  background: transparent;
+}
+.kpi-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); margin-bottom: 22px; }
+.situacao-dia-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.stats-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 22px; }
+
+.kpi-card,
+.stat,
+#view-ferias.ferias-v2 .fer-v2-kpi {
+  min-height: 0;
+  margin: 0;
+  padding: 11px 14px;
+  border: 0;
+  border-right: 1px solid #d7dee7;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+  overflow: visible;
+}
+.kpi-card:last-child,
+.stat:last-child,
+#view-ferias.ferias-v2 .fer-v2-kpi:last-child { border-right: 0; }
+.kpi-card:hover,
+.stat:hover,
+#view-ferias.ferias-v2 .fer-v2-kpi.clickable:hover {
+  transform: none;
+  box-shadow: none;
+  background: #eef4fa;
+}
+.kpi-card::before,
+.stat::before,
+#view-ferias.ferias-v2 .fer-v2-kpi::before { display: none; }
+.kpi-card-bg-icon { display: none; }
+.kpi-card-label,
+.stat-lbl,
+#view-ferias.ferias-v2 .fer-v2-kpi-lbl { font-size: 9px; margin: 0; }
+.kpi-card-value,
+.stat-val,
+#view-ferias.ferias-v2 .fer-v2-kpi-val {
+  margin: 3px 0 2px;
+  font-size: 22px;
+  line-height: 1;
+}
+.kpi-card-sub,
+.stat-sub,
+#view-ferias.ferias-v2 .fer-v2-kpi-sub { margin-top: 2px; font-size: 10px; }
+#view-ferias.ferias-v2 .fer-v2-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 14px; }
+#view-ferias.ferias-v2 .fer-v2-kpi.clickable.active { outline: 2px solid #1351b4; outline-offset: -2px; background: #eef4fa; }
+
+/* Grupos e unidades: listas compactas em vez de cartões flutuantes. */
+.estrutura-grid,
+.super-grid,
+.locais-op-grid,
+.cards-grid {
+  gap: 0;
+  border: 1px solid #cbd4de;
+  border-radius: 3px;
+  background: #fff;
+}
+.estrutura-item,
+.super-card,
+.loc-op-card,
+.loc-card,
+.big-card {
+  margin: 0;
+  padding: 12px 14px;
+  border: 0;
+  border-right: 1px solid #dde3e9;
+  border-bottom: 1px solid #dde3e9;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: none;
+  transform: none;
+}
+.estrutura-item:hover,
+.super-card:hover,
+.loc-op-card:hover,
+.loc-card:hover,
+.big-card:hover {
+  transform: none;
+  box-shadow: none;
+  background: #f4f7fa;
+}
+.estrutura-item-val,
+.super-card-count { font-size: 20px; }
+.big-card-icon { display: none; }
+
+/* Organograma e lotações: comportamento de lista/árvore administrativa. */
+.org-tree { padding: 4px 0; }
+.org-node {
+  margin: 0;
+  padding: 9px 10px;
+  border: 0;
+  border-bottom: 1px solid #e1e6eb;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+.org-node:hover { transform: none; background: #eef4fa; border-color: #d6e1ec; }
+.org-node .badge-count { border-radius: 3px; padding: 2px 7px; }
+.org-children { border-left: 1px solid #b9c7d6; }
+#view-organograma > .card,
+#view-lotacoes > .card { padding: 16px 18px; }
+
+/* Modais e badges com geometria funcional. */
+.modal-overlay { backdrop-filter: none; background: rgba(7, 29, 65, .46); }
+.modal-content { border-radius: 4px; }
+.badge,
+.fer-tag,
+.filter-tag { border-radius: 3px; }
+
+/* Funcionários: busca sempre visível; filtros secundários recolhíveis no móvel. */
+.func-filter-toggle {
+  display: none;
+  width: 100%; height: 40px; align-items: center; gap: 8px; margin-bottom: 8px; padding: 0 12px;
+  border: 1px solid #aeb9c5; border-radius: 3px; background: #fff; color: #173b60;
+  font: 700 12px var(--font-body); cursor: pointer; text-align: left;
+}
+.func-filter-toggle span { flex: 1; }
+.func-filter-toggle .ti-chevron-down { transition: transform .18s; }
+.func-filter-toggle[aria-expanded="true"] .ti-chevron-down { transform: rotate(180deg); }
+
+@media (max-width: 900px) {
+  .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #view-ferias.ferias-v2 .fer-v2-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #view-ferias.ferias-v2 .fer-v2-kpi:nth-child(2) { border-right: 0; }
+  #view-ferias.ferias-v2 .fer-v2-kpi:nth-child(-n+2) { border-bottom: 1px solid #d7dee7; }
+}
+
+@media (max-width: 640px) {
+  .content-area { padding-left: 16px; padding-right: 16px; }
+  .view-help { font-size: 11px; line-height: 1.4; }
+  .func-filter-toggle { display: flex; }
+  #func-filtros { display: grid; grid-template-columns: 1fr; gap: 9px; padding: 11px; }
+  #func-filtros.func-filtros-collapsed > .filter-field:nth-child(n+2):nth-child(-n+7) { display: none; }
+  #func-filtros .filter-field { width: 100%; min-width: 0 !important; }
+  #func-filtros input,
+  #func-filtros select,
+  #func-filtros .ms-wrap,
+  #func-filtros .btn,
+  #func-filtros .btn-primary { width: 100%; }
+
+  .kpi-grid,
+  .situacao-dia-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi-card { min-height: 82px; padding: 10px; border-bottom: 1px solid #d7dee7; }
+  .kpi-card:nth-child(2n) { border-right: 0; }
+  .kpi-card-value { font-size: 20px; }
+  .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat { border-bottom: 1px solid #d7dee7; }
+  .stat:nth-child(2n) { border-right: 0; }
+
+  .dash-section-header { margin-top: 19px; }
+  .dash-section-header h2 { font-size: 14px; }
+  .estrutura-grid,
+  .super-grid,
+  .locais-op-grid,
+  .cards-grid { grid-template-columns: 1fr !important; }
+  .estrutura-item,
+  .super-card,
+  .loc-op-card,
+  .loc-card,
+  .big-card { border-right: 0; }
+
+  #view-organograma > .card,
+  #view-lotacoes > .card { padding: 11px; }
+  #view-organograma > .card > div:first-child,
+  #view-lotacoes > .card > div:first-child { align-items: flex-start !important; }
+  #view-organograma .btn-secondary,
+  #view-lotacoes .btn-secondary { padding: 7px 9px; font-size: 11px; }
+  .org-node { gap: 7px; padding: 9px 6px; }
+  .org-node .nome { font-size: 11px; line-height: 1.3; }
+  .org-node .tipo-tag { padding: 2px 5px; font-size: 8px; }
+
+  #view-funcionarios .table-container { border: 0; overflow: visible; background: transparent; }
+  #view-funcionarios .gov-table,
+  #view-funcionarios .gov-table tbody { display: block; width: 100%; }
+  #view-funcionarios .gov-table thead { display: none; }
+  #view-funcionarios .gov-table tbody tr {
+    display: block; margin-bottom: 9px; border: 1px solid #c5ced8;
+    border-left: 3px solid #1351b4; border-radius: 3px; background: #fff;
+  }
+  #view-funcionarios .gov-table tbody td {
+    display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: 8px;
+    padding: 8px 10px; border-bottom: 1px solid #e3e8ed; font-size: 11px;
+  }
+  #view-funcionarios .gov-table tbody td::before {
+    content: attr(data-label); color: #526579; font-size: 8px; font-weight: 800;
+    letter-spacing: .035em; text-transform: uppercase;
+  }
+  #view-funcionarios .gov-table tbody td:nth-child(2),
+  #view-funcionarios .gov-table tbody td:nth-child(7) { display: none; }
+  #view-funcionarios .gov-table tbody td:last-child { border-bottom: 0; }
+  #view-funcionarios .gov-table tbody td[colspan] { display: block; }
+  #view-funcionarios .gov-table tbody td[colspan]::before { display: none; }
+  #view-funcionarios .table-actions { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+  #view-funcionarios .btn-icon { width: 100%; min-width: 0; }
+  #view-funcionarios .pagination { border: 1px solid #c5ced8; border-radius: 3px; flex-direction: column; gap: 9px; }
+
+  #view-ferias .fer-v2-panel { border: 0; background: transparent; }
+  #view-ferias .fer-v2-table,
+  #view-ferias .fer-v2-table tbody { display: block; min-width: 0; width: 100%; }
+  #view-ferias .fer-v2-table thead { display: none; }
+  #view-ferias .fer-v2-table tbody tr {
+    display: block; margin-bottom: 9px; border: 1px solid #c5ced8;
+    border-left: 3px solid #1351b4; border-radius: 3px; background: #fff;
+  }
+  #view-ferias .fer-v2-table tbody tr.fer-row-em-ferias { border-left-color: #168821; }
+  #view-ferias .fer-v2-table tbody td {
+    display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px;
+    padding: 8px 10px; border-bottom: 1px solid #e3e8ed; font-size: 11px;
+  }
+  #view-ferias .fer-v2-table tbody td::before {
+    content: attr(data-label); color: #526579; font-size: 8px; font-weight: 800;
+    letter-spacing: .035em; text-transform: uppercase;
+  }
+  #view-ferias .fer-v2-table tbody td:nth-child(3),
+  #view-ferias .fer-v2-table tbody td:nth-child(4),
+  #view-ferias .fer-v2-table tbody td:nth-child(8) { display: none; }
+  #view-ferias .fer-v2-table tbody td:last-child { border-bottom: 0; }
+  #view-ferias .fer-v2-table tbody td[colspan] { display: block; }
+  #view-ferias .fer-v2-table tbody td[colspan]::before { display: none; }
+  #view-ferias .fer-v2-pane.active { overflow: visible; }
+  #view-ferias.ferias-v2 .fer-v2-view-switcher {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 0 4px;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+  }
+  #view-ferias.ferias-v2 .fer-v2-view-switcher::-webkit-scrollbar { display: none; }
+  #view-ferias.ferias-v2 .fer-v2-view-tab {
+    flex: 0 0 auto;
+    height: 40px;
+    padding: 0 11px;
+    white-space: nowrap;
+    scroll-snap-align: start;
+  }
 }

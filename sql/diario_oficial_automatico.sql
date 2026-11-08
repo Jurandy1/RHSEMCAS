@@ -213,13 +213,19 @@ SECURITY INVOKER
 SET search_path = public
 AS $$
   SELECT json_build_object(
+    'total', count(*) FILTER (
+      WHERE NOT (acao = 'exoneracao' AND par_id IS NOT NULL)),
     -- Par pendente (troca de cargo) conta uma vez só
     'pendentes', count(*) FILTER (
       WHERE status = 'pendente'
         AND NOT (acao = 'exoneracao' AND par_id IS NOT NULL AND par_status = 'pendente')),
+    'processados', count(*) FILTER (
+      WHERE status = 'processado'
+        AND NOT (acao = 'exoneracao' AND par_id IS NOT NULL)),
     'nomeacoes', count(*) FILTER (WHERE acao = 'nomeacao' AND par_id IS NULL),
     'promocoes', count(*) FILTER (WHERE acao = 'promocao' OR (acao = 'nomeacao' AND par_id IS NOT NULL)),
-    'exoneracoes', count(*) FILTER (WHERE acao = 'exoneracao' AND par_id IS NULL)
+    'exoneracoes', count(*) FILTER (WHERE acao = 'exoneracao' AND par_id IS NULL),
+    'ultima_coleta', max(criado_em)
   )
   FROM public.v_diario_oficial_eventos;
 $$;
@@ -272,11 +278,11 @@ REVOKE ALL ON FUNCTION public.diario_disparar_coleta() FROM PUBLIC, anon, authen
 SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname = 'diario-semcas-coleta';
 SELECT cron.schedule(
   'diario-semcas-coleta',
-  '0,20,30 20 * * *',               -- 20:00/20:20/20:30 UTC = 17:00/17:20/17:30 em São Luís
+  '0,20,30 20 * * 1-5',             -- dias úteis; 20:00/20:20/20:30 UTC = 17:00/17:20/17:30 em São Luís
   $$SELECT public.diario_disparar_coleta()$$
 );
 
--- Conferência: deve listar o job com schedule "0,20,30 20 * * *"
+-- Conferência: deve listar o job com schedule "0,20,30 20 * * 1-5"
 SELECT jobid, jobname, schedule, active FROM cron.job WHERE jobname = 'diario-semcas-coleta';
 
 -- Para testar na hora (não precisa esperar as 17h):

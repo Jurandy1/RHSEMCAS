@@ -2488,15 +2488,15 @@ async function carregarFuncionarios() {
         : '';
       return `
       <tr${rowCls}>
-        <td style="font-family:monospace;font-size:12px;color:var(--color-text-sec)">${htmlEscape(ex.matricula || '—')}</td>
-        <td>${htmlFotoLista(ex.foto_url)}</td>
-        <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(f.nome)}${licBadge}</td>
-        <td>${htmlEscape(f.vinculo || '-')}</td>
-        <td>${htmlEscape(f.funcao || '—')}</td>
-        <td title="${htmlEscape(f.caminho_lotacao || '')}">${htmlEscape(f.lotacao_nome || '—')}</td>
-        <td style="font-size:12px;color:var(--color-text-sec)">${fmtDt(ex.data_admissao)}</td>
-        <td>${htmlEscape(f.turno || '—')}</td>
-        <td style="text-align:center">
+        <td data-label="Matrícula" style="font-family:monospace;font-size:12px;color:var(--color-text-sec)">${htmlEscape(ex.matricula || '—')}</td>
+        <td data-label="Foto">${htmlFotoLista(ex.foto_url)}</td>
+        <td data-label="Servidor" style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(f.nome)}${licBadge}</td>
+        <td data-label="Vínculo">${htmlEscape(f.vinculo || '-')}</td>
+        <td data-label="Função">${htmlEscape(f.funcao || '—')}</td>
+        <td data-label="Lotação" title="${htmlEscape(f.caminho_lotacao || '')}">${htmlEscape(f.lotacao_nome || '—')}</td>
+        <td data-label="Admissão" style="font-size:12px;color:var(--color-text-sec)">${fmtDt(ex.data_admissao)}</td>
+        <td data-label="Turno">${htmlEscape(f.turno || '—')}</td>
+        <td data-label="Ações" style="text-align:center">
           <div class="table-actions">
             <button class="btn-icon" title="Editar" onclick="abrirEdicao(${f.funcionario_id})">Editar</button>
             <button class="btn-icon" title="Transferir" onclick="abrirTransferencia(${f.funcionario_id})">Transferir</button>
@@ -9929,16 +9929,16 @@ function ferRenderTabela(data) {
         ? `<span style="color:var(--gov-orange);font-weight:600">${htmlEscape(r.pendente)}</span>`
         : '<span class="fer-vazio">Nenhuma</span>';
       return `<tr class="${ferClassificarRow(r).emFerias ? 'fer-row-em-ferias' : ''}">
-        <td>${ferServidorCell(r)}</td>
-        <td><span class="fer-lot-badge">${htmlEscape(r.lotacao)}</span></td>
-        <td>${htmlEscape(r.cargo || '—')}</td>
-        <td>${htmlEscape(r.funcao || '—')}</td>
-        <td>${htmlEscape(r.aquisitivo)}</td>
-        <td>${gozo ? `<span class="fer-periodo">${htmlEscape(gozo)}</span>` : '<span class="fer-vazio">Não agendado</span>'}</td>
-        <td>${pend}</td>
-        <td>${ferLinkHtml(r.email)}</td>
-        <td>${ferStatusHtml(r.status)}</td>
-        <td style="text-align:center">${ferAcoesHtml(r)}</td>
+        <td data-label="Servidor">${ferServidorCell(r)}</td>
+        <td data-label="Lotação"><span class="fer-lot-badge">${htmlEscape(r.lotacao)}</span></td>
+        <td data-label="Cargo">${htmlEscape(r.cargo || '—')}</td>
+        <td data-label="Função">${htmlEscape(r.funcao || '—')}</td>
+        <td data-label="Período aquisitivo">${htmlEscape(r.aquisitivo)}</td>
+        <td data-label="Período de gozo">${gozo ? `<span class="fer-periodo">${htmlEscape(gozo)}</span>` : '<span class="fer-vazio">Não agendado</span>'}</td>
+        <td data-label="Pendências">${pend}</td>
+        <td data-label="Documento">${ferLinkHtml(r.email)}</td>
+        <td data-label="Situação">${ferStatusHtml(r.status)}</td>
+        <td data-label="Ações" style="text-align:center">${ferAcoesHtml(r)}</td>
       </tr>`;
     }).join('');
   }
@@ -12072,7 +12072,8 @@ window.fecharModalDiarioSemcas = function fecharModalDiarioSemcas() {
 };
 
 function tickMonitorDiarioSemcas() {
-  const { data, minutos } = agoraSaoLuis();
+  const { data, minutos, fimDeSemana } = agoraSaoLuis();
+  if (fimDeSemana) return;
   if (minutos < DIARIO_INICIO_MIN || minutos > DIARIO_FIM_MIN) return;
   if (document.visibilityState === 'hidden') return;
   verificarDiarioSemcas(data).catch((e) => console.warn('Diário Oficial SEMCAS:', e.message));
@@ -12081,9 +12082,9 @@ function tickMonitorDiarioSemcas() {
 /** Chamado a cada login (bootApp). */
 function iniciarMonitorDiarioSemcas() {
   _diarioExibindo = [];
-  const { data, minutos } = agoraSaoLuis();
+  const { data, minutos, fimDeSemana } = agoraSaoLuis();
   // Antes das 17h a edição do dia ainda não saiu
-  if (minutos >= DIARIO_INICIO_MIN) {
+  if (!fimDeSemana && minutos >= DIARIO_INICIO_MIN) {
     verificarDiarioSemcas(data).catch((e) => console.warn('Diário Oficial SEMCAS:', e.message));
   }
   if (!_diarioTimer) _diarioTimer = setInterval(tickMonitorDiarioSemcas, DIARIO_INTERVALO_MS);
@@ -12104,7 +12105,7 @@ window.diarioColetarAgora = async (data = agoraSaoLuis().data) => {
 // plano gratuito do Supabase. Os números dos cards vêm de diario_resumo().
 window._diarioEventosCache = [];
 window._diarioAcaoPendente = null;
-const DIARIO_POR_PAGINA = 25;
+const DIARIO_POR_PAGINA = 10;
 const diarioPag = { page: 1, total: 0 };
 let _diarioCargaSeq = 0;
 
@@ -12124,6 +12125,12 @@ function diarioNormalizar(txt) {
 function diarioTermoBusca(txt) {
   return String(txt || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
     .toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+}
+
+function diarioNumeroEdicao(edicao) {
+  const txt = String(edicao || '').trim();
+  const m = txt.match(/(?:edi[cç][aã]o\s*(?:n[º°o]\s*)?)?([^\s]+\/[^\s]+)/i);
+  return m?.[1] || txt.replace(/^edi[cç][aã]o\s*(?:n[º°o]\s*)?/i, '') || '—';
 }
 
 /** Exoneração + nomeação da mesma pessoa na mesma edição = troca de cargo (a view já traz o par). */
@@ -12177,32 +12184,56 @@ async function diarioAtualizarBadge() {
     return null;
   }
   const fmt = (n) => Number(n || 0).toLocaleString('pt-BR');
+  const totalLogico = data.total ?? (Number(data.nomeacoes || 0) + Number(data.promocoes || 0) + Number(data.exoneracoes || 0));
+  const processados = data.processados ?? Math.max(0, totalLogico - Number(data.pendentes || 0));
   if (badge) {
     badge.textContent = String(data.pendentes || 0);
     badge.hidden = !(data.pendentes > 0);
   }
   if ($('diario-kpi-pendentes')) $('diario-kpi-pendentes').textContent = fmt(data.pendentes);
+  if ($('diario-kpi-processados')) $('diario-kpi-processados').textContent = fmt(processados);
+  if ($('diario-tab-total')) $('diario-tab-total').textContent = fmt(totalLogico);
   if ($('diario-kpi-nomeacoes')) $('diario-kpi-nomeacoes').textContent = fmt(data.nomeacoes);
   if ($('diario-kpi-promocoes')) $('diario-kpi-promocoes').textContent = fmt(data.promocoes);
+  if ($('diario-tab-promocoes')) $('diario-tab-promocoes').textContent = fmt(data.promocoes);
   if ($('diario-kpi-exoneracoes')) $('diario-kpi-exoneracoes').textContent = fmt(data.exoneracoes);
+  diarioAtualizarUltimaColeta(data.ultima_coleta);
   return data;
+}
+
+function diarioAtualizarUltimaColeta(valor) {
+  const el = $('diario-ultima-coleta');
+  if (!el) return;
+  const data = valor ? new Date(valor) : null;
+  if (!data || Number.isNaN(data.getTime())) {
+    el.textContent = 'Última sincronização: histórico disponível';
+    return;
+  }
+  el.textContent = `Última sincronização: ${new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Fortaleza', day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  }).format(data)}`;
 }
 
 async function carregarDiarioOficial() {
   const tbody = $('tbody-diario-oficial');
   if (!tbody) return;
   const seq = ++_diarioCargaSeq;
-  tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><span class="spinner"></span> Carregando publicações…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="7" class="empty-state diario-empty-cell"><span class="spinner"></span> Carregando publicações…</td></tr>';
 
   const busca = diarioTermoBusca($('diario-filtro-busca')?.value);
   const tipo = $('diario-filtro-tipo')?.value || '';
   const status = $('diario-filtro-status')?.value || '';
+  const dataInicio = $('diario-filtro-inicio')?.value || '';
+  const dataFim = $('diario-filtro-fim')?.value || '';
   const ini = (diarioPag.page - 1) * DIARIO_POR_PAGINA;
 
   let q = sb.from('v_diario_oficial_eventos').select('*', { count: 'exact' });
   if (tipo) q = q.eq('tipo_exibicao', tipo);
   if (status) q = q.eq('status', status);
   if (busca) q = q.ilike('busca', `%${busca}%`);
+  if (dataInicio) q = q.gte('data_publicacao', dataInicio);
+  if (dataFim) q = q.lte('data_publicacao', dataFim);
   const [{ data, error, count }] = await Promise.all([
     q.order('data_publicacao', { ascending: false })
       .order('id', { ascending: false })
@@ -12211,7 +12242,7 @@ async function carregarDiarioOficial() {
   ]);
   if (seq !== _diarioCargaSeq) return; // o usuário já mudou filtro/página
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Não foi possível abrir o histórico do Diário Oficial.<br><small>Execute <code>sql/diario_oficial_automatico.sql</code> no Supabase. ${htmlEscape(error.message)}</small></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-state diario-empty-cell">Não foi possível abrir o histórico do Diário Oficial.<br><small>Execute <code>sql/diario_oficial_automatico.sql</code> no Supabase. ${htmlEscape(error.message)}</small></td></tr>`;
     diarioPag.total = 0;
     diarioRenderPaginacao();
     return;
@@ -12224,8 +12255,13 @@ async function carregarDiarioOficial() {
     return carregarDiarioOficial();
   }
   window._diarioEventosCache = data || [];
+  if (data?.length) diarioAtualizarUltimaColeta(data.reduce((maisRecente, item) => {
+    const atual = item.criado_em || item.atualizado_em;
+    return !maisRecente || (atual && atual > maisRecente) ? atual : maisRecente;
+  }, null));
   diarioRenderTabela(window._diarioEventosCache);
   diarioRenderPaginacao();
+  diarioAtualizarAbas();
 }
 
 function diarioRenderPaginacao() {
@@ -12236,14 +12272,14 @@ function diarioRenderPaginacao() {
   const paginas = Math.max(1, Math.ceil(total / DIARIO_POR_PAGINA));
   const ini = (diarioPag.page - 1) * DIARIO_POR_PAGINA + 1;
   const fim = Math.min(diarioPag.page * DIARIO_POR_PAGINA, total);
-  info.textContent = total === 0 ? 'Nenhuma publicação' : `Mostrando ${ini}-${fim} de ${total.toLocaleString('pt-BR')}`;
+  info.textContent = total === 0 ? 'Nenhuma publicação' : `Exibindo ${ini} a ${fim} de ${total.toLocaleString('pt-BR')} registros`;
   const btn = (label, p, dis, ativo = false) =>
     `<button type="button" class="page-btn ${ativo ? 'active' : ''}" ${dis ? 'disabled' : ''} data-page="${p}">${label}</button>`;
-  let html = btn('«', diarioPag.page - 1, diarioPag.page === 1);
+  let html = btn('Anterior', diarioPag.page - 1, diarioPag.page === 1);
   const inicio = Math.max(1, Math.min(diarioPag.page - 2, paginas - 4));
   const termino = Math.min(paginas, inicio + 4);
   for (let i = inicio; i <= termino; i += 1) html += btn(i, i, false, i === diarioPag.page);
-  html += btn('»', diarioPag.page + 1, diarioPag.page === paginas);
+  html += btn('Próxima', diarioPag.page + 1, diarioPag.page === paginas);
   controles.innerHTML = html;
   controles.querySelectorAll('.page-btn').forEach((b) => {
     b.onclick = () => {
@@ -12295,7 +12331,7 @@ function diarioRenderTabela(lista) {
   const tbody = $('tbody-diario-oficial');
   if (!tbody) return;
   if (!lista.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Nenhuma publicação encontrada com esses filtros.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state diario-empty-cell">Nenhuma publicação encontrada com esses filtros.</td></tr>';
     return;
   }
   tbody.innerHTML = lista.map((e) => {
@@ -12309,7 +12345,9 @@ function diarioRenderTabela(lista) {
     const cadastro = e.funcionario_id
       ? `<div class="diario-servidor-match"><strong><i class="ti ti-circle-check-filled"></i> ${htmlEscape(e.funcionario_nome || e.nome || 'Servidor')}</strong><small>${htmlEscape(e.funcionario_matricula ? `Matrícula ${e.funcionario_matricula}` : 'Sem matrícula')}${e.funcionario_ativo === false ? ' · inativo' : ''}</small></div>`
       : `<div class="diario-sem-match"><span><i class="ti ti-alert-circle"></i> Nome não localizado</span></div>`;
-    const cargo = [dadosCargo.cargo, dadosCargo.simbologia].filter(Boolean).map(htmlEscape).join(' · ') || '<span class="diario-publicacao-meta">Não informado no ato</span>';
+    const cargo = dadosCargo.cargo || dadosCargo.simbologia
+      ? `<div class="diario-cargo">${dadosCargo.cargo ? `<span>${htmlEscape(dadosCargo.cargo)}</span>` : ''}${dadosCargo.simbologia ? `<span class="diario-simbologia">${htmlEscape(dadosCargo.simbologia)}</span>` : ''}</div>`
+      : '<span class="diario-publicacao-meta">Não informado no ato</span>';
     const status = e.status === 'processado'
       ? '<span class="diario-status diario-status--processado"><i class="ti ti-check"></i> Processado</span>'
       : '<span class="diario-status diario-status--pendente"><i class="ti ti-clock"></i> Pendente</span>';
@@ -12317,13 +12355,13 @@ function diarioRenderTabela(lista) {
       ? `<small class="diario-pair-note">${e.acao === 'exoneracao' ? 'Não inativa: há nomeação na mesma edição' : 'Mudança de cargo na mesma edição'}</small>`
       : '';
     return `<tr class="${pareado ? 'diario-row-pareada' : ''}">
-      <td><span class="badge ${tipo.classe}"><i class="ti ${tipo.icon}"></i> ${tipo.label}</span></td>
-      <td><strong>${htmlEscape(e.nome || 'Ver ato original')}</strong></td>
-      <td>${cadastro}</td>
-      <td>${cargo}</td>
-      <td>${fmtDataBr(e.data_ato)}<br><small class="diario-publicacao-meta">Edição ${htmlEscape(e.edicao || '—')} · <a href="${htmlEscape(e.link)}" target="_blank" rel="noopener">abrir ato</a></small></td>
-      <td>${status}${notaPareada}</td>
-      <td><div class="diario-actions">${diarioAcoesHtml(e)}</div></td>
+      <td data-label="Nº do ato"><span class="diario-ato-numero">${htmlEscape(diarioNumeroEdicao(e.edicao))}</span></td>
+      <td data-label="Movimentação"><span class="badge ${tipo.classe}"><i class="ti ${tipo.icon}"></i> ${tipo.label}</span></td>
+      <td data-label="Servidor"><div class="diario-servidor-publicado"><strong>${htmlEscape(e.nome || 'Ver ato original')}</strong>${cadastro}</div></td>
+      <td data-label="Cargo / simbologia">${cargo}</td>
+      <td data-label="Publicação">${fmtDataBr(e.data_ato)}<br><small class="diario-publicacao-meta">Edição ${htmlEscape(e.edicao || '—')} · <a href="${htmlEscape(e.link)}" target="_blank" rel="noopener">abrir ato</a></small></td>
+      <td data-label="Situação">${status}${notaPareada}</td>
+      <td data-label="Ações"><div class="diario-actions">${diarioAcoesHtml(e)}</div></td>
     </tr>`;
   }).join('');
 }
@@ -12331,9 +12369,80 @@ function diarioRenderTabela(lista) {
 // Filtro mudou: volta para a página 1 e consulta o banco (busca com espera de 300ms)
 window.diarioAplicarFiltros = function diarioAplicarFiltros() {
   diarioPag.page = 1;
+  diarioRenderFiltrosAtivos();
   carregarDiarioOficial();
 };
 window.diarioAplicarBusca = debounce(() => window.diarioAplicarFiltros(), 300);
+
+function diarioAtualizarAbas() {
+  const tipo = $('diario-filtro-tipo')?.value || '';
+  $$('.diario-tab').forEach((tab) => {
+    const ativa = (tab.dataset.diarioTipo || '') === tipo;
+    tab.classList.toggle('active', ativa);
+    tab.setAttribute('aria-selected', String(ativa));
+  });
+}
+
+window.diarioAlternarFiltros = function diarioAlternarFiltros() {
+  const painel = $('diario-filtros-avancados');
+  const botao = $('diario-btn-mais-filtros');
+  if (!painel || !botao) return;
+  const abrir = painel.hidden;
+  painel.hidden = !abrir;
+  botao.setAttribute('aria-expanded', String(abrir));
+};
+
+function diarioRenderFiltrosAtivos() {
+  const container = $('diario-filtros-ativos');
+  if (!container) return;
+  const tipo = $('diario-filtro-tipo');
+  const status = $('diario-filtro-status');
+  const valores = [
+    ['busca', $('diario-filtro-busca')?.value?.trim(), 'Busca'],
+    ['tipo', tipo?.value ? tipo.options[tipo.selectedIndex]?.text : '', 'Tipo'],
+    ['status', status?.value ? status.options[status.selectedIndex]?.text : '', 'Situação'],
+    ['inicio', $('diario-filtro-inicio')?.value, 'A partir de'],
+    ['fim', $('diario-filtro-fim')?.value, 'Até']
+  ].filter(([, valor]) => valor);
+  container.hidden = valores.length === 0;
+  container.innerHTML = valores.map(([campo, valor, rotulo]) =>
+    `<span class="diario-filter-chip">${htmlEscape(rotulo)}: ${htmlEscape(valor)}<button type="button" onclick="diarioRemoverFiltro('${campo}')" aria-label="Remover filtro ${htmlEscape(rotulo)}"><i class="ti ti-x"></i></button></span>`
+  ).join('');
+}
+
+window.diarioRemoverFiltro = function diarioRemoverFiltro(campo) {
+  const ids = { busca: 'diario-filtro-busca', tipo: 'diario-filtro-tipo', status: 'diario-filtro-status', inicio: 'diario-filtro-inicio', fim: 'diario-filtro-fim' };
+  const el = $(ids[campo]);
+  if (el) el.value = '';
+  diarioAtualizarAbas();
+  window.diarioAplicarFiltros();
+};
+
+window.diarioSelecionarAba = function diarioSelecionarAba(tipo) {
+  if ($('diario-filtro-tipo')) $('diario-filtro-tipo').value = tipo || '';
+  diarioAtualizarAbas();
+  window.diarioAplicarFiltros();
+};
+
+window.diarioLimparFiltros = function diarioLimparFiltros() {
+  if ($('diario-filtro-busca')) $('diario-filtro-busca').value = '';
+  if ($('diario-filtro-tipo')) $('diario-filtro-tipo').value = '';
+  if ($('diario-filtro-status')) $('diario-filtro-status').value = '';
+  if ($('diario-filtro-inicio')) $('diario-filtro-inicio').value = '';
+  if ($('diario-filtro-fim')) $('diario-filtro-fim').value = '';
+  diarioAtualizarAbas();
+  diarioRenderFiltrosAtivos();
+  window.diarioAplicarFiltros();
+};
+
+window.alternarFiltrosFuncionarios = function alternarFiltrosFuncionarios() {
+  const painel = $('func-filtros');
+  const botao = $('func-filter-toggle');
+  if (!painel || !botao) return;
+  const abrir = painel.classList.contains('func-filtros-collapsed');
+  painel.classList.toggle('func-filtros-collapsed', !abrir);
+  botao.setAttribute('aria-expanded', String(abrir));
+};
 
 async function renderDiarioOficial() {
   // Confere de novo no cadastro (servidor pode ter sido cadastrado depois da publicação)

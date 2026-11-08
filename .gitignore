@@ -4,3 +4,6 @@ node_modules/
 *.xlsx
 
 .vercel
+
+# Rascunhos locais (não sobem para o GitHub)
+_rascunhos/

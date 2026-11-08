@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
   
-  <link rel="stylesheet" href="css/styles.css?v=20261106d">
+  <link rel="stylesheet" href="css/styles.css?v=20261108c">
 </head>
 <body>
 
@@ -256,7 +256,10 @@
       <!-- ===== FUNCIONÁRIOS ===== -->
       <section id="view-funcionarios" class="view-section">
         <p class="view-help">Busque e filtre o quadro ativo. Clique no nome ou em Ações para editar, transferir ou registrar afastamento.</p>
-        <div class="toolbar-filters">
+        <button type="button" class="func-filter-toggle" id="func-filter-toggle" onclick="alternarFiltrosFuncionarios()" aria-expanded="false" aria-controls="func-filtros">
+          <i class="ti ti-filter"></i><span>Filtros de funcionários</span><i class="ti ti-chevron-down"></i>
+        </button>
+        <div class="toolbar-filters func-filtros-collapsed" id="func-filtros">
           <div class="filter-field" style="flex:1;min-width:220px">
             <label for="f-busca">Nome ou matrícula</label>
             <input type="search" id="f-busca" placeholder="Ex.: Jurandy, Soares Junior ou matrícula…" autocomplete="off">
@@ -328,49 +331,105 @@
 
       <!-- ===== DIÁRIO OFICIAL ===== -->
       <section id="view-diario-oficial" class="view-section">
-        <div class="diario-page-head">
-          <div>
-            <div class="row-label" style="margin:0"><i class="ti ti-news"></i> Diário Oficial — movimentações SEMCAS</div>
-            <p class="view-help" style="margin:6px 0 0">Nomeações, promoções e exonerações ficam registradas aqui. O sistema busca o Diário sozinho todo dia às 17h, 17h20 e 17h30 (edição extra) e confere cada nome no cadastro automaticamente.</p>
+        <header class="diario-page-head">
+          <div class="diario-page-title">
+            <span class="diario-page-icon" aria-hidden="true"><i class="ti ti-file-description"></i></span>
+            <div>
+              <p class="diario-eyebrow">Gestão de pessoas</p>
+              <h2>Diário Oficial</h2>
+              <p>Movimentações de servidores identificadas nas publicações da SEMCAS.</p>
+            </div>
+          </div>
+          <div class="diario-operation" aria-label="Situação da coleta automática">
+            <div class="diario-operation-status"><span class="diario-status-dot"></span><strong>Serviço ativo</strong></div>
+            <span id="diario-ultima-coleta">Última sincronização: consultando…</span>
+            <small>Verificações em dias úteis: 17h, 17h20 e 17h30</small>
+          </div>
+        </header>
+
+        <div class="diario-summary" aria-label="Resumo das movimentações">
+          <div class="diario-summary-item diario-summary-item--warning">
+            <span>Pendentes</span><strong id="diario-kpi-pendentes">0</strong>
+          </div>
+          <div class="diario-summary-item diario-summary-item--success">
+            <span>Processados</span><strong id="diario-kpi-processados">0</strong>
+          </div>
+          <div class="diario-summary-item diario-summary-item--info">
+            <span>Mudanças de cargo</span><strong id="diario-kpi-promocoes">0</strong>
           </div>
         </div>
 
-        <div class="diario-kpis" id="diario-kpis">
-          <div class="diario-kpi"><span>Pendentes</span><strong id="diario-kpi-pendentes">0</strong><small>aguardando ação do RH</small></div>
-          <div class="diario-kpi diario-kpi--green"><span>Nomeações</span><strong id="diario-kpi-nomeacoes">0</strong><small>últimas publicações</small></div>
-          <div class="diario-kpi diario-kpi--blue"><span>Promoções</span><strong id="diario-kpi-promocoes">0</strong><small>mudanças de cargo</small></div>
-          <div class="diario-kpi diario-kpi--red"><span>Exonerações</span><strong id="diario-kpi-exoneracoes">0</strong><small>últimas publicações</small></div>
+        <div class="diario-tabs" id="diario-kpis" role="tablist" aria-label="Tipos de movimentação">
+          <button type="button" class="diario-tab active" data-diario-tipo="" onclick="diarioSelecionarAba('')">
+            <i class="ti ti-list-details"></i><span>Todos</span><b id="diario-tab-total">0</b>
+          </button>
+          <button type="button" class="diario-tab" data-diario-tipo="nomeacao" onclick="diarioSelecionarAba('nomeacao')">
+            <i class="ti ti-user-plus"></i><span>Nomeações</span><b id="diario-kpi-nomeacoes">0</b>
+          </button>
+          <button type="button" class="diario-tab" data-diario-tipo="exoneracao" onclick="diarioSelecionarAba('exoneracao')">
+            <i class="ti ti-user-minus"></i><span>Exonerações</span><b id="diario-kpi-exoneracoes">0</b>
+          </button>
+          <button type="button" class="diario-tab" data-diario-tipo="promocao" onclick="diarioSelecionarAba('promocao')">
+            <i class="ti ti-arrows-exchange"></i><span>Mudanças de cargo</span><b id="diario-tab-promocoes">0</b>
+          </button>
         </div>
 
-        <div class="filter-bar diario-filter-bar">
-          <div class="search-wrap">
-            <i class="ti ti-search"></i>
-            <input type="search" id="diario-filtro-busca" class="form-control" placeholder="Buscar nome, cargo ou edição…" oninput="diarioAplicarBusca()">
+        <div class="diario-filter-shell">
+          <div class="diario-filter-toolbar">
+            <div class="diario-filter-search">
+              <label for="diario-filtro-busca">Buscar publicação</label>
+              <div class="search-wrap">
+                <i class="ti ti-search"></i>
+                <input type="search" id="diario-filtro-busca" class="form-control" placeholder="Servidor, matrícula, cargo ou número do ato" oninput="diarioAplicarBusca()">
+              </div>
+            </div>
+            <button type="button" class="btn-outline diario-more-filters" id="diario-btn-mais-filtros" onclick="diarioAlternarFiltros()" aria-expanded="false" aria-controls="diario-filtros-avancados">
+              <i class="ti ti-filter"></i><span>Mais filtros</span><i class="ti ti-chevron-down diario-filter-chevron"></i>
+            </button>
+            <button type="button" class="btn-primary diario-filter-button" onclick="diarioAplicarFiltros()"><i class="ti ti-search"></i> Buscar</button>
           </div>
-          <select id="diario-filtro-tipo" class="form-control" onchange="diarioAplicarFiltros()" aria-label="Filtrar por tipo de ato">
-            <option value="">Todos os atos</option>
-            <option value="nomeacao">Nomeações</option>
-            <option value="promocao">Promoções</option>
-            <option value="exoneracao">Exonerações</option>
-          </select>
-          <select id="diario-filtro-status" class="form-control" onchange="diarioAplicarFiltros()" aria-label="Filtrar por situação">
-            <option value="">Todas as situações</option>
-            <option value="pendente">Pendentes</option>
-            <option value="processado">Processados</option>
-          </select>
+          <div class="diario-filter-panel" id="diario-filtros-avancados" hidden>
+            <div class="diario-filter-field">
+              <label for="diario-filtro-tipo">Tipo de ato</label>
+              <select id="diario-filtro-tipo" class="form-control" onchange="diarioAplicarFiltros()" aria-label="Filtrar por tipo de ato">
+                <option value="">Todos</option>
+                <option value="nomeacao">Nomeações</option>
+                <option value="promocao">Mudanças de cargo</option>
+                <option value="exoneracao">Exonerações</option>
+              </select>
+            </div>
+            <div class="diario-filter-field">
+              <label for="diario-filtro-status">Situação</label>
+              <select id="diario-filtro-status" class="form-control" onchange="diarioAplicarFiltros()" aria-label="Filtrar por situação">
+                <option value="">Todas</option>
+                <option value="pendente">Pendentes</option>
+                <option value="processado">Processados</option>
+              </select>
+            </div>
+            <div class="diario-filter-field diario-filter-periodo">
+              <label>Período de publicação</label>
+              <div class="diario-date-range">
+                <input type="date" id="diario-filtro-inicio" class="form-control" aria-label="Data inicial">
+                <span>até</span>
+                <input type="date" id="diario-filtro-fim" class="form-control" aria-label="Data final">
+              </div>
+            </div>
+            <button type="button" class="btn-outline diario-clear-button" onclick="diarioLimparFiltros()"><i class="ti ti-filter-off"></i> Limpar filtros</button>
+          </div>
+          <div class="diario-active-filters" id="diario-filtros-ativos" hidden aria-live="polite"></div>
         </div>
 
         <div class="table-container diario-table-wrap">
           <table class="gov-table diario-table">
             <thead>
               <tr>
-                <th style="width:120px">Ato</th>
-                <th>Servidor publicado</th>
-                <th>Cadastro no RH</th>
+                <th style="width:105px">Nº do ato</th>
+                <th style="width:135px">Movimentação</th>
+                <th>Servidor</th>
                 <th>Cargo / simbologia</th>
                 <th style="width:145px">Publicação</th>
                 <th style="width:120px">Situação</th>
-                <th style="width:190px">Ações</th>
+                <th style="width:170px">Ações</th>
               </tr>
             </thead>
             <tbody id="tbody-diario-oficial">
@@ -2476,7 +2535,7 @@
 <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/app.js?v=20261106e"></script>
+  <script type="module" src="js/app.js?v=20261108c"></script>
 
 
 
