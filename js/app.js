@@ -641,6 +641,7 @@ const LOG_LABELS_SERVIDOR = {
   funcao_terceirizada: 'Função na terceirizada',
   lotacao_terceirizada: 'Lotação na terceirizada',
   turno_terceirizada: 'Turno na terceirizada',
+  lotacoes_adicionais: 'Lotações adicionais',
 };
 
 const LOG_LABELS_FERIAS = {
@@ -713,6 +714,7 @@ function capturarSnapshotEdicaoForm() {
     funcao_terceirizada: ($('edit-funcao-terceirizada')?.value || '').trim(),
     lotacao_terceirizada: ($('edit-lotacao-terceirizada')?.value || '').trim(),
     turno_terceirizada: ($('edit-turno-terceirizada')?.value || '').trim(),
+    lotacoes_adicionais: nomesLotacoesAdicionais(state._lotAdic),
   };
 }
 
@@ -2363,8 +2365,11 @@ async function buscarFuncionariosRpc({ paginar = true } = {}) {
   const filtroVincTerc = (vincFiltro?.categoria || '').trim().toLowerCase() === 'terceirizado';
   const comAtuacaoTerc = (filtroVincTerc || (!!state.filtros.lotacao_id && !state.filtros.vinculo_id)) &&
     !state.filtros.turno_id && funcoesSel.length === 0;
+  // Filtro por unidade (sem vínculo/turno/função) também traz quem está nela como lotação adicional
+  const comLotAdicional = !!state.filtros.lotacao_id && !state.filtros.vinculo_id &&
+    !state.filtros.turno_id && funcoesSel.length === 0;
 
-  if (!multiFunc && paginar && !comAtuacaoTerc) {
+  if (!multiFunc && paginar && !comAtuacaoTerc && !comLotAdicional) {
     const params = {
       p_termo:      termo ? termo.split(/\s+/).join('%') : null,
       p_vinculo_id: state.filtros.vinculo_id ? Number(state.filtros.vinculo_id) : null,
@@ -2439,6 +2444,11 @@ async function buscarFuncionariosRpc({ paginar = true } = {}) {
       termo, ordenarPorNome: state.sort.col === 'nome' && state.sort.dir !== 'desc',
     });
   }
+  if (comLotAdicional) {
+    filtrados = await mesclarLotacoesAdicionais(filtrados, state.filtros.lotacao_id, {
+      termo, ordenarPorNome: state.sort.col === 'nome' && state.sort.dir !== 'desc',
+    });
+  }
   const total = filtrados.length;
   if (!paginar) return { rows: filtrados, total };
   const ini = (state.page - 1) * state.pageSize;
@@ -2502,7 +2512,7 @@ async function carregarFuncionarios() {
       <tr${rowCls}>
         <td data-label="Matrícula" style="font-family:monospace;font-size:12px;color:var(--color-text-sec)">${htmlEscape(ex.matricula || '—')}</td>
         <td data-label="Foto">${htmlFotoLista(ex.foto_url)}</td>
-        <td data-label="Servidor" style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(f.nome)}${licBadge}</td>
+        <td data-label="Servidor" style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(f.nome)}${licBadge}${notaLotacaoAdicionalHtml(f)}</td>
         <td data-label="Vínculo">${htmlEscape(f.vinculo || '-')}</td>
         <td data-label="Função">${htmlEscape(f.funcao || '—')}</td>
         <td data-label="Lotação" title="${htmlEscape(f.caminho_lotacao || '')}">${htmlEscape(f.lotacao_nome || '—')}</td>
@@ -2749,16 +2759,21 @@ async function renderLocais(resto) {
       return;
     }
 
+    const adicPorLot = await contarLotacoesAdicionaisPorUnidade();
     $('locais-content').innerHTML = `
       <div class="cards-grid">
-        ${unidades.map(u => `
+        ${unidades.map(u => {
+          const nAdic = adicPorLot.get(Number(u.id)) || 0;
+          return `
           <div class="big-card big-card--ico" data-id="${u.id}">
             ${iconeTipoLocalHtml(u.nome)}
             <div class="big-card-title">${htmlEscape(u.nome)}</div>
             <div class="big-card-meta">
-              <span><strong>${u.funcionarios_direto ?? 0}</strong> servidores</span>
+              <span><strong>${(u.funcionarios_direto ?? 0) + nAdic}</strong> servidores</span>
+              ${nAdic ? `<span title="Servidores com lotação oficial em outra unidade">${nAdic} em lotação adicional</span>` : ''}
             </div>
-          </div>`).join('')}
+          </div>`;
+        }).join('')}
       </div>`;
     $$('#locais-content .big-card').forEach(el => {
       el.onclick = () => { location.hash = `#locais/${categoria}/${el.dataset.id}`; };
@@ -2786,26 +2801,30 @@ async function renderLocais(resto) {
       p_termo: null, p_vinculo_id: null, p_lotacao_id: Number(lotacaoId),
       p_limite: 500, p_offset: 0,
     }), 'unidade');
-    const data = await mesclarAtuacoesTerceirizadas(base || [], lotacaoId);
+    const data = await mesclarLotacoesAdicionais(await mesclarAtuacoesTerceirizadas(base || [], lotacaoId), lotacaoId);
 
     if (data.length === 0) {
       $('unidade-tbody').innerHTML = `<tr><td colspan="5" class="empty-state">Sem servidores nessa unidade</td></tr>`;
     } else {
       const nTerc = data.filter(f => f.atuacao_terceirizada).length;
-      if (nTerc) $('unidade-qtd').textContent = `${data.length} servidor(es), sendo ${nTerc} na atuação terceirizada`;
+      const nAdic = data.filter(f => f.lotacao_adicional).length;
+      const partes = [];
+      if (nTerc) partes.push(`${nTerc} na atuação terceirizada`);
+      if (nAdic) partes.push(`${nAdic} em lotação adicional`);
+      $('unidade-qtd').textContent = `${data.length} servidor(es)${partes.length ? ', sendo ' + partes.join(' e ') : ''}`;
       $('unidade-tbody').innerHTML = data.map(f => `
         <tr>
           <td style="font-weight:500;color:var(--gov-blue-dark)">${htmlEscape(f.nome)}${f.atuacao_terceirizada
-            ? '<div style="font-size:11px;font-weight:400;color:var(--color-text-muted)">Também terceirizado — lotação oficial em outra unidade</div>' : ''}</td>
+            ? '<div style="font-size:11px;font-weight:400;color:var(--color-text-muted)">Também terceirizado — lotação oficial em outra unidade</div>' : ''}${notaLotacaoAdicionalHtml(f)}</td>
           <td>${htmlEscape(f.vinculo || '-')}</td>
           <td>${htmlEscape(f.funcao || '—')}</td>
           <td>${htmlEscape(f.turno || '—')}</td>
           <td style="text-align:center">
             <div class="table-actions">
               <button class="btn-icon" title="Editar" onclick="abrirEdicao(${f.funcionario_id})">Editar</button>
-              ${f.atuacao_terceirizada ? '' : `<button class="btn-icon" title="Transferir" onclick="abrirTransferencia(${f.funcionario_id})">Transferir</button>`}
+              ${f.atuacao_terceirizada || f.lotacao_adicional ? '' : `<button class="btn-icon" title="Transferir" onclick="abrirTransferencia(${f.funcionario_id})">Transferir</button>`}
               <button class="btn-icon" title="Histórico" onclick="verHistorico(${f.funcionario_id})">Histórico</button>
-              ${f.atuacao_terceirizada ? '' : `<button class="btn-icon" style="color:var(--gov-red)" title="Remover" onclick="abrirRemoverServidor(${f.funcionario_id})">Remover</button>`}
+              ${f.atuacao_terceirizada || f.lotacao_adicional ? '' : `<button class="btn-icon" style="color:var(--gov-red)" title="Remover" onclick="abrirRemoverServidor(${f.funcionario_id})">Remover</button>`}
             </div>
           </td>
         </tr>`).join('');
@@ -3239,6 +3258,178 @@ async function mesclarAtuacoesTerceirizadas(rows, lotacaoId, { termo = '', orden
   return ordenarPorNome ? todos.sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR')) : todos;
 }
 
+// ╔══════════════════════════════════════════════════════════════╗
+// ║   LOTAÇÕES ADICIONAIS (funcionario_lotacao_adicional)         ║
+// ║   Servidor aparece em outras unidades além da lotação oficial.║
+// ║   Conta na unidade; no total geral conta uma vez só.          ║
+// ╚══════════════════════════════════════════════════════════════╝
+const TAB_LOT_ADIC = 'funcionario_lotacao_adicional';
+
+/** Vínculos adicionais de servidores ATIVOS, ignorando quando coincidem com a lotação oficial. */
+async function buscarVinculosLotacaoAdicional({ lotacaoId = null, funcionarioId = null } = {}) {
+  try {
+    const todos = [];
+    for (let de = 0; ; de += 1000) {
+      let q = sb.from(TAB_LOT_ADIC)
+        .select('id, funcionario_id, lotacao_id, funcao, funcionarios!inner(id, nome, matricula, ativo)')
+        .eq('funcionarios.ativo', true)
+        .order('id');
+      if (lotacaoId) q = q.eq('lotacao_id', Number(lotacaoId));
+      if (funcionarioId) q = q.eq('funcionario_id', Number(funcionarioId));
+      const { data, error } = await q.range(de, de + 999);
+      if (error) throw error;
+      todos.push(...(data || []));
+      if (!data || data.length < 1000) break;
+    }
+    if (!todos.length) return [];
+    const ids = [...new Set(todos.map(r => Number(r.funcionario_id)))];
+    const atuais = await fetchInChunks('v_funcionarios_atual',
+      'funcionario_id, lotacao_atual_id, lotacao_nome, vinculo, funcao, turno', 'funcionario_id', ids);
+    const atualPorId = new Map(atuais.map(a => [Number(a.funcionario_id), a]));
+    return todos
+      .map(r => ({ ...r, atual: atualPorId.get(Number(r.funcionario_id)) || null }))
+      .filter(r => Number(r.atual?.lotacao_atual_id) !== Number(r.lotacao_id));
+  } catch (e) {
+    console.warn('lotações adicionais:', e?.message || e);
+    return [];
+  }
+}
+
+/** Mapa lotacao_id → nº de servidores com lotação adicional nela (cache curto). */
+async function contarLotacoesAdicionaisPorUnidade({ forcar = false } = {}) {
+  const c = contarLotacoesAdicionaisPorUnidade._cache;
+  if (!forcar && c && Date.now() - c.t < 60000) return c.map;
+  const map = new Map();
+  for (const r of await buscarVinculosLotacaoAdicional()) {
+    const k = Number(r.lotacao_id);
+    map.set(k, (map.get(k) || 0) + 1);
+  }
+  contarLotacoesAdicionaisPorUnidade._cache = { t: Date.now(), map };
+  return map;
+}
+function invalidarCacheLotacoesAdicionais() { contarLotacoesAdicionaisPorUnidade._cache = null; }
+
+/** Linhas no formato do fn_buscar_funcionarios, para quem tem lotação adicional na unidade. */
+async function buscarAdicionaisDaUnidade(lotacaoId) {
+  const lot = (state.lotacoes || []).find(l => Number(l.id) === Number(lotacaoId));
+  return (await buscarVinculosLotacaoAdicional({ lotacaoId })).map(r => ({
+    funcionario_id: Number(r.funcionario_id),
+    nome: r.funcionarios?.nome,
+    matricula: r.funcionarios?.matricula,
+    vinculo: r.atual?.vinculo || null,
+    funcao: r.funcao || r.atual?.funcao || null,
+    lotacao_nome: lot?.nome || null,
+    caminho_lotacao: null,
+    turno: r.atual?.turno || null,
+    lotacao_adicional: true,
+    lotacao_principal_nome: r.atual?.lotacao_nome || null,
+  }));
+}
+
+/** Junta à lista da unidade quem está nela como lotação adicional (sem repetir). */
+async function mesclarLotacoesAdicionais(rows, lotacaoId, { termo = '', ordenarPorNome = true } = {}) {
+  if (!lotacaoId) return rows;
+  const extras = await buscarAdicionaisDaUnidade(lotacaoId);
+  if (!extras.length) return rows;
+  const ids = new Set(rows.map(r => Number(r.funcionario_id)));
+  const tokens = normalizarPesquisaFuncionario(String(termo || '').replace(/%/g, ' ')).split(/\s+/).filter(Boolean);
+  const novos = extras.filter(e => !ids.has(e.funcionario_id) && tokens.every(t =>
+    normalizarPesquisaFuncionario(e.nome).includes(t) || normalizarPesquisaFuncionario(e.matricula).includes(t)));
+  const todos = [...rows, ...novos];
+  return ordenarPorNome ? todos.sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR')) : todos;
+}
+
+function notaLotacaoAdicionalHtml(f) {
+  if (!f?.lotacao_adicional) return '';
+  return `<div style="font-size:11px;font-weight:400;color:var(--color-text-muted)"><i class="fa-solid fa-building-user"></i> Lotação adicional — oficial em ${htmlEscape(f.lotacao_principal_nome || 'outra unidade')}</div>`;
+}
+
+// ── Edição: lista de lotações adicionais do servidor ──
+function renderLotacoesAdicionaisEdit() {
+  const lista = $('edit-lot-adic-lista');
+  const sel = $('edit-lot-adic-sel');
+  if (!lista || !sel) return;
+  const atuais = state._lotAdic || [];
+  const nomeLot = id => (state.lotacoes || []).find(l => Number(l.id) === Number(id))?.nome || `Lotação #${id}`;
+  lista.innerHTML = atuais.length
+    ? atuais.map(id => `
+        <span style="display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--gov-border);border-radius:14px;padding:3px 6px 3px 10px;font-size:12px;color:var(--gov-blue-dark)">
+          ${htmlEscape(nomeLot(id))}
+          <button type="button" class="btn-icon" title="Tirar esta lotação adicional" aria-label="Tirar ${htmlEscape(nomeLot(id))}" onclick="removerLotacaoAdicionalEdit(${Number(id)})" style="padding:0 4px;color:var(--gov-red)"><i class="fa-solid fa-xmark"></i></button>
+        </span>`).join('')
+    : '<span style="font-size:12px;color:var(--color-text-muted)">Nenhuma lotação adicional.</span>';
+  const oficial = Number(state.funcionarioAtual?.lotacao_atual_id) || null;
+  const usados = new Set(atuais.map(Number));
+  const ords = filtrarLotacoesState(state.lotacoes)
+    .filter(l => Number(l.id) !== oficial && !usados.has(Number(l.id)))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  sel.innerHTML = '<option value="">Selecione a unidade…</option>' +
+    ords.map(l => `<option value="${l.id}">${htmlEscape(l.nome)}</option>`).join('');
+}
+
+async function carregarLotacoesAdicionaisNoEdit(funcId) {
+  state._lotAdic = [];
+  state._lotAdicAntes = [];
+  state._lotAdicIndisponivel = false;
+  renderLotacoesAdicionaisEdit();
+  const { data, error } = await sb.from(TAB_LOT_ADIC).select('lotacao_id').eq('funcionario_id', Number(funcId));
+  if (error) {
+    state._lotAdicIndisponivel = true;
+    if ($('edit-lot-adic-lista')) $('edit-lot-adic-lista').innerHTML =
+      '<span style="font-size:12px;color:#b45309">Recurso ainda não ativado no banco (rodar sql/funcionario_lotacao_adicional.sql).</span>';
+    return;
+  }
+  if (Number($('edit-id')?.value) !== Number(funcId)) return; // outro servidor já foi aberto
+  state._lotAdic = (data || []).map(r => Number(r.lotacao_id));
+  state._lotAdicAntes = [...state._lotAdic];
+  renderLotacoesAdicionaisEdit();
+  if (state._editAntes) state._editAntes.lotacoes_adicionais = nomesLotacoesAdicionais(state._lotAdicAntes);
+}
+
+function nomesLotacoesAdicionais(ids) {
+  return (ids || [])
+    .map(id => (state.lotacoes || []).find(l => Number(l.id) === Number(id))?.nome || `#${id}`)
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+    .join(', ');
+}
+
+window.adicionarLotacaoAdicionalEdit = () => {
+  if (state._lotAdicIndisponivel) return showToast('Rode antes o SQL de lotações adicionais no Supabase.', 'warning');
+  const v = Number($('edit-lot-adic-sel')?.value);
+  if (!v) return showToast('Escolha a unidade para adicionar.', 'warning');
+  state._lotAdic = [...new Set([...(state._lotAdic || []), v])];
+  renderLotacoesAdicionaisEdit();
+};
+
+window.removerLotacaoAdicionalEdit = (id) => {
+  state._lotAdic = (state._lotAdic || []).filter(x => Number(x) !== Number(id));
+  renderLotacoesAdicionaisEdit();
+};
+
+/** Grava a diferença (insere novas / apaga retiradas). Retorna { error }. */
+async function salvarLotacoesAdicionaisEdit(funcId) {
+  if (state._lotAdicIndisponivel) return { error: null };
+  const antes = new Set((state._lotAdicAntes || []).map(Number));
+  const depois = new Set((state._lotAdic || []).map(Number));
+  const oficial = Number(state.funcionarioAtual?.lotacao_atual_id) || null;
+  const novos = [...depois].filter(id => !antes.has(id) && id !== oficial);
+  const tirados = [...antes].filter(id => !depois.has(id));
+  if (novos.length) {
+    const { error } = await sb.from(TAB_LOT_ADIC).upsert(
+      novos.map(lotacao_id => ({ funcionario_id: Number(funcId), lotacao_id })),
+      { onConflict: 'funcionario_id,lotacao_id', ignoreDuplicates: true }
+    );
+    if (error) return { error };
+  }
+  if (tirados.length) {
+    const { error } = await sb.from(TAB_LOT_ADIC).delete()
+      .eq('funcionario_id', Number(funcId)).in('lotacao_id', tirados);
+    if (error) return { error };
+  }
+  if (novos.length || tirados.length) invalidarCacheLotacoesAdicionais();
+  return { error: null };
+}
+
 window.toggleAtuacaoTerceirizada = function toggleAtuacaoTerceirizada(prefix) {
   const on = !!$(`${prefix}-atuacao-terceirizada`)?.checked;
   const campos = $(`${prefix}-atuacao-terc-campos`);
@@ -3669,8 +3860,11 @@ window.abrirEdicao = async (id) => {
 
   aplicarVisibilidadeTerceirizado('edit');
 
+  state._lotAdic = [];
+  state._lotAdicAntes = [];
   state._editAntes = capturarSnapshotEdicaoForm();
   state._editFotoAntes = ext?.foto_url || null;
+  carregarLotacoesAdicionaisNoEdit(id);
   state._editFotoMudou = false;
 
   openModal('modal-edit');
@@ -3768,6 +3962,12 @@ $('btn-salvar-edit').onclick = async () => {
   if (r1.error || r1b.error || r2.error || r2b.error) {
     btn.disabled = false;
     showToast('Erro ao salvar: ' + (r1.error?.message || r1b.error?.message || r2.error?.message || r2b.error?.message), 'error');
+    return;
+  }
+  const rAdic = await salvarLotacoesAdicionaisEdit(id);
+  if (rAdic.error) {
+    btn.disabled = false;
+    showToast('Dados salvos, mas erro nas lotações adicionais: ' + rAdic.error.message, 'error');
     return;
   }
 
