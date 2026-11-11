@@ -23,13 +23,15 @@ const $$ = (sel, root = document) => root.querySelectorAll(sel);
 const SIMBOLOGIAS = [
   'DAS',
   'DAS-1', 'DAS-2', 'DAS-3', 'DAS-4', 'DAS-5', 'DAS-6', 'DAS-7',
-  'DAI-1', 'DAI-2', 'DAI-3', 'DAI-4', 'DAI-5'
+  'DAI-1', 'DAI-2', 'DAI-3', 'DAI-4', 'DAI-5',
+  'DAE',
+  'DAE-1', 'DAE-2', 'DAE-3', 'DAE-4', 'DAE-5'
 ];
 
 function normalizarSimbologia(valor = '') {
   const limpo = String(valor || '').trim().toUpperCase();
-  if (limpo === 'DAS') return 'DAS';
-  const m = limpo.match(/\b(DA[SI])\s*[-–— ]?\s*(\d+)\b/);
+  if (limpo === 'DAS' || limpo === 'DAE') return limpo;
+  const m = limpo.match(/\b(DA[SIE])\s*[-–— ]?\s*0*(\d+)\b/);
   return m ? `${m[1]}-${m[2]}` : '';
 }
 
@@ -12693,7 +12695,7 @@ function diarioSepararCargoSimbologia(ato = {}) {
   const simbologia = normalizarSimbologia(ato.simbologia)
     || normalizarSimbologia(cargoOriginal);
   const cargo = cargoOriginal
-    .replace(/\s*(?:[·|,;/-]\s*)?(?:simbologia\s+)?DA[SI]\s*[-–— ]?\s*\d+\b.*$/i, '')
+    .replace(/\s*(?:[·|,;/-]\s*)?(?:simbologia\s+)?DA[SIE]\s*[-–— ]?\s*\d+\b.*$/i, '')
     .replace(/[\s·|,;/-]+$/g, '')
     .trim();
   return { cargo: cargo || cargoOriginal || null, simbologia: simbologia || null };
@@ -13111,8 +13113,12 @@ window.diarioConfirmarPromocao = async function diarioConfirmarPromocao() {
   const id = Number($('diario-promover-id').value);
   const funcionarioId = Number($('diario-promover-funcionario-id').value);
   const cargo = $('diario-promover-cargo').value.trim();
-  const simbologia = $('diario-promover-simbologia').value.trim() || null;
+  const simbologiaDigitada = $('diario-promover-simbologia').value.trim();
+  const simbologia = normalizarSimbologia(simbologiaDigitada) || null;
   if (!id || !funcionarioId || !cargo) return showToast('Informe o novo cargo.', 'warning');
+  if (simbologiaDigitada && !SIMBOLOGIAS.includes(simbologia)) {
+    return showToast('Simbologia inválida. Use DAS, DAS-1 a DAS-7, DAI-1 a DAI-5, DAE ou DAE-1 a DAE-5.', 'warning');
+  }
   const e = (window._diarioEventosCache || []).find((x) => Number(x.id) === id);
   const pareado = diarioEventoPareado(e);
   const btn = $('diario-btn-confirmar-promocao');
